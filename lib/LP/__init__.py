@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 import doctest
+
 from rdflib import RDF
-from rdflib import py3compat
 
 
-@py3compat.format_doctest_out
+def format_doctest_out(obj):
+    return obj
+
+
+@format_doctest_out
 def IdentifyHybridPredicates(graph, derivedPredicates):
     """
     Takes an RDF graph and a list of derived predicates and return
@@ -21,14 +25,17 @@ def IdentifyHybridPredicates(graph, derivedPredicates):
     >>> sorted(rt)
     [rdflib.term.URIRef(%(u)s'http://example.com/Class1'), rdflib.term.URIRef(%(u)s'http://example.com/predicate1')]
     """
-    derivedPredicates = \
-        derivedPredicates if isinstance(derivedPredicates, set) \
+    derivedPredicates = (
+        derivedPredicates
+        if isinstance(derivedPredicates, set)
         else set(derivedPredicates)
+    )
     return derivedPredicates.intersection(
-        [o if p == RDF.type else p
-         for s, p, o in graph])
+        [o if p == RDF.type else p for s, p, o in graph]
+    )
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     doctest.testmod()
 
 # from FuXi.LP import IdentifyHybridPredicates

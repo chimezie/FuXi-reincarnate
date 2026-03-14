@@ -5,9 +5,9 @@ from rdflib import (
     Namespace,
     Variable,
 )
-from rdflib import py3compat
 
 from .Node import Node
+
 try:
     from functools import reduce
 except ImportError:
@@ -35,14 +35,15 @@ def normalizeTerm(term):
     else:
         return term
 
+
 from pickle import dumps, PicklingError  # for memoize
 
 
 class memoize(object):
-
     """Decorator that caches a function's return value each time it is called.
     If called later with the same arguments, the cached value is returned, and
     not re-evaluated. Slow for mutable types."""
+
     # Ideas from MemoizeMutable class of Recipe 52201 by Paul Moore and
     # from memoized decorator of
     # http://wiki.python.org/moin/PythonDecoratorLibrary
@@ -80,7 +81,6 @@ class memoize(object):
 
 
 class ReteToken:
-
     """
     A ReteToken, an RDF triple in a Rete network.  Once it passes an alpha
     node test, if will have unification substitutions per variable
@@ -94,7 +94,8 @@ class ReteToken:
         self.object_ = (None, normalizeTerm(object))
         self.bindingDict = {}
         self._termConcat = self.concatenateTerms(
-            [self.subject, self.predicate, self.object_])
+            [self.subject, self.predicate, self.object_]
+        )
         self.hash = hash(self._termConcat)
         self.inferred = False
 
@@ -112,15 +113,12 @@ class ReteToken:
 
     @memoize
     def concatenateTerms(terms):
-        if py3compat.PY3:
-            return reduce(lambda x, y: str(x) + str(y), [term[VALUE] for term in terms])
-        else:
-            return reduce(lambda x, y: unicode(x) + unicode(y), [term[VALUE] for term in terms])
+        return reduce(lambda x, y: str(x) + str(y), [term[VALUE] for term in terms])
 
     def __eq__(self, other):
         return hash(self) == hash(other)
 
-    @py3compat.format_doctest_out
+    @format_doctest_out
     def alphaNetworkHash(self, termHash):
         """
         We store pointers to all the system's alpha memories in a hash table, indexed
@@ -136,21 +134,24 @@ class ReteToken:
         """
         triple = list(self.asTuple())
         termHash = list(termHash)
-        return ''.join([triple[idx] for idx in TERMS if termHash[idx] == '1'])
+        return "".join([triple[idx] for idx in TERMS if termHash[idx] == "1"])
 
     def unboundCopy(self, noSubsequentDebug=False):
         if noSubsequentDebug:
-            return ReteToken((self.subject[VALUE], self.predicate[VALUE], self.object_[VALUE]))
+            return ReteToken(
+                (self.subject[VALUE], self.predicate[VALUE], self.object_[VALUE])
+            )
         else:
             return ReteToken(
-                (self.subject[VALUE],
-                 self.predicate[VALUE],
-                 self.object_[VALUE]), self.debug)
+                (self.subject[VALUE], self.predicate[VALUE], self.object_[VALUE]),
+                self.debug,
+            )
 
     def __repr__(self):
         return "<ReteToken: %s>" % (
-            ', '.join(["%s->%s" % (var, val)
-                       for var, val in self.getVarBindings(False)])
+            ", ".join(
+                ["%s->%s" % (var, val) for var, val in self.getVarBindings(False)]
+            )
         )
 
     def getVarBindings(self, asDict=True):
@@ -162,8 +163,10 @@ class ReteToken:
 
     def getUniterm(self):
         from FuXi.Horn.PositiveConditions import BuildUnitermFromTuple
-        return BuildUnitermFromTuple(tuple(
-            [val for var, val in [self.subject, self.predicate, self.object_]]))
+
+        return BuildUnitermFromTuple(
+            tuple([val for var, val in [self.subject, self.predicate, self.object_]])
+        )
 
     def asTuple(self):
         return (self.subject[VALUE], self.predicate[VALUE], self.object_[VALUE])
@@ -181,7 +184,11 @@ class ReteToken:
             assert not self.bindingDict, self.bindingDict
             bindHashItems = []
             for var, val in [self.subject, self.predicate, self.object_]:
-                if var and isinstance(var, (Variable, BNode)) and var not in self.bindingDict:
+                if (
+                    var
+                    and isinstance(var, (Variable, BNode))
+                    and var not in self.bindingDict
+                ):
                     self.bindingDict[var] = val
                     bindHashItems.append(var + val)
                 else:
@@ -192,13 +199,16 @@ class ReteToken:
         elif isinstance(thing, AlphaNode):
             self.pattern = thing.triplePattern
             self.subject = (thing.triplePattern[SUBJECT], self.subject[VALUE])
-            self.predicate = (
-                thing.triplePattern[PREDICATE], self.predicate[VALUE])
+            self.predicate = (thing.triplePattern[PREDICATE], self.predicate[VALUE])
             self.object_ = (thing.triplePattern[OBJECT], self.object_[VALUE])
             assert not self.bindingDict, self.bindingDict
             bindHashItems = []
             for var, val in [self.subject, self.predicate, self.object_]:
-                if var and isinstance(var, (Variable, BNode)) and var not in self.bindingDict:
+                if (
+                    var
+                    and isinstance(var, (Variable, BNode))
+                    and var not in self.bindingDict
+                ):
                     self.bindingDict[var] = val
                     bindHashItems.append(var + val)
                 else:
@@ -210,19 +220,28 @@ class ReteToken:
             revDict = dict([(v, k) for k, v in list(thing.items())])
             # create mapping from variable to value if in range of mapping
             self.subject = (
-                revDict.get(self.subject[VALUE], self.subject[VALUE]), self.subject[VALUE])
+                revDict.get(self.subject[VALUE], self.subject[VALUE]),
+                self.subject[VALUE],
+            )
             self.predicate = (
-                revDict.get(self.predicate[VALUE], self.predicate[VALUE]), self.predicate[VALUE])
+                revDict.get(self.predicate[VALUE], self.predicate[VALUE]),
+                self.predicate[VALUE],
+            )
             self.object_ = (
-                revDict.get(self.object_[VALUE], self.object_[VALUE]), self.object_[VALUE])
+                revDict.get(self.object_[VALUE], self.object_[VALUE]),
+                self.object_[VALUE],
+            )
 
 
 def defaultIntraElementTest(aReteToken, triplePattern):
     """
     'Standard' Charles Forgy intra element token pattern test.
     """
-    tokenTerms = [aReteToken.subject[VALUE],
-                  aReteToken.predicate[VALUE], aReteToken.object_[VALUE]]
+    tokenTerms = [
+        aReteToken.subject[VALUE],
+        aReteToken.predicate[VALUE],
+        aReteToken.object_[VALUE],
+    ]
     varBindings = {}
     for idx in [SUBJECT, PREDICATE, OBJECT]:
         tokenTerm = tokenTerms[idx]
@@ -237,7 +256,6 @@ def defaultIntraElementTest(aReteToken, triplePattern):
 
 
 class AlphaNode(Node):
-
     """
     Basic Triple Pattern Pattern check
     """
@@ -252,7 +270,7 @@ class AlphaNode(Node):
         self.builtin = bool(filters.get(self.triplePattern[PREDICATE]))
         self.universalTruths = []
 
-    @py3compat.format_doctest_out
+    @format_doctest_out
     def alphaNetworkHash(self, groundTermHash=False, skolemTerms=[]):
         """
         Thus, given a WME w, to determine which alpha memories w should be added to, we need only check whether
@@ -272,11 +290,22 @@ class AlphaNode(Node):
         %(u)s'http://www.w3.org/1999/02/22-rdf-syntax-ns#typehttp://www.w3.org/2002/07/owl#InverseFunctionalProperty'
         """
         if groundTermHash:
-            return ''.join([term for term in self.triplePattern
-                            if not isinstance(term, (BNode, Variable)) or
-                            isinstance(term, BNode) and term in skolemTerms])
+            return "".join(
+                [
+                    term
+                    for term in self.triplePattern
+                    if not isinstance(term, (BNode, Variable))
+                    or isinstance(term, BNode)
+                    and term in skolemTerms
+                ]
+            )
         else:
-            return tuple([isinstance(term, (BNode, Variable)) and '0' or '1' for term in self.triplePattern])
+            return tuple(
+                [
+                    isinstance(term, (BNode, Variable)) and "0" or "1"
+                    for term in self.triplePattern
+                ]
+            )
 
     def checkDefaultRule(self, defaultRules):
         """
@@ -289,16 +318,25 @@ class AlphaNode(Node):
 
     def __repr__(self):
         return "<AlphaNode: %s. Feeds %s beta nodes>" % (
-            repr(self.triplePattern), len(self.descendentBetaNodes))
+            repr(self.triplePattern),
+            len(self.descendentBetaNodes),
+        )
 
     def activate(self, aReteToken):
-        from .BetaNode import PartialInstantiation, LEFT_MEMORY, RIGHT_MEMORY, LEFT_UNLINKING
+        from .BetaNode import (
+            PartialInstantiation,
+            LEFT_MEMORY,
+            RIGHT_MEMORY,
+            LEFT_UNLINKING,
+        )
+
         # print(aReteToken.asTuple())
         # aReteToken.debug = True
         aReteToken.bindVariables(self)
         for memory in self.descendentMemory:
             singleToken = PartialInstantiation(
-                [aReteToken], consistentBindings=aReteToken.bindingDict.copy())
+                [aReteToken], consistentBindings=aReteToken.bindingDict.copy()
+            )
             # print(memory)
             # print(self)
             # print(self.descendentMemory)
@@ -306,7 +344,11 @@ class AlphaNode(Node):
                 memory.addToken(singleToken)
             else:
                 memory.addToken(aReteToken)
-            if memory.successor.leftUnlinkedNodes and len(memory) == 1 and LEFT_UNLINKING:
+            if (
+                memory.successor.leftUnlinkedNodes
+                and len(memory) == 1
+                and LEFT_UNLINKING
+            ):
                 # Relink left memory of successor
                 # from Util import renderNetwork
                 # from md5 import md5
@@ -319,7 +361,10 @@ class AlphaNode(Node):
                     # aReteToken.debug = True
                     if node.unlinkedMemory is None:
                         assert len(node.descendentMemory) == 1, "%s %s %s" % (
-                            node, node.descendentMemory, memory.successor)
+                            node,
+                            node.descendentMemory,
+                            memory.successor,
+                        )
                         disconnectedMemory = list(node.descendentMemory)[0]
 
                     else:
@@ -332,7 +377,8 @@ class AlphaNode(Node):
                     node.descendentBetaNodes.add(memory.successor)
                     # print(memory.successor.memories[LEFT_MEMORY])
                     memory.successor.propagate(
-                        RIGHT_MEMORY, aReteToken.debug, wme=aReteToken)
+                        RIGHT_MEMORY, aReteToken.debug, wme=aReteToken
+                    )
 
                     # node._activate(singleToken, aReteToken.debug)
                     # print("Activating re-linked node", node)
@@ -357,24 +403,29 @@ class AlphaNode(Node):
             if aReteToken.debug:
                 print("Added %s to %s" % (aReteToken, memory.successor))
 
-            if memory.successor.aPassThru or not memory.successor.checkNullActivation(memory.position):
+            if memory.successor.aPassThru or not memory.successor.checkNullActivation(
+                memory.position
+            ):
                 if aReteToken.debug:
                     print("Propagated from %s" % (self))
                     print(aReteToken.asTuple())
                 if memory.position == LEFT_MEMORY:
                     memory.successor.propagate(
-                        memory.position, aReteToken.debug, singleToken)
+                        memory.position, aReteToken.debug, singleToken
+                    )
                 else:
                     memory.successor.propagate(
-                        memory.position, aReteToken.debug, wme=aReteToken)
+                        memory.position, aReteToken.debug, wme=aReteToken
+                    )
             else:
                 if aReteToken.debug:
-                    print("skipped null right activation of %s from %s" % (
-                        memory.successor, self))
+                    print(
+                        "skipped null right activation of %s from %s"
+                        % (memory.successor, self)
+                    )
 
 
 class BuiltInAlphaNode(AlphaNode):
-
     """
     An Alpha Node for Builtins which doesn't participate in intraElement tests
     """
@@ -392,14 +443,28 @@ class BuiltInAlphaNode(AlphaNode):
 
     def alphaNetworkHash(self, groundTermHash=False):
         if groundTermHash:
-            return ''.join([term for term in self.n3builtin if not isinstance(term, (BNode, Variable))])
+            return "".join(
+                [
+                    term
+                    for term in self.n3builtin
+                    if not isinstance(term, (BNode, Variable))
+                ]
+            )
         else:
-            return tuple([isinstance(term, (BNode, Variable)) and '0' or '1' for term in self.n3builtin])
+            return tuple(
+                [
+                    isinstance(term, (BNode, Variable)) and "0" or "1"
+                    for term in self.n3builtin
+                ]
+            )
 
     def __repr__(self):
         return "<BuiltInAlphaNode %s(%s), %s : Feeds %s beta nodes>" % (
-            self.n3builtin.func, self.n3builtin.argument,
-            self.n3builtin.result, len(self.descendentBetaNodes))
+            self.n3builtin.func,
+            self.n3builtin.argument,
+            self.n3builtin.result,
+            len(self.descendentBetaNodes),
+        )
 
     def intraElementTest(self, aReteToken):
         pass
@@ -407,10 +472,11 @@ class BuiltInAlphaNode(AlphaNode):
 
 def test():
     import doctest
+
     doctest.testmod()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test()
 
 # from FuXi.Rete.AlphaNode import SUBJECT
@@ -420,7 +486,10 @@ if __name__ == '__main__':
 # from FuXi.Rete.AlphaNode import VALUE
 # from FuXi.Rete.AlphaNode import TERMS
 
+
 # from FuXi.Rete.AlphaNode import AlphaNode
 # from FuXi.Rete.AlphaNode import BuiltInAlphaNode
 # from FuXi.Rete.AlphaNode import normalizeTerm
 # from FuXi.Rete.AlphaNode import memoize
+def format_doctest_out(obj):
+    return obj

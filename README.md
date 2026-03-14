@@ -8,3 +8,19 @@ It originally formed from an idea to express the underlying symbols (and their r
 For an overview of the architecture, please read [FuXi Overview](https://github.com/RDFLib/FuXi/blob/master/docs/Overview.rst) and [FuXi User Manual](https://github.com/RDFLib/FuXi/blob/master/docs/FuXiUserManual.rst) for more information.
 
 [![Build Status](https://travis-ci.org/RDFLib/FuXi.svg?branch=master)](https://travis-ci.org/RDFLib/FuXi)
+
+## Development Setup
+
+Install uv if not already installed (via package manager preferred):
+
+```bash
+sudo zypper install uv
+```
+
+Create a virtual environment and install dependencies:
+
+```bash
+uv venv
+source .venv/bin/activate
+uv pip install -e ".[dev]"
+```

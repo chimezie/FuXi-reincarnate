@@ -2,17 +2,13 @@
 """
 https://github.com/RDFLib/FuXi/issues/8
 """
-import unittest
-# from FuXi.Rete.RuleStore import SetupRuleStore
+
+from io import StringIO
+
+from rdflib import Graph, Namespace
+
 from FuXi.Horn.HornRules import HornFromN3
 from FuXi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
-from rdflib import Graph  # , ConjunctiveGraph
-from rdflib import Namespace
-try:
-    from io import StringIO
-    assert StringIO
-except ImportError:
-    from cStringIO import StringIO
 
 rules = """\
 @prefix : <fam.n3#>.
@@ -31,37 +27,30 @@ bevan begat chaude, christine.
 christine begat david, diana, douglas."""
 
 
-class TestUnitestAction(unittest.TestCase):
+def _make_store_and_graph():
+    fam_ns = Namespace("http://dev.w3.org/2000/10/swap/test/cwm/fam.n3#")
+    ns_mapping = {"fam": fam_ns}
+    parsed_rules = HornFromN3(StringIO(rules))
+    fact_graph = Graph().parse(StringIO(facts), format="n3")
+    fact_graph.bind("fam", fam_ns)
+    fact_graph.bind("", fam_ns)
+    derived_predicates = [fam_ns.ancestor]
+    top_down_store = TopDownSPARQLEntailingStore(
+        fact_graph.store,
+        fact_graph,
+        idb=parsed_rules,
+        derivedPredicates=derived_predicates,
+        nsBindings=ns_mapping,
+    )
+    return fam_ns, ns_mapping, top_down_store
 
-    def setUp(self):
-        self.famNs = Namespace('http://dev.w3.org/2000/10/swap/test/cwm/fam.n3#')
-        self.nsMapping = dict(fam=self.famNs)
-        # self.rules = HornFromN3('http://dev.w3.org/2000/10/swap/test/cwm/fam-rules.n3')
-        self.rules = HornFromN3(StringIO(rules))
-        # self.factGraph = Graph().parse(
-        #     'http://dev.w3.org/2000/10/swap/test/cwm/fam.n3', format='n3')
-        self.factGraph = Graph().parse(StringIO(facts), format='n3')
-        self.factGraph.bind('fam', self.famNs)
-        self.factGraph.bind('', self.famNs)
-        dPreds = [self.famNs.ancestor]
-        self.topDownStore = TopDownSPARQLEntailingStore(
-            self.factGraph.store,
-            self.factGraph,
-            idb=self.rules,
-            derivedPredicates=dPreds,
-            nsBindings=self.nsMapping)
 
-    def test_issue_008(self):
-        # print(self.topDownStore.edb.serialize(format='n3').decode('utf-8'))
-        targetGraph = Graph(store=self.topDownStore)
-        targetGraph.bind('ex', self.famNs)
-        # print(targetGraph.serialize(format="n3").decode('utf-8'))
-        res = targetGraph.query(
-            '''SELECT ?a { fam:david fam:ancestor ?a }''',
-            initNs=self.nsMapping)
-        # print("Len results: {}".format(len(list(res))))
-        assert len(list(res)) is 0
-
-if __name__ == '__main__':
-    suite = unittest.makeSuite(TestUnitestAction)
-    unittest.TextTestRunner(verbosity=5).run(suite)
+def test_issue_008():
+    fam_ns, ns_mapping, top_down_store = _make_store_and_graph()
+    target_graph = Graph(store=top_down_store)
+    target_graph.bind("ex", fam_ns)
+    res = target_graph.query(
+        "SELECT ?a { fam:david fam:ancestor ?a }",
+        initNs=ns_mapping,
+    )
+    assert len(list(res)) == 0

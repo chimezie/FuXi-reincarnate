@@ -1,7 +1,5 @@
-#!/usr/bin/env python
-# encoding: utf-8
-import unittest
 from rdflib import Graph
+
 from FuXi.Rete.RuleStore import SetupRuleStore
 
 # fix for bug in reset method which didn't initialise
@@ -11,16 +9,8 @@ from FuXi.Rete.RuleStore import SetupRuleStore
 ##
 
 
-class NetworkReset(unittest.TestCase):
-
-    def setUp(self):
-        self.rule_store, self.rule_graph, self.network = SetupRuleStore(
-            makeNetwork=True)
-
-    def testReset(self):
-        newInferredFacts = Graph()
-        self.network.reset(newInferredFacts)
-        self.failUnless(newInferredFacts is self.network.inferredFacts)
-
-if __name__ == '__main__':
-    unittest.main()
+def test_reset_initializes_inferred_facts():
+    rule_store, rule_graph, network = SetupRuleStore(makeNetwork=True)
+    new_inferred_facts = Graph()
+    network.reset(new_inferred_facts)
+    assert new_inferred_facts is network.inferredFacts

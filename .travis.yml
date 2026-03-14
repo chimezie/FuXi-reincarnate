@@ -7,20 +7,18 @@ branches:
     - master
 
 python:
-    - 2.7
+    - 3.13
 
 env:
     - TOX_ENV=flake
     - TOX_ENV=docs
     - TOX_ENV=cover
-    - TOX_ENV=py26
-    - TOX_ENV=py27
-    - TOX_ENV=py33
-    - TOX_ENV=py34
-    - TOX_ENV=pypy
+    - TOX_ENV=py313
+    - TOX_ENV=docs-linkcheck
 
 install:
-    - pip install tox
+    - python -m pip install uv
+    - uv pip install tox
 
 script:
     tox -e $TOX_ENV

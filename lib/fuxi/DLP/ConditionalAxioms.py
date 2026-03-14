@@ -2,15 +2,17 @@
 import rdflib
 
 rdflib.plugin.register(
-    'sparql', rdflib.query.Processor,
-    'rdflib.plugins.sparql.processor', 'SPARQLProcessor')
+    "sparql",
+    rdflib.query.Processor,
+    "rdflib.plugins.sparql.processor",
+    "SPARQLProcessor",
+)
 
 rdflib.plugin.register(
-    'sparql', rdflib.query.Result,
-    'rdflib.plugins.sparql.processor', 'SPARQLResult')
+    "sparql", rdflib.query.Result, "rdflib.plugins.sparql.processor", "SPARQLResult"
+)
 
-LIST_MEMBERSHIP_SEMANTICS = \
-    """
+LIST_MEMBERSHIP_SEMANTICS = """
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>.
 @prefix list: <http://www.w3.org/2000/10/swap/list#>.
 
@@ -18,8 +20,7 @@ LIST_MEMBERSHIP_SEMANTICS = \
 {?L rdf:rest ?R. ?I list:in ?R} => {?I list:in ?L}.
 """
 
-NOMINAL_SEMANTICS = \
-    """
+NOMINAL_SEMANTICS = """
 @prefix owl: <http://www.w3.org/2002/07/owl#>.
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>.
 @prefix list: <http://www.w3.org/2000/10/swap/list#>.
@@ -28,8 +29,7 @@ NOMINAL_SEMANTICS = \
 {?C owl:oneOf ?L. ?X list:in ?L} => {?X a ?C}.
 """
 
-FUNCTIONAL_SEMANTICS = \
-    """
+FUNCTIONAL_SEMANTICS = """
 @prefix owl: <http://www.w3.org/2002/07/owl#>.
 @prefix log: <http://www.w3.org/2000/10/swap/log#>.
 
@@ -43,8 +43,7 @@ FUNCTIONAL_SEMANTICS = \
 {?T1 ?P ?O. ?T1 = ?T2.} => {?T2 ?P ?O}.
 """
 
-DIFFERENT_FROM_SEMANTICS = \
-    """
+DIFFERENT_FROM_SEMANTICS = """
 @prefix owl: <http://www.w3.org/2002/07/owl#>.
 @prefix log: <http://www.w3.org/2000/10/swap/log#>.
 @prefix list: <http://www.w3.org/2000/10/swap/list#>.
@@ -52,8 +51,7 @@ DIFFERENT_FROM_SEMANTICS = \
 { ?ANY a owl:AllDifferent; owl:distinctMembers ?L. ?L1 list:in ?L. ?L2 list:in ?L. ?L1 log:notEqualTo ?L2 } => { ?L1 owl:differentFrom ?L2 }.
 """
 
-FUNCTIONAL_PROPERTIES = \
-    """
+FUNCTIONAL_PROPERTIES = """
 ASK {
   [] a ?KIND
   FILTER(
@@ -71,16 +69,7 @@ def AdditionalRules(tBox):
 
     """
     from fuxi.Horn.HornRules import HornFromN3
-    try:
-        from functools import reduce
-        assert reduce
-    except ImportError:
-        pass
-    try:
-        from io import StringIO
-        assert StringIO
-    except ImportError:
-        from StringIO import StringIO
+    from io import StringIO
 
     from rdflib import RDF
     from fuxi.Syntax.InfixOWL import OWL_NS
@@ -105,6 +94,7 @@ def AdditionalRules(tBox):
     for src in ruleSrc:
         for rule in HornFromN3(StringIO(src)):
             yield rule
+
 
 # from fuxi.DLP.ConditionalAxioms import DIFFERENT_FROM_SEMANTICS
 # from fuxi.DLP.ConditionalAxioms import FUNCTIONAL_PROPERTIES

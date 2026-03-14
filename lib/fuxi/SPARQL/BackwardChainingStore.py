@@ -98,7 +98,7 @@ class TopDownSPARQLEntailingStore(Store):
         >>> isinstance(rt,(BasicGraphPattern, AlgebraExpression))
         True
         >>> rt=topDownStore.isaBaseQuery("SELECT * { [] a [] }")
-        >>> isinstance(rt,(Query, basestring)) #doctest: +SKIP
+        >>> isinstance(rt,(Query, str)) #doctest: +SKIP
         True
         >>> rt=topDownStore.isaBaseQuery("SELECT * { [] a [] OPTIONAL { [] rdfs:seeAlso [] } }")
         >>> isinstance(rt,(BasicGraphPattern, AlgebraExpression))

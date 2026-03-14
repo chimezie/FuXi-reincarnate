@@ -1,19 +1,15 @@
 #!/usr/bin/env python
 # encoding: utf-8
 import unittest
+from io import StringIO
 from pprint import pprint
-try:
-    from io import StringIO
-    assert StringIO
-except ImportError:
-    from StringIO import StringIO
 from rdflib import Graph, Namespace
 from fuxi.Rete.RuleStore import SetupRuleStore
 from fuxi.Rete.Util import generateTokenSet
 from fuxi.DLP.DLNormalization import NormalFormReduction
 
-EX = Namespace('http://example.org/')
-EX_TERMS = Namespace('http://example.org/terms/')
+EX = Namespace("http://example.org/")
+EX_TERMS = Namespace("http://example.org/terms/")
 
 expected_triples = [
     (EX.john, EX_TERMS.has_sibling, EX.jack),
@@ -21,7 +17,7 @@ expected_triples = [
     (EX.jack, EX_TERMS.has_brother, EX.john),
 ]
 
-ABOX = u"""\
+ABOX = """\
 @prefix exterms: <http://example.org/terms/> .
 @prefix : <http://example.org/> .
 
@@ -29,7 +25,7 @@ ABOX = u"""\
 :jack exterms:brother     :john .
 """
 
-TBOX = u"""\
+TBOX = """\
 @prefix exterms: <http://example.org/terms/> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
@@ -61,35 +57,36 @@ exterms:brother
 
 
 class test_superproperty_entailment(unittest.TestCase):
-
     def setUp(self):
         self.rule_store, self.rule_graph, self.network = SetupRuleStore(
-            makeNetwork=True)
-        self.tBoxGraph = Graph().parse(StringIO(TBOX), format='n3')
+            makeNetwork=True
+        )
+        self.tBoxGraph = Graph().parse(StringIO(TBOX), format="n3")
 
-        self.aBoxGraph = Graph().parse(StringIO(ABOX), format='n3')
+        self.aBoxGraph = Graph().parse(StringIO(ABOX), format="n3")
         NormalFormReduction(self.tBoxGraph)
 
     def testReasoning(self):
-        print('setting up DLP...')
+        print("setting up DLP...")
         self.network.setupDescriptionLogicProgramming(self.tBoxGraph)
         pprint(list(self.network.rules))
         print(self.network)
 
-        print('feeding TBox... ')
+        print("feeding TBox... ")
         self.network.feedFactsToAdd(generateTokenSet(self.tBoxGraph))
-        print('feeding ABox...')
+        print("feeding ABox...")
         self.network.feedFactsToAdd(generateTokenSet(self.aBoxGraph))
 
-        self.network.inferredFacts.bind('ex', EX)
-        self.network.inferredFacts.bind('exterms', EX_TERMS)
-        print(self.network.inferredFacts.serialize(format='n3'))
+        self.network.inferredFacts.bind("ex", EX)
+        self.network.inferredFacts.bind("exterms", EX_TERMS)
+        print(self.network.inferredFacts.serialize(format="n3"))
 
-        print('Checking...')
+        print("Checking...")
         for triple in expected_triples:
             self.failUnless(
-                triple in self.network.inferredFacts, "Missing %s" % (
-                    repr(triple)))
+                triple in self.network.inferredFacts, "Missing %s" % (repr(triple))
+            )
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

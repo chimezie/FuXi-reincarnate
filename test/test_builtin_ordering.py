@@ -4,12 +4,7 @@
 import unittest
 
 # from pprint import pprint
-try:
-    from io import StringIO
-
-    assert StringIO
-except ImportError:
-    from StringIO import StringIO
+from io import StringIO
 
 from rdflib.graph import (
     # Graph,

@@ -1986,7 +1986,7 @@ class Property(AnnotatibleTerms):
                     ],
                 )
             ):
-                rt.append(unicode(roleType.split(OWL_NS)[-1]))
+                rt.append(str(roleType.split(OWL_NS)[-1]))
         else:
             rt.append(
                 "DatatypeProperty( %s %s"
@@ -2002,7 +2002,7 @@ class Property(AnnotatibleTerms):
             if isinstance(normalizedName, BNode):
                 return term
             elif normalizedName.startswith(_XSD_NS):
-                return unicode(term)
+                return str(term)
             elif first(
                 g.triples_choices(
                     (normalizedName, [OWL_NS.unionOf, OWL_NS.intersectionOf], None)
@@ -2010,7 +2010,7 @@ class Property(AnnotatibleTerms):
             ):
                 return repr(term)
             else:
-                return unicode(term.qname)
+                return str(term.qname)
 
         rt.append(
             " ".join(
@@ -2038,7 +2038,7 @@ class Property(AnnotatibleTerms):
         )
         rt = "\n".join([expr for expr in rt if expr])
         rt += "\n)"
-        return unicode(rt).encode("utf-8")
+        return str(rt)
 
     def _get_subPropertyOf(self):
         for anc in self.graph.objects(

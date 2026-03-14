@@ -35,7 +35,6 @@ config = dict(
     install_requires=["rdflib>2"],
     license="Apache",
     keywords="python logic owl rdf dlp n3 rule reasoner",
-    test_suite="nose.collector",
     url="https://github.com/RDFLib/FuXi",
     entry_points={
         "console_scripts": [

@@ -26,17 +26,8 @@ already been generated.
 
 import copy
 import unittest
-
-try:
-    from functools import reduce
-except ImportError:
-    pass
-try:
-    from io import StringIO
-
-    assert StringIO
-except ImportError:
-    from StringIO import StringIO
+from functools import reduce
+from io import StringIO
 
 from pprint import pprint
 

@@ -64,7 +64,7 @@ include = ["fuxi*"]
 
 [tool.pytest.ini_options]
 testpaths = ["test"]
-addopts = ["-ra"]
+addopts = ["-ra", "-p", "no:doctest"]
 markers = [
     "unit: fast isolated tests",
     "integration: multi-component tests",

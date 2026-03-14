@@ -5,15 +5,13 @@ the network.registerAction method must check that the RHS
 is a Uniterm and not a compound term (e.g. And, Empty, etc)
 before trying to call rule.formula.head.toRDFTuple().
 """
+
 import unittest
+from io import StringIO
+
 from rdflib import Variable
 from fuxi.Rete.RuleStore import SetupRuleStore
 from fuxi.Horn.HornRules import HornFromN3
-try:
-    from io import StringIO
-    assert StringIO
-except ImportError:
-    from StringIO import StringIO
 
 rule_fixture = """\
 @prefix test: <http://example.org/>.
@@ -24,6 +22,7 @@ rule_fixture = """\
 }.
 """
 
+
 class TestUnitermAction(unittest.TestCase):
     def setUp(self):
         self.rules = HornFromN3(StringIO(rule_fixture))
@@ -32,11 +31,14 @@ class TestUnitermAction(unittest.TestCase):
         ruleStore, ruleGraph, network = SetupRuleStore(makeNetwork=True)
         for rule in self.rules:
             network.buildNetworkFromClause(rule)
+
         def dummy(*av, **kw):
             pass
+
         head = (Variable("x"), Variable("y"), Variable("z"))
         network.registerReteAction(head, False, dummy)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     suite = unittest.makeSuite(TestUnitermAction)
     unittest.TextTestRunner(verbosity=5).run(suite)

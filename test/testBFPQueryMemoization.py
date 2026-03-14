@@ -1,13 +1,8 @@
 # -*- coding: utf-8 -*-
 import unittest
-from nose.exc import SkipTest
+from io import StringIO
 
-try:
-    from io import StringIO
-
-    assert StringIO
-except ImportError:
-    from StringIO import StringIO
+import pytest
 from rdflib.graph import Graph
 from rdflib import RDF, Namespace, Variable, URIRef
 from fuxi.DLP.ConditionalAxioms import AdditionalRules
@@ -84,7 +79,7 @@ class QueryMemoizationTest(unittest.TestCase):
         self.program.update(AdditionalRules(self.owlGraph))
 
     def testQueryMemoization(self):
-        raise SkipTest(
+        pytest.skip(
             "SKIPFAIL testQueryMemoization, see test/testBFPQueryMemoization.py"
         )
         topDownStore = TopDownSPARQLEntailingStore(

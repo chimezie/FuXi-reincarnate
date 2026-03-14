@@ -24,10 +24,7 @@ import sys
 import time
 from pprint import pprint
 
-try:
-    from io import StringIO
-except ImportError:
-    from StringIO import StringIO
+from io import StringIO
 
 from .BetaNode import (
     BetaNode,

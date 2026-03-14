@@ -5,11 +5,7 @@ See: http://www.w3.org/2000/10/swap/doc/CwmBuiltins
 """
 
 import unittest
-
-try:
-    from io import StringIO
-except ImportError:
-    from StringIO import StringIO
+from io import StringIO
 
 from rdflib.graph import Graph
 from rdflib.util import first
@@ -109,7 +105,7 @@ def MathEqualTo(subject, object_):
             assert isinstance(term, Literal), (
                 "math:equalTo can only be used with Literals (%s)" % term
             )
-            assert isinstance(term.toPython(), (int, long, float)), (
+            assert isinstance(term.toPython(), (int, float)), (
                 "math:equalTo can only be used " + "with Numeric Literals (%s)" % term
             )
 
@@ -118,7 +114,7 @@ def MathEqualTo(subject, object_):
             assert isinstance(term, Literal), (
                 "math:equalTo can only be used with Literals (%s)" % term
             )
-            assert isinstance(term.toPython(), (int, long, float)), (
+            assert isinstance(term.toPython(), (int, float)), (
                 "math:equalTo can only be used with " + "Numeric Literals (%s)" % term
             )
         return s.toPython() == o.toPython()
@@ -132,7 +128,7 @@ def MathGreaterThan(subject, object_):
             assert isinstance(term, Literal), (
                 "math:lessThan can only be used with Literals (%s)" % term
             )
-            assert isinstance(term.toPython(), (int, long, float)), (
+            assert isinstance(term.toPython(), (int, float)), (
                 "math:lessThan can only be used with " + "Numeric Literals (%s)" % term
             )
 
@@ -141,7 +137,7 @@ def MathGreaterThan(subject, object_):
             assert isinstance(term, Literal), (
                 "math:greaterThan can only be used with Literals (%s)" % term
             )
-            assert isinstance(term.toPython(), (int, long, float)), (
+            assert isinstance(term.toPython(), (int, float)), (
                 "math:greaterThan can only be used "
                 + "with Numeric Literals (%s)" % term
             )
@@ -156,7 +152,7 @@ def MathLessThan(subject, object_):
             assert isinstance(term, Literal), (
                 "math:lessThan can only be used with Literals (%s)" % term
             )
-            assert isinstance(term.toPython(), (int, long, float)), (
+            assert isinstance(term.toPython(), (int, float)), (
                 "math:lessThan can only be used with " + "Numeric Literals. (%s)" % term
             )
 
@@ -165,7 +161,7 @@ def MathLessThan(subject, object_):
             assert isinstance(term, Literal), (
                 "math:lessThan can only be used with Literals (%s)" % term
             )
-            assert isinstance(term.toPython(), (int, long, float)), (
+            assert isinstance(term.toPython(), (int, float)), (
                 "math:lessThan can only be used with " + "Numeric Literals (%s)" % term
             )
         return s.toPython() < o.toPython()
@@ -179,7 +175,7 @@ def MathNotLessThan(subject, object_):
             assert isinstance(term, Literal), (
                 "math:notLessThan can only be used with Literals (%s)" % term
             )
-            assert isinstance(term.toPython(), (int, long, float)), (
+            assert isinstance(term.toPython(), (int, float)), (
                 "math:lessThan can only be used with " + "Numeric Literals (%s)" % term
             )
 
@@ -188,7 +184,7 @@ def MathNotLessThan(subject, object_):
             assert isinstance(term, Literal), (
                 "math:notLessThan can only be used with Literals"
             )
-            assert isinstance(term.toPython(), (int, long, float)), (
+            assert isinstance(term.toPython(), (int, float)), (
                 "math:lessThan can only be used with " + "Numeric Literals (%s)" % term
             )
         return not (s.toPython() < o.toPython())

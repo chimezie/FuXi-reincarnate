@@ -11,8 +11,8 @@ trail.
 """
 
 import os
-import urllib2
 import logging
+from urllib import request
 from lxml import etree
 from rdflib.graph import Graph
 from rdflib import Namespace, RDF, Variable, URIRef
@@ -37,16 +37,16 @@ __all__ = [
 ]
 
 
-class SmartRedirectHandler(urllib2.HTTPRedirectHandler):
+class SmartRedirectHandler(request.HTTPRedirectHandler):
     def http_error_301(self, req, fp, code, msg, headers):
-        result = urllib2.HTTPRedirectHandler.http_error_301(
+        result = request.HTTPRedirectHandler.http_error_301(
             self, req, fp, code, msg, headers
         )
         result.status = code
         return result
 
     def http_error_302(self, req, fp, code, msg, headers):
-        result = urllib2.HTTPRedirectHandler.http_error_302(
+        result = request.HTTPRedirectHandler.http_error_302(
             self, req, fp, code, msg, headers
         )
         result.status = code
@@ -131,17 +131,17 @@ class RIFCoreParser(object):
             if debug:
                 _debug("RIF document URL provided %s" % location)
             if self.location.find("http:") + 1:
-                req = urllib2.Request(self.location)
+                req = request.Request(self.location)
 
                 # From:
                 # http://www.diveintopython.org/http_web_services/redirects.html
                 # points an 'opener' to the address to 'sniff' out final
                 # Location header
-                opener = urllib2.build_opener(SmartRedirectHandler())
+                opener = request.build_opener(SmartRedirectHandler())
                 f = opener.open(req)
                 self.content = f.read()
             else:
-                self.content = urllib2.urlopen(self.location).read()
+                self.content = request.urlopen(self.location).read()
                 # self.content = open(self.location).read()
             try:
                 transform = etree.XSLT(etree.parse(TRANSFORM_URI))

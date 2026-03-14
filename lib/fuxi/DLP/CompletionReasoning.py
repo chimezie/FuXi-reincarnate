@@ -53,10 +53,7 @@ from rdflib import (
 #     from functools import reduce
 # except ImportError:
 #     pass
-try:
-    from io import StringIO
-except ImportError:
-    from StringIO import StringIO
+from io import StringIO
 
 import logging
 

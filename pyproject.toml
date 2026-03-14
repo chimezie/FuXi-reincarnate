@@ -2,10 +2,10 @@
 name = "fuxi"
 version = "1.4"
 description = "An OWL / N3-based in-memory, logic reasoning system for RDF"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 license = {text = "Apache"}
 authors = [{name = "Chime Ogbuji", email = "chimezie@gmail.com"}]
-maintainers = [{name = "RDFLib Team", email = "rdflib-dev@google.com"}]
+maintainers = [{name = "Chime Ogbuji", email = "chimezie@gmail.com"}]
 readme = "README.md"
 keywords = ["python", "logic", "owl", "rdf", "dlp", "n3", "rule", "reasoner"]
 classifiers = [
@@ -22,7 +22,7 @@ dependencies = [
     "isodate",
     "pyparsing",
     "SPARQLWrapper",
-    "rdflib>=7.4,<7.5",
+    "rdflib>=7.4",
 ]
 
 [project.optional-dependencies]
@@ -57,11 +57,10 @@ zip-safe = false
 
 [tool.setuptools.package-dir]
 fuxi = "lib"
-FuXi = "lib"
 
 [tool.setuptools.packages.find]
 where = ["lib"]
-include = ["fuxi*", "FuXi*"]
+include = ["fuxi*"]
 
 [tool.pytest.ini_options]
 testpaths = ["test"]

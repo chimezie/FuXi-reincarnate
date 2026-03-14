@@ -42,11 +42,6 @@ from rdflib import (
 )
 
 
-# From itertools recipes
-def iteritems(mapping):
-    return list(zip(iter(mapping.keys()), iter(mapping.values())))
-
-
 def any(seq, pred=None):
     """Returns True if pred(x) is true for at least one element in the iterable"""
     for elem in filter(pred, seq):

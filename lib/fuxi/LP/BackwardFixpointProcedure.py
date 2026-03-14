@@ -53,7 +53,7 @@ from fuxi.Rete.SidewaysInformationPassing import (
 from fuxi.Rete.SidewaysInformationPassing import iterCondition, GetOp
 from fuxi.Rete.BetaNode import ReteMemory, BetaNode, RIGHT_MEMORY, LEFT_MEMORY
 from fuxi.Rete.AlphaNode import AlphaNode, ReteToken, BuiltInAlphaNode
-from fuxi.Rete.Network import HashablePatternList, InferredGoal, iteritems
+from fuxi.Rete.Network import HashablePatternList, InferredGoal
 from fuxi.Rete.Proof import MakeImmutableDict
 from fuxi.Rete.Magic import AdornedRule, AdornedUniTerm, IsHybridPredicate
 from fuxi.Rete.Util import generateTokenSet
@@ -354,9 +354,10 @@ class QueryExecution(object):
                     tuple([term for term in fact.toRDFTuple()]), debug=debug
                 )
                 wmeCopy = copy.deepcopy(wme)
-                for termComb, termDict in iteritems(
-                    self.bfp.metaInterpNetwork.alphaPatternHash
-                ):
+                for (
+                    termComb,
+                    termDict,
+                ) in self.bfp.metaInterpNetwork.alphaPatternHash.items():
                     for alphaNode in termDict.get(
                         wmeCopy.alphaNetworkHash(termComb), []
                     ):

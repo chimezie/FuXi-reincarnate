@@ -1,10 +1,10 @@
 from rdflib import Variable, Namespace
 from rdflib.graph import Graph
-from FuXi.Rete.RuleStore import SetupRuleStore
-from FuXi.Rete.Util import generateTokenSet
-from FuXi.Horn.HornRules import HornFromN3
-from FuXi.Rete.Magic import MagicSetTransformation, AdornLiteral
-from FuXi.SPARQL import RDFTuplesToSPARQL
+from fuxi.Rete.RuleStore import SetupRuleStore
+from fuxi.Rete.Util import generateTokenSet
+from fuxi.Horn.HornRules import HornFromN3
+from fuxi.Rete.Magic import MagicSetTransformation, AdornLiteral
+from fuxi.SPARQL import RDFTuplesToSPARQL
 
 exNs = Namespace('http://dev.w3.org/2000/10/swap/test/cwm/fam.n3#')
 

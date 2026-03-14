@@ -8,9 +8,9 @@ try:
 except ImportError:
     from StringIO import StringIO
 from rdflib import Graph, Namespace
-from FuXi.Rete.RuleStore import SetupRuleStore
-from FuXi.Rete.Util import generateTokenSet
-from FuXi.DLP.DLNormalization import NormalFormReduction
+from fuxi.Rete.RuleStore import SetupRuleStore
+from fuxi.Rete.Util import generateTokenSet
+from fuxi.DLP.DLNormalization import NormalFormReduction
 
 EX = Namespace('http://example.org/')
 EX_TERMS = Namespace('http://example.org/terms/')

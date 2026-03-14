@@ -7,9 +7,9 @@ Copyright (c) 2010 __MyCompanyName__. All rights reserved.
 
 from rdflib import Literal, RDF, Variable
 
-from FuXi.Horn.HornRules import Clause, Rule
-from FuXi.Horn.PositiveConditions import Uniterm
-from FuXi.LP.BackwardFixpointProcedure import BFP_NS, BFP_RULE
+from fuxi.Horn.HornRules import Clause, Rule
+from fuxi.Horn.PositiveConditions import Uniterm
+from fuxi.LP.BackwardFixpointProcedure import BFP_NS, BFP_RULE
 
 
 def test_serializing_eval_pred():

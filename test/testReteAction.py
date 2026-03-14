@@ -9,10 +9,10 @@ from rdflib import Graph, Literal, Namespace, Variable
 # from rdflib.graph import Graph
 # from rdflib import RDF, RDFS, Namespace, Variable, Literal, URIRef, BNode
 # from rdflib.util import first
-from FuXi.Horn.HornRules import HornFromN3
-from FuXi.Rete.Util import generateTokenSet
-from FuXi.Rete.RuleStore import SetupRuleStore
-# from FuXi.Horn.PositiveConditions import GetUterm
+from fuxi.Horn.HornRules import HornFromN3
+from fuxi.Rete.Util import generateTokenSet
+from fuxi.Rete.RuleStore import SetupRuleStore
+# from fuxi.Horn.PositiveConditions import GetUterm
 FOAF = Namespace('http://xmlns.com/foaf/0.1/')
 EX = Namespace('http://example.com/#')
 

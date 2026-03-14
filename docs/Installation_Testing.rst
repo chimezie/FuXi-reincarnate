@@ -72,7 +72,7 @@ current release see
 -  Release notes (under discussion)
 
 -  The `DOAP <http://usefulinc.com/doap/>`_ file:
-   `/trunk/fuxi/FuXi.rdf <https://fuxi.googlecode.com/hg/FuXi.rdf>`_
+   `/trunk/fuxi/fuxi.rdf <https://fuxi.googlecode.com/hg/fuxi.rdf>`_
 
 Testing and Maintenance
 =====================================================

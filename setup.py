@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import sys
 import re
+
 try:
     import multiprocessing  # atexit exception
 except:
@@ -35,8 +36,9 @@ def setup_python3():
 
     return tmp_src
 
+
 config = dict(
-    name="FuXi",
+    name="fuxi",
     version="1.4",
     description="An OWL / N3-based in-memory, logic reasoning system for RDF",
     author="Chime Ogbuji",
@@ -57,11 +59,19 @@ config = dict(
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Operating System :: OS Independent",
         "Natural Language :: English",
-       ],
+    ],
     package_dir={
-        'FuXi': 'lib',
+        "fuxi": "lib",
+        "FuXi": "lib",
     },
     packages=[
+        "fuxi",
+        "fuxi.LP",
+        "fuxi.SPARQL",
+        "fuxi.Rete",
+        "fuxi.DLP",
+        "fuxi.Horn",
+        "fuxi.Syntax",
         "FuXi",
         "FuXi.LP",
         "FuXi.SPARQL",
@@ -70,28 +80,30 @@ config = dict(
         "FuXi.Horn",
         "FuXi.Syntax",
     ],
-    install_requires=['rdflib>2'],
+    install_requires=["rdflib>2"],
     license="Apache",
     keywords="python logic owl rdf dlp n3 rule reasoner",
-    test_suite='nose.collector',
+    test_suite="nose.collector",
     url="https://github.com/RDFLib/FuXi",
     entry_points={
-        'console_scripts': [
-           'FuXi = FuXi.Rete.CommandLine:main',
+        "console_scripts": [
+            "fuxi = fuxi.Rete.CommandLine:main",
         ],
     },
-    zip_safe=False
+    zip_safe=False,
 )
 
 kwargs = {}
 if sys.version_info[0] >= 3:
     from setuptools import setup
+
     assert setup
-    kwargs['use_2to3'] = True
-    kwargs['src_root'] = setup_python3()
+    kwargs["use_2to3"] = True
+    kwargs["src_root"] = setup_python3()
 else:
     try:
         from setuptools import setup
+
         assert setup
     except ImportError:
         from distutils.core import setup

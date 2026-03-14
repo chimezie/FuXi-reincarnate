@@ -10,8 +10,8 @@ from io import StringIO
 
 from rdflib import Variable
 
-from FuXi.Horn.HornRules import HornFromN3
-from FuXi.Rete.RuleStore import SetupRuleStore
+from fuxi.Horn.HornRules import HornFromN3
+from fuxi.Rete.RuleStore import SetupRuleStore
 
 rule_fixture = """\
 @prefix test: <http://example.org/>.

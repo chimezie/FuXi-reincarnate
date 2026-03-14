@@ -31,6 +31,6 @@ terms (or None if **override** is True). The custom action can then use
 these parameters to implement its behavior.
 
 Externally defined actions can be registered via the
-`FuXi.Rete.Network.Network.registerReteAction <http://code.google.com/p/fuxi/source/browse/lib/Rete/Network.py#643>`_
+`fuxi.Rete.Network.Network.registerReteAction <http://code.google.com/p/fuxi/source/browse/lib/Rete/Network.py#643>`_
 method.
 

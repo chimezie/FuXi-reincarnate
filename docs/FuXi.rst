@@ -69,7 +69,7 @@ Python Idioms (hashing efficiently)
 ===================================
 
 -  compiles an RDFLib N3 rule graph into
-   :ref:`FuXi.Rete.AlphaNode` and :ref:`FuXi.Rete.BetaNode` instances
+   :ref:`fuxi.Rete.AlphaNode` and :ref:`fuxi.Rete.BetaNode` instances
 -  takes a fact (or the removal of a fact, perhaps?) and propagates
    down, starting from it's alpha nodes
 -  stores inferred triples in provided triple source (an RDFLib graph)

@@ -4,10 +4,10 @@ import pytest
 from rdflib import Namespace, Variable
 from rdflib.graph import Graph
 
-from FuXi.Horn.HornRules import HornFromN3
-from FuXi.Rete.RuleStore import SetupRuleStore
-from FuXi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
-from FuXi.Syntax.InfixOWL import OWL_NS
+from fuxi.Horn.HornRules import HornFromN3
+from fuxi.Rete.RuleStore import SetupRuleStore
+from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
+from fuxi.Syntax.InfixOWL import OWL_NS
 
 EX = Namespace("http://example.org/")
 

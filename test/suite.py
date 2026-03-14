@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-'''
+"""
 Created on Sep 16, 2010
 
 @author: onewnan
@@ -13,14 +13,16 @@ If a coverage tool is installed this module can help generate coverage
 statistics, e.g.,
 
     coverage erase
-    coverage run --branch --source="FuXi" suite.py --variants --unittest2
+    coverage run --branch --source="fuxi" suite.py --variants --unittest2
     coverage report
-'''
+"""
+
 import doctest
 import unittest
 import additionalDLPTests
 import imp
-# import FuXi
+
+# import fuxi
 import os
 import rdflib
 import sys
@@ -36,19 +38,20 @@ import types
 from unittest import TestResult
 
 import logging
+
 log = logging.getLogger(__name__)
 
-FILES_TO_IGNORE = ('suite.py', 'CommandLine.py')
+FILES_TO_IGNORE = ("suite.py", "CommandLine.py")
 VISUAL_SEPARATOR = " ===================================="
 modsWithLoadErrors = []
 
 
 def moduleIterator(root):
-    '''
+    """
     Successively return all modules in all packages beneath root.
 
     The parameter 'root' may be either a module or a module's path name.
-    '''
+    """
     # OTHER_EXTENSIONS = ('.pyo', '.pyc')
     stack = []
     if isinstance(root, types.ModuleType):
@@ -61,10 +64,10 @@ def moduleIterator(root):
             file, packageRoute, description = imp.find_module(name)
             package = imp.load_module(root, file, packageRoute, description)
         except ImportError as err:
-            print('ImportError:', err)
+            print("ImportError:", err)
             return
     if file:
-        raise ImportError('Not a package: %r', name)
+        raise ImportError("Not a package: %r", name)
         file.close()
         return
     else:
@@ -77,14 +80,12 @@ def moduleIterator(root):
                 continue
             if entry in FILES_TO_IGNORE:
                 pass
-            elif entry.endswith('.py'):
+            elif entry.endswith(".py"):
                 modName = entry[:-3]
                 try:
-                    file, pathName, description = imp.find_module(
-                        modName, packagePath)
-                    qualName = name + '.' + modName
-                    mod = imp.load_module(
-                        qualName, file, pathName, description)
+                    file, pathName, description = imp.find_module(modName, packagePath)
+                    qualName = name + "." + modName
+                    mod = imp.load_module(qualName, file, pathName, description)
                     yield (entry, mod)
                 except:
                     fullPath = packageRoute + os.sep + modName
@@ -94,12 +95,11 @@ def moduleIterator(root):
                         traceback.print_exc()
                 finally:
                     file.close()
-            elif entry.find('.') != -1:
+            elif entry.find(".") != -1:
                 pass
             else:
                 newRoute = packageRoute + os.sep + entry
-                file, newPath, description = imp.find_module(
-                    entry, packagePath)
+                file, newPath, description = imp.find_module(entry, packagePath)
                 # mod = imp.load_module("__main__", file, pathName, description)
                 qualName = name + "." + entry
                 mod = imp.load_module(qualName, file, newPath, description)
@@ -107,21 +107,21 @@ def moduleIterator(root):
 
 
 def runSuite(title, suite, summary):
-    '''
+    """
     Run the indicated test suite, accumulating statistics and the title in the
     summary.
 
     The summary is a list of strings.
-    '''
+    """
     splash(title)
     sys.argv = [""]
     results = TestResult()
     suite.run(results)
     summary.append(("Summary of %s " % (title)) + VISUAL_SEPARATOR)
-    summary.append("* Ran %i tests with %i failures and %i errors." % (
-        results.testsRun,
-        results.failures.__len__(),
-        results.errors.__len__()))
+    summary.append(
+        "* Ran %i tests with %i failures and %i errors."
+        % (results.testsRun, results.failures.__len__(), results.errors.__len__())
+    )
     if results.failures.__len__():
         summary.append("* Failed tests were:")
         for test, trace in results.failures:
@@ -138,11 +138,11 @@ def runSuite(title, suite, summary):
 
 
 def extractEmbeddedSuite(root):
-    '''
+    """
     Use unittest2 to extract a suite of embedded unit tests from root.
 
     The parameter 'root' can be either a module or the path name of a module.
-    '''
+    """
     if isinstance(root, types.ModuleType):
         packageRoute = root.__path__[0]
         file = False
@@ -152,17 +152,16 @@ def extractEmbeddedSuite(root):
         file, packageRoute, description = imp.find_module(packageName)
     top_level_dir = os.path.abspath(packageRoute + "/..")
     loader = unittest2.TestLoader()
-    suite = loader.discover(
-        packageRoute, top_level_dir=top_level_dir, pattern="*.py")
+    suite = loader.discover(packageRoute, top_level_dir=top_level_dir, pattern="*.py")
     return suite
 
 
 def runEmbeddedTests(root, summary, usingUnittest2):
-    '''
+    """
     For each module nested under root, run its unit- and doc-tests.
 
     The root parameter may be a module or a module name.
-    '''
+    """
     if isinstance(root, types.ModuleType):
         packageRoute = root.__path__[0]
         file = False
@@ -172,17 +171,17 @@ def runEmbeddedTests(root, summary, usingUnittest2):
         file, packageRoute, description = imp.find_module(packageName)
     if not usingUnittest2:
         if options.verbose:
+            print("Running test functions rather than directly running unit tests.")
             print(
-                "Running test functions rather than directly running unit tests.")
+                "For better test results, install unittest2 and execute with flag --unittest2."
+            )
             print(
-                "For better test results, install unittest2 and execute with flag --unittest2.")
-            print(
-                "Please disregard warnings of the form 'running xx test function ... \\n*** DocTestRunner.merge: yy in both testers; summing outcomes.)")
+                "Please disregard warnings of the form 'running xx test function ... \\n*** DocTestRunner.merge: yy in both testers; summing outcomes.)"
+            )
             print("Refer instead to the testmod results for these tests.")
     else:
         if options.verbose:
-            print(
-                "Running unit tests directly rather than invoking test functions.")
+            print("Running unit tests directly rather than invoking test functions.")
         embeddedSuite = extractEmbeddedSuite(root)
         title = "Embedded " + packageName + " Unit Tests "
         runSuite(title, embeddedSuite, summary)
@@ -230,70 +229,87 @@ def runEmbeddedTests(root, summary, usingUnittest2):
     else:
         title = "Summary of Embedded " + packageName + " Tests "
     summary.append(title + VISUAL_SEPARATOR)
-#    summary.append("* %i mods with load errors:" % (modsWithLoadErrors.__len__()))
-#    summary.append(modsWithLoadErrors)
-    summary.append("* %i mods with doctest failures:" %
-                   (modsWithDoctestFailures.__len__()))
+    #    summary.append("* %i mods with load errors:" % (modsWithLoadErrors.__len__()))
+    #    summary.append(modsWithLoadErrors)
+    summary.append(
+        "* %i mods with doctest failures:" % (modsWithDoctestFailures.__len__())
+    )
     summary.append(modsWithDoctestFailures)
-    summary.append("* %i mods with doctest errors: " %
-                   (modsWithDoctestErrors.__len__()))
+    summary.append(
+        "* %i mods with doctest errors: " % (modsWithDoctestErrors.__len__())
+    )
     summary.append(modsWithDoctestErrors)
     summary.append("* Total doctests run %i: " % (totalDoctests))
     if not usingUnittest2:
-        summary.append("* Total attempted test functions: %i" %
-                       (totalTestFunctionsRun))
-        summary.append("* %i mods with test function failures: " %
-                       (modsWithTestFunctionFailures.__len__()))
+        summary.append("* Total attempted test functions: %i" % (totalTestFunctionsRun))
+        summary.append(
+            "* %i mods with test function failures: "
+            % (modsWithTestFunctionFailures.__len__())
+        )
         summary.append(modsWithTestFunctionFailures)
     return summary
 
 
 def suite():
-    '''
+    """
     Return a TestSuite containing all tests from the test directory.
-    '''
+    """
     suite = unittest.TestSuite()
     suite.addTest(
-        unittest.makeSuite(additionalDLPTests.AdditionalDescriptionLogicTests, 'test'))
+        unittest.makeSuite(additionalDLPTests.AdditionalDescriptionLogicTests, "test")
+    )
     suite.addTest(
-        unittest.makeSuite(test_builtin_ordering.URIRefStringStartsWith, 'test'))
-    suite.addTest(unittest.makeSuite(test_network_reset.NetworkReset, 'test'))
-    suite.addTest(unittest.makeSuite(
-        test_superproperty_entailment.test_superproperty_entailment, 'test'))
+        unittest.makeSuite(test_builtin_ordering.URIRefStringStartsWith, "test")
+    )
+    suite.addTest(unittest.makeSuite(test_network_reset.NetworkReset, "test"))
     suite.addTest(
-        unittest.makeSuite(testExistentialInHead.ExistentialInHeadTest, 'test'))
-    suite.addTest(unittest.makeSuite(testReteAction.ReteActionTest, 'test'))
+        unittest.makeSuite(
+            test_superproperty_entailment.test_superproperty_entailment, "test"
+        )
+    )
     suite.addTest(
-        unittest.makeSuite(testSkolemization.UnionSkolemizedTest, 'test'))
+        unittest.makeSuite(testExistentialInHead.ExistentialInHeadTest, "test")
+    )
+    suite.addTest(unittest.makeSuite(testReteAction.ReteActionTest, "test"))
+    suite.addTest(unittest.makeSuite(testSkolemization.UnionSkolemizedTest, "test"))
     return suite
 
 
 def splash(txt):
-    '''
+    """
     Print a separator line indicating what part of the suite is running.
-    '''
+    """
     print("\nRunning " + txt + VISUAL_SEPARATOR)
 
 
 if __name__ == "__main__":
     from optparse import OptionParser
-    op = OptionParser('usage: %prog [options]')
-    op.add_option('--variants',
-                  action='store_true',
-                  default=False,
-                  help='Whether to run testOwl three ways or just bottom up ')
-    op.add_option('--unittest2',
-                  action='store_true',
-                  default=False,
-                  help='Whether to use unittest2 discovery. ')
-    op.add_option('--rdftests',
-                  action='store_true',
-                  default=False,
-                  help="Whether to run rdflib's (in addition to FuXi's) embedded tests. ")
-    op.add_option('--verbose',
-                  action='store_true',
-                  default=False,
-                  help="Whether to include informational messages besides summaries. ")
+
+    op = OptionParser("usage: %prog [options]")
+    op.add_option(
+        "--variants",
+        action="store_true",
+        default=False,
+        help="Whether to run testOwl three ways or just bottom up ",
+    )
+    op.add_option(
+        "--unittest2",
+        action="store_true",
+        default=False,
+        help="Whether to use unittest2 discovery. ",
+    )
+    op.add_option(
+        "--rdftests",
+        action="store_true",
+        default=False,
+        help="Whether to run rdflib's (in addition to FuXi's) embedded tests. ",
+    )
+    op.add_option(
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="Whether to include informational messages besides summaries. ",
+    )
     (options, facts) = op.parse_args()
     summary = []
     flagCount = 0
@@ -307,6 +323,7 @@ if __name__ == "__main__":
     if options.unittest2:
         try:
             import unittest2
+
             usingUnittest2 = True
             flagCount += 1
             flags = flags + " --unittest2"
@@ -321,15 +338,20 @@ if __name__ == "__main__":
             flagCount += 1
             flags = flags + " --rdftests"
         else:
-            print("--rdftests flag is ignored since",
-                  rdfpath, "is not a directory.",)
+            print(
+                "--rdftests flag is ignored since",
+                rdfpath,
+                "is not a directory.",
+            )
     if options.verbose:
         print("Running suite.py with %i flags set: %s" % (flagCount, flags))
     if usingUnittest2 and options.verbose:
         print(
-            "Using unittest2 libraries.  CAUTION: these may not be compatible with your debugger.  See")
+            "Using unittest2 libraries.  CAUTION: these may not be compatible with your debugger.  See"
+        )
         print(
-            "\thttp://pydev.blogspot.com/2007/06/why-cant-pydev-debugger-work-with.html")
+            "\thttp://pydev.blogspot.com/2007/06/why-cant-pydev-debugger-work-with.html"
+        )
     testOWLoptions = testOWL.defaultOptions()
     splash("testOWL with " + testOWLoptions.strategy)
     testOWL.runTests(testOWLoptions)

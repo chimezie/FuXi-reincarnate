@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Pytest runner for FuXi."""
+"""Pytest runner for fuxi."""
 
 from __future__ import annotations
 

@@ -5,15 +5,15 @@
 # import unittest
 # from pprint import pprint
 # from urllib2 import urlopen
-# from FuXi.Rete.RuleStore import SetupRuleStore
-# from FuXi.Horn.HornRules import HornFromN3
-# from FuXi.Rete.Proof import ImmutableDict
-# from FuXi.SPARQL.BackwardChainingStore import *
-# from FuXi.Rete.Util import setdict
+# from fuxi.Rete.RuleStore import SetupRuleStore
+# from fuxi.Horn.HornRules import HornFromN3
+# from fuxi.Rete.Proof import ImmutableDict
+# from fuxi.SPARQL.BackwardChainingStore import *
+# from fuxi.Rete.Util import setdict
 
 # from rdflib import Namespace, RDF, RDFS, URIRef
 # from rdflib import BNode, Graph, Literal, Namespace, RDF, RDFS, URIRef, Variable
-# from rdfextras.sparql.parser import parse
+# from rdflib.plugins.sparql.parser import parseQuery
 # from rdflib import OWL as OWLNS
 # from rdflib.store import Store
 

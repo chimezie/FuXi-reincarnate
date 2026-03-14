@@ -5,20 +5,20 @@ import time
 
 # import itertools
 from pprint import pformat
-from FuXi.DLP import non_DHL_OWL_Semantics
-from FuXi.DLP.ConditionalAxioms import AdditionalRules
-from FuXi.Horn.HornRules import HornFromN3
-from FuXi.Horn.PositiveConditions import BuildUnitermFromTuple
-from FuXi.Rete.RuleStore import SetupRuleStore
-from FuXi.Rete.ReteVocabulary import RETE_NS
-from FuXi.Rete.Magic import AdornLiteral, MagicSetTransformation
-from FuXi.Rete.Util import generateTokenSet
-from FuXi.SPARQL import EDBQuery
-from FuXi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
-from FuXi.Syntax.InfixOWL import nsBinds, AllClasses, Individual
+from fuxi.DLP import non_DHL_OWL_Semantics
+from fuxi.DLP.ConditionalAxioms import AdditionalRules
+from fuxi.Horn.HornRules import HornFromN3
+from fuxi.Horn.PositiveConditions import BuildUnitermFromTuple
+from fuxi.Rete.RuleStore import SetupRuleStore
+from fuxi.Rete.ReteVocabulary import RETE_NS
+from fuxi.Rete.Magic import AdornLiteral, MagicSetTransformation
+from fuxi.Rete.Util import generateTokenSet
+from fuxi.SPARQL import EDBQuery
+from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
+from fuxi.Syntax.InfixOWL import nsBinds, AllClasses, Individual
 from rdflib import BNode, Namespace, RDF, RDFS, URIRef, plugin
 from rdflib.graph import Graph
-from rdfextras.sparql.parser import parse
+from rdflib.plugins.sparql.parser import parseQuery
 from rdflib.store import Store
 from io import StringIO
 from glob import glob
@@ -85,7 +85,7 @@ WHERE {
     rtest:conclusionDocument ?conclusion
   ]
 }"""
-PARSED_MANIFEST_QUERY = parse(MANIFEST_QUERY)
+PARSED_MANIFEST_QUERY = parseQuery(MANIFEST_QUERY)
 
 Features2Skip = [
     URIRef("http://www.w3.org/2002/07/owl#sameClassAs"),
@@ -276,7 +276,7 @@ class OwlTestSuite(unittest.TestCase):
                 if goal not in self.network.inferredFacts and goal not in factGraph:
                     log.debug("missing triple %s" % (pformat(goal)))
                     # print(list(factGraph.adornedProgram))
-                    # from FuXi.Rete.Util import renderNetwork
+                    # from fuxi.Rete.Util import renderNetwork
                     # dot = renderNetwork(
                     #   self.network,self.network.nsMap).write_jpeg('test-fail.jpeg')
                     self.network.reportConflictSet(True)
@@ -425,7 +425,7 @@ class OwlTestSuite(unittest.TestCase):
                                     for t in self.network.inferredFacts
                                 ]
                             )
-                            # from FuXi.Rete.Util import renderNetwork
+                            # from fuxi.Rete.Util import renderNetwork
                             # dot = renderNetwork(self.network,self.network.nsMap).write_jpeg('test-fail.jpeg')
                             raise  # Exception ("Failed test: "+feature)
         print(pformat(testData))

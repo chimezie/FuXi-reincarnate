@@ -1,5 +1,5 @@
 [project]
-name = "FuXi"
+name = "fuxi"
 version = "1.4"
 description = "An OWL / N3-based in-memory, logic reasoning system for RDF"
 requires-python = ">=3.13"
@@ -43,7 +43,7 @@ dev = [
 ]
 
 [project.scripts]
-FuXi = "FuXi.Rete.CommandLine:main"
+fuxi = "fuxi.Rete.CommandLine:main"
 
 [project.urls]
 Homepage = "https://github.com/RDFLib/FuXi"
@@ -56,15 +56,23 @@ build-backend = "setuptools.build_meta"
 zip-safe = false
 
 [tool.setuptools.package-dir]
+fuxi = "lib"
 FuXi = "lib"
 
 [tool.setuptools.packages.find]
 where = ["lib"]
-include = ["FuXi*"]
+include = ["fuxi*", "FuXi*"]
 
 [tool.pytest.ini_options]
 testpaths = ["test"]
 addopts = ["-ra"]
+markers = [
+    "unit: fast isolated tests",
+    "integration: multi-component tests",
+    "slow: long-running tests",
+    "webtest: network-dependent tests",
+    "known_issue: expected failures for tracked issues",
+]
 
 [tool.pyupgrade]
 target-version = "py313"
@@ -76,7 +84,7 @@ target-version = "py313"
 select = ["UP"]
 
 [tool.coverage.run]
-source = ["FuXi"]
+source = ["fuxi"]
 omit = [
     "*/test/*",
     "*/tests/*",

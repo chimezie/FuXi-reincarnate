@@ -58,14 +58,14 @@ serves as an introduction to the general features of
 `FuXi </p/fuxi/wiki/FuXi>`_. The `FuXi </p/fuxi/wiki/FuXi>`_ libraries
 are divided as follows:
 
--  FuXi.Horn
--  FuXi.Syntax
--  FuXi.DLP
--  FuXi.LP
--  FuXi.Rete
--  FuXi.SPARQL
+-  fuxi.Horn
+-  fuxi.Syntax
+-  fuxi.DLP
+-  fuxi.LP
+-  fuxi.Rete
+-  fuxi.SPARQL
 
-FuXi.Horn
+fuxi.Horn
 --------------------------
 
 The Horn module was originally meant as a reference implementation of
@@ -81,13 +81,13 @@ of the RIF BLD abstract syntax (`EBNF Grammar for the Presentation
 Syntax of
 RIF-BLD <http://www.w3.org/TR/rif-bld/#EBNF_Grammar_for_the_Presentation_Syntax_of_RIF-BLD>`_):
 
--  FuXi.Horn.HornRules.Ruleset
--  FuXi.Horn.HornRules.Rule
--  FuXi.Horn.HornRules.Clause
--  FuXi.Horn.PositiveConditions.Condition
--  FuXi.Horn.PositiveConditions.And
--  FuXi.Horn.PositiveConditions.Or
--  FuXi.Horn.PositiveConditions.Uniterm
+-  fuxi.Horn.HornRules.Ruleset
+-  fuxi.Horn.HornRules.Rule
+-  fuxi.Horn.HornRules.Clause
+-  fuxi.Horn.PositiveConditions.Condition
+-  fuxi.Horn.PositiveConditions.And
+-  fuxi.Horn.PositiveConditions.Or
+-  fuxi.Horn.PositiveConditions.Uniterm
 -  ... etc ..
 
 Horn rulesets can be built from the ground up by instantiating the
@@ -121,7 +121,7 @@ like so:
 
 ::
 
-    >>> from FuXi.Horn.HornRules import HornFromN3
+    >>> from fuxi.Horn.HornRules import HornFromN3
     >>> rs=HornFromN3('http://www.agfa.com/w3c/euler/rdfs-rules.n3')
     >>> for r in rs: print r
     ... 
@@ -184,14 +184,14 @@ SyntaxError exception if any unsafe rules are extracted from description
 logic formulae, and the third will simply skip any unsafe rules
 (ensuring any returned ruleset is safe)
 
-FuXi.Syntax
+fuxi.Syntax
 ------------------------------
 
-The FuXi.Syntax module incorporates the
+The fuxi.Syntax module incorporates the
 `InfixOwl </p/fuxi/wiki/InfixOwl>`_ library (see the linked Wiki for
 more information).
 
-FuXi.Rete
+fuxi.Rete
 --------------------------
 
 At the heart of the python-dlp framework is an implementation of most of
@@ -207,13 +207,13 @@ nicely with the RDF abstract syntax). The thesis also describes methods
 for using hash tables to improve efficiency of alpha nodes and beta
 nodes.
 
-Instances of the FuXi.Rete.ReteNetwork class are RETE-UL networks. So,
+Instances of the fuxi.Rete.ReteNetwork class are RETE-UL networks. So,
 to programmatically build a RETE-UL network, a developer would write:
 
 ::
 
     >>> from rdflib.Graph import Graph
-    >>> from FuXi.Rete.RuleStore import SetupRuleStore
+    >>> from fuxi.Rete.RuleStore import SetupRuleStore
     >>> rule_store, rule_graph, network = SetupRuleStore(makeNetwork=True,additionalBuiltins=...)
     Time to build production rule (RDFLib): 0.000193119049072 seconds
     >>> closureDeltaGraph=Graph()
@@ -263,7 +263,7 @@ the inferred RDF statements and add them to the closure delta graph:
 
 ::
 
-    from FuXi.Rete.Util import generateTokenSet
+    from fuxi.Rete.Util import generateTokenSet
 
     network.feedFactsToAdd(generateTokenSet(someRDFGraph))
 
@@ -272,7 +272,7 @@ facts to pass into the network. At this point, *network.inferredFacts*
 should consist of the RDF statements that can be inferred from the given
 ruleset and initial RDF facts.
 
-FuXi.Rete.Magic
+fuxi.Rete.Magic
 --------------------------------------
 
 This module is where the `Sideways Information
@@ -361,7 +361,7 @@ derived predicates. See the
 `signature <http://code.google.com/p/fuxi/source/browse/lib/Rete/Magic.py?spec=svna57d85d65ec920ad247f8bbb6fbfd85565031cd3&r=a57d85d65ec920ad247f8bbb6fbfd85565031cd3#710>`_
 of the method.
 
-FuXi.SPARQL
+fuxi.SPARQL
 ------------------------------
 
 The implementation for a BackwardsChainingStore. A backwards chaining
@@ -369,7 +369,7 @@ store can be setup this way:
 
 ::
 
-                from FuXi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
+                from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
                 topDownStore=TopDownSPARQLEntailingStore(
                                             factGraph.store,
                                             factGraph,
@@ -398,7 +398,7 @@ any combination of RIF Core, N3, and/or OWL2-RL such that additional
 answers that follow from the domain theory will be provided to the
 query.
 
-FuXi.Rete.TopDown
+fuxi.Rete.TopDown
 -------------------------------------------
 
 The *`FuXi </p/fuxi/wiki/FuXi>`_.Rete.TopDown* module has since been
@@ -522,7 +522,7 @@ In the SPARQL template RDF serialization in the source tree
 Here, the adorned RIF clause is converted into a SPARQL query, giving
 answers for the IFP problem going up the proof tree
 
-FuXi.DLP
+fuxi.DLP
 ------------------------
 
 This module is a Description Horn Logic implementation as defined by
@@ -553,8 +553,8 @@ following:
 
 ::
 
-    from FuXi.Rete.Util import generateTokenSet
-    from FuXi.DLP.DLNormalization import NormalFormReduction
+    from fuxi.Rete.Util import generateTokenSet
+    from fuxi.DLP.DLNormalization import NormalFormReduction
 
     NormalFormReduction(tBoxGraph)
     network.setupDescriptionLogicProgramming(tBoxGraph)
@@ -608,7 +608,7 @@ directly:
 
 ::
 
-    >>> from FuXi.Horn.HornRules import HornFromDL
+    >>> from fuxi.Horn.HornRules import HornFromDL
     >>> from rdflib.Graph import Graph
     >>> from rdflib.util import first
     >>> first([r for r in HornFromDL(Graph().parse('http://www.lehigh.edu/%7Ezhp2/2004/0401/univ-bench.owl')) if not r.isSafe()])
@@ -631,7 +631,7 @@ why its conversion to rules includes an unsafe rule:
         ## A Defined Class (university teaching assistant) ##
         EquivalentTo: :Person that ( :teachingAssistantOf some :Course )
 
-FuXi.LP
+fuxi.LP
 ----------------------
 
 A backwards fixpoint procedure (BFP)

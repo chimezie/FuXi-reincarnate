@@ -2,8 +2,8 @@ import unittest
 from rdflib.graph import Graph
 from rdflib import Namespace
 from rdflib.util import first
-from FuXi.Rete.RuleStore import SetupRuleStore
-from FuXi.Syntax.InfixOWL import (
+from fuxi.Rete.RuleStore import SetupRuleStore
+from fuxi.Syntax.InfixOWL import (
     OWL_NS,
     Class,
     ClassNamespaceFactory,
@@ -13,7 +13,7 @@ from FuXi.Syntax.InfixOWL import (
     some,
     value
 )
-from FuXi.DLP import SKOLEMIZED_CLASS_NS
+from fuxi.DLP import SKOLEMIZED_CLASS_NS
 
 EX_NS = Namespace('http://example.com/')
 EX = ClassNamespaceFactory(EX_NS)
@@ -146,7 +146,7 @@ class AdditionalDescriptionLogicTests(unittest.TestCase):
             (contains | some |
              (EX.MajorStenosis & (locatedIn | value | EX_NS.RCA))))
         (EX.NumDisV2D) += topConjunct
-        from FuXi.DLP.DLNormalization import NormalFormReduction
+        from fuxi.DLP.DLNormalization import NormalFormReduction
         NormalFormReduction(self.ontGraph)
         ruleStore, ruleGraph, network = SetupRuleStore(makeNetwork=True)
         rules = network.setupDescriptionLogicProgramming(
@@ -154,7 +154,7 @@ class AdditionalDescriptionLogicTests(unittest.TestCase):
             derivedPreds=[EX_NS.NumDisV2D],
             addPDSemantics=False,
             constructNetwork=False)
-        from FuXi.Rete.Magic import PrettyPrintRule
+        from fuxi.Rete.Magic import PrettyPrintRule
         for rule in rules:
             PrettyPrintRule(rule)
 
@@ -166,7 +166,7 @@ class AdditionalDescriptionLogicTests(unittest.TestCase):
             hasCoronaryBypassConduit | some | EnumeratedClass(members=[
                 EX_NS.CoronaryBypassConduit_internal_thoracic_artery_left_insitu,
                 EX_NS.CoronaryBypassConduit_internal_thoracic_artery_left_free]))
-        from FuXi.DLP.DLNormalization import NormalFormReduction
+        from fuxi.DLP.DLNormalization import NormalFormReduction
         self.assertEquals(
             repr(Class(first(ITALeft.subSumpteeIds()))),
             "Some Class SubClassOf: Class: ex:ITALeft ")

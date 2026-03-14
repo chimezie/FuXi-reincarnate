@@ -1,36 +1,33 @@
-﻿#!/usr/bin/env python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 import unittest
+
 # from pprint import pprint
 try:
     from io import StringIO
+
     assert StringIO
 except ImportError:
     from StringIO import StringIO
 
 from rdflib.graph import (
     # Graph,
-    ConjunctiveGraph,
-    QuotedGraph
+    Dataset,
+    QuotedGraph,
 )
-from rdflib import (
-    Literal,
-    Variable,
-    URIRef,
-    Namespace
-)
-from FuXi.Rete.BuiltinPredicates import (
+from rdflib import Literal, Variable, URIRef, Namespace
+from fuxi.Rete.BuiltinPredicates import (
     # FILTERS,
-    STRING_NS
+    STRING_NS,
 )
-from FuXi.Rete.RuleStore import SetupRuleStore
-from FuXi.Rete.Util import generateTokenSet
-from FuXi.Horn.HornRules import (
+from fuxi.Rete.RuleStore import SetupRuleStore
+from fuxi.Rete.Util import generateTokenSet
+from fuxi.Horn.HornRules import (
     # HornFromN3,
-    NetworkFromN3
+    NetworkFromN3,
 )
-# from FuXi.Rete.BuiltinPredicates import FILTERS, STRING_NS
+# from fuxi.Rete.BuiltinPredicates import FILTERS, STRING_NS
 
 TEST_NS = Namespace("http://example.org/test#")
 LOG = Namespace("http://www.w3.org/2000/10/swap/log#")
@@ -38,11 +35,13 @@ LOG = Namespace("http://www.w3.org/2000/10/swap/log#")
 
 def StringStartsWith(subject, object_):
     for term in (subject, object_):
-        assert isinstance(term, (Variable, Literal, URIRef)), \
+        assert isinstance(term, (Variable, Literal, URIRef)), (
             "str:startsWith terms must be Variables, Literals, or URIRefs!"
+        )
 
     def startsWithF(subject_value, object_value):
         return subject_value.startswith(object_value)
+
     return startsWithF
 
 
@@ -60,23 +59,25 @@ def extractBaseFacts(cg):
 
 
 def build_network(rules):
-    if isinstance(rules, basestring):
+    if isinstance(rules, str):
         rules = StringIO(rules)
-    graph = ConjunctiveGraph()
-    graph.load(rules, publicID='test', format='n3')
+    graph = Dataset(default_union=True)
+    graph.parse(rules, publicID="test", format="n3")
     network = NetworkFromN3(
-        graph, additionalBuiltins={STRING_NS.startsWith: StringStartsWith})
+        graph, additionalBuiltins={STRING_NS.startsWith: StringStartsWith}
+    )
     network.feedFactsToAdd(generateTokenSet(extractBaseFacts(graph)))
     return network
 
 
 def build_network2(rules):
-    graph = ConjunctiveGraph()
-    graph.load(StringIO(rules), publicID='test', format='n3')
+    graph = Dataset(default_union=True)
+    graph.parse(StringIO(rules), publicID="test", format="n3")
     rule_store, rule_graph = SetupRuleStore(
-        StringIO(rules),
-        additionalBuiltins={STRING_NS.startsWith: StringStartsWith})
-    from FuXi.Rete.Network import ReteNetwork
+        StringIO(rules), additionalBuiltins={STRING_NS.startsWith: StringStartsWith}
+    )
+    from fuxi.Rete.Network import ReteNetwork
+
     network = ReteNetwork(rule_store)
     network.feedFactsToAdd(generateTokenSet(extractBaseFacts(graph)))
     return network
@@ -84,7 +85,7 @@ def build_network2(rules):
 
 class LiteralStringStartsWith(unittest.TestCase):
     fact = (TEST_NS.test, TEST_NS.passes, Literal(1))
-    rules = u"""\
+    rules = """\
 @prefix test: <http://example.org/test#> .
 @prefix str: <http://www.w3.org/2000/10/swap/string#> .
 
@@ -105,7 +106,7 @@ test:example test:value "example" .
 
 class URIRefStringStartsWith(unittest.TestCase):
     fact = (TEST_NS.test, TEST_NS.passes, Literal(1))
-    rules = u"""\
+    rules = """\
 @prefix test: <http://example.org/test#> .
 @prefix str: <http://www.w3.org/2000/10/swap/string#> .
 
@@ -124,5 +125,6 @@ test:example test:value test:example .
     def test_uriref_variable_startswith_literal_should_match2(self):
         self.failUnless(self.fact in self.network2.inferredFacts)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

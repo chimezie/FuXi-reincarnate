@@ -7,8 +7,8 @@ from io import StringIO
 
 from rdflib import Graph, Namespace
 
-from FuXi.Horn.HornRules import HornFromN3
-from FuXi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
+from fuxi.Horn.HornRules import HornFromN3
+from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
 
 rules = """\
 @prefix : <fam.n3#>.

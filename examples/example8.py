@@ -1,9 +1,9 @@
 # https://groups.google.com/d/msg/fuxi-discussion/4r1Nt_o1Hco/4QQ7BaqBCH8J
 from rdflib.graph import Graph
-from FuXi.Rete.RuleStore import SetupRuleStore
-from FuXi.Rete.Util import generateTokenSet
-# from FuXi.DLP.DLNormalization import NormalFormReduction
-from FuXi.Horn.HornRules import HornFromN3
+from fuxi.Rete.RuleStore import SetupRuleStore
+from fuxi.Rete.Util import generateTokenSet
+# from fuxi.DLP.DLNormalization import NormalFormReduction
+from fuxi.Horn.HornRules import HornFromN3
 from io import StringIO
 
 rule_store, rule_graph, network = SetupRuleStore(makeNetwork=True)

@@ -8,14 +8,14 @@ except ImportError:
 from rdflib.graph import Graph
 from rdflib.store import Store
 from rdflib import plugin, Namespace, RDF, URIRef
-from FuXi.Rete.Network import ReteNetwork
-from FuXi.Rete.RuleStore import N3RuleStore, SetupRuleStore
-from FuXi.Rete.Util import (
+from fuxi.Rete.Network import ReteNetwork
+from fuxi.Rete.RuleStore import N3RuleStore, SetupRuleStore
+from fuxi.Rete.Util import (
     # renderNetwork,
     generateTokenSet
 )
-# from FuXi.Horn.PositiveConditions import Uniterm, BuildUnitermFromTuple
-from FuXi.Horn.HornRules import HornFromN3
+# from fuxi.Horn.PositiveConditions import Uniterm, BuildUnitermFromTuple
+from fuxi.Horn.HornRules import HornFromN3
 
 N3_PROGRAM = u"""\
 @prefix m: <http://example.com/#>.

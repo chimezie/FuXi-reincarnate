@@ -1,5 +1,5 @@
-from FuXi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
-from FuXi.Horn.HornRules import HornFromN3
+from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
+from fuxi.Horn.HornRules import HornFromN3
 from rdflib.graph import Graph
 from rdflib import Namespace
 from pprint import pprint

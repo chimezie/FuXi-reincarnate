@@ -26,7 +26,7 @@ of GALEN was generated using `InfixOwl </p/fuxi/wiki/InfixOwl>`_:
 
 ::
 
-        from FuXi.Syntax.InfixOWL import *
+        from fuxi.Syntax.InfixOWL import *
         galenGraph = Graph().parse(os.path.join(os.path.dirname(__file__), 'GALEN-CABG-Segment.owl'))
         graph=galenGraph
         for c in graph.subjects(predicate=RDF.type,object=OWL_NS.Class):

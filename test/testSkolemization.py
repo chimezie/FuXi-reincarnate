@@ -1,13 +1,13 @@
 #!/bin/env python
 # -*- coding: utf-8 -*-
 import unittest
-from FuXi.Syntax.InfixOWL import BooleanClass
-from FuXi.Syntax.InfixOWL import Class
-from FuXi.Syntax.InfixOWL import Individual
-from FuXi.Syntax.InfixOWL import OWL_NS
-from FuXi.Rete.Network import ReteNetwork
-from FuXi.Rete.RuleStore import SetupRuleStore
-from FuXi.DLP import SKOLEMIZED_CLASS_NS
+from fuxi.Syntax.InfixOWL import BooleanClass
+from fuxi.Syntax.InfixOWL import Class
+from fuxi.Syntax.InfixOWL import Individual
+from fuxi.Syntax.InfixOWL import OWL_NS
+from fuxi.Rete.Network import ReteNetwork
+from fuxi.Rete.RuleStore import SetupRuleStore
+from fuxi.DLP import SKOLEMIZED_CLASS_NS
 from rdflib.graph import Graph
 from rdflib import Namespace
 

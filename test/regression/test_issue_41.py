@@ -7,8 +7,8 @@ before trying to call rule.formula.head.toRDFTuple().
 """
 import unittest
 from rdflib import Variable
-from FuXi.Rete.RuleStore import SetupRuleStore
-from FuXi.Horn.HornRules import HornFromN3
+from fuxi.Rete.RuleStore import SetupRuleStore
+from fuxi.Horn.HornRules import HornFromN3
 try:
     from io import StringIO
     assert StringIO

@@ -1,6 +1,6 @@
-from FuXi.Horn.HornRules import HornFromN3
-from FuXi.Rete.RuleStore import SetupRuleStore
-from FuXi.Rete.Util import generateTokenSet
+from fuxi.Horn.HornRules import HornFromN3
+from fuxi.Rete.RuleStore import SetupRuleStore
+from fuxi.Rete.Util import generateTokenSet
 from rdflib import Graph
 
 rule_store, rule_graph, network = SetupRuleStore(makeNetwork=True)

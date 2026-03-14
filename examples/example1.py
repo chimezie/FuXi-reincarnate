@@ -1,8 +1,8 @@
 from rdflib.graph import Graph
-from FuXi.Rete.RuleStore import SetupRuleStore
+from fuxi.Rete.RuleStore import SetupRuleStore
 
-from FuXi.Rete.Util import generateTokenSet
-from FuXi.Horn.HornRules import HornFromN3
+from fuxi.Rete.Util import generateTokenSet
+from fuxi.Horn.HornRules import HornFromN3
 
 
 def main():

@@ -7,7 +7,18 @@ It originally formed from an idea to express the underlying symbols (and their r
 
 For an overview of the architecture, please read [FuXi Overview](https://github.com/RDFLib/FuXi/blob/master/docs/Overview.rst) and [FuXi User Manual](https://github.com/RDFLib/FuXi/blob/master/docs/FuXiUserManual.rst) for more information.
 
-[![Build Status](https://travis-ci.org/RDFLib/FuXi.svg?branch=master)](https://travis-ci.org/RDFLib/FuXi)
+[![Build Status](https://travis-ci.org/RDFLib/fuxi.svg?branch=master)](https://travis-ci.org/RDFLib/FuXi)
+
+## Package Name
+
+The canonical import name is `fuxi` (lowercase):
+
+```python
+import fuxi
+from fuxi.Rete.Network import ReteNetwork
+```
+
+The legacy `FuXi` import path is still supported for backward compatibility but is deprecated and will emit a warning.
 
 ## Development Setup
 

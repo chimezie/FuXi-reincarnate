@@ -8,21 +8,21 @@ from pprint import pprint, pformat
 from rdflib import BNode, Namespace, RDF, RDFS, URIRef, plugin
 from rdflib.graph import Graph
 from rdflib.store import Store
-from FuXi.DLP import non_DHL_OWL_Semantics
-from FuXi.DLP.ConditionalAxioms import AdditionalRules
-from FuXi.Horn.HornRules import HornFromN3
-from FuXi.Horn.PositiveConditions import BuildUnitermFromTuple
-from FuXi.Rete.Magic import AdornLiteral, MagicSetTransformation
-from FuXi.Syntax.InfixOWL import nsBinds, AllClasses, Individual, Variable
-from FuXi.Rete.ReteVocabulary import RETE_NS
-from FuXi.Rete.RuleStore import SetupRuleStore
-from FuXi.Rete.Util import generateTokenSet
-from FuXi.SPARQL.BackwardChainingStore import (
+from fuxi.DLP import non_DHL_OWL_Semantics
+from fuxi.DLP.ConditionalAxioms import AdditionalRules
+from fuxi.Horn.HornRules import HornFromN3
+from fuxi.Horn.PositiveConditions import BuildUnitermFromTuple
+from fuxi.Rete.Magic import AdornLiteral, MagicSetTransformation
+from fuxi.Syntax.InfixOWL import nsBinds, AllClasses, Individual, Variable
+from fuxi.Rete.ReteVocabulary import RETE_NS
+from fuxi.Rete.RuleStore import SetupRuleStore
+from fuxi.Rete.Util import generateTokenSet
+from fuxi.SPARQL.BackwardChainingStore import (
     BFP_METHOD,
     TOP_DOWN_METHOD,
     TopDownSPARQLEntailingStore,
 )
-from FuXi.SPARQL import EDBQuery
+from fuxi.SPARQL import EDBQuery
 
 pytestmark = pytest.mark.integration
 
@@ -267,7 +267,7 @@ class OwlTestSuite(unittest.TestCase):
                 if goal not in self.network.inferredFacts and goal not in factGraph:
                     print("missing triple %s" % (pformat(goal)))
                     pprint(list(factGraph.adornedProgram))
-                    # from FuXi.Rete.Util import renderNetwork
+                    # from fuxi.Rete.Util import renderNetwork
                     # dot=renderNetwork(self.network,self.network.nsMap).write_jpeg('test-fail.jpeg')
                     self.network.reportConflictSet(True)
                     raise  # Exception ("Failed test: "+feature)
@@ -416,7 +416,7 @@ class OwlTestSuite(unittest.TestCase):
                                     ]
                                 )
                             )
-                            # from FuXi.Rete.Util import renderNetwork
+                            # from fuxi.Rete.Util import renderNetwork
                             # dot = renderNetwork(self.network,self.network.nsMap).write_jpeg('test-fail.jpeg')
                             raise  # Exception ("Failed test: "+feature)
 

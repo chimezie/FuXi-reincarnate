@@ -88,10 +88,10 @@ This can also be done programmatically via the following code:
 ::
 
     >>> from rdflib.Graph import Graph
-    >>> from FuXi.Rete.RuleStore import SetupRuleStore
+    >>> from fuxi.Rete.RuleStore import SetupRuleStore
 
-    >>> from FuXi.Rete.Util import generateTokenSet
-    >>> from FuXi.Horn.HornRules import HornFromN3
+    >>> from fuxi.Rete.Util import generateTokenSet
+    >>> from fuxi.Horn.HornRules import HornFromN3
 
     >>> rule_store, rule_graph, network = SetupRuleStore(makeNetwork=True)
     >>> closureDeltaGraph=Graph()
@@ -119,7 +119,7 @@ This can also be done programmatically via the following code:
 For details of the RETE-UL algorithm implementation (which facilitates
 the N3
 `forward-chaining <http://en.wikipedia.org/wiki/Forward_chaining>`_
-capabilities), see: `documentation of the FuXi.Rete
+capabilities), see: `documentation of the fuxi.Rete
 module </p/fuxi/wiki/FuXiUserManual#FuXi_.Rete>`_
 
 Magic Set Method
@@ -135,11 +135,11 @@ than doing it *naively* as we do above:
 
     from rdflib import Variable, Namespace
     from rdflib.Graph import Graph
-    from FuXi.Rete.RuleStore import SetupRuleStore
-    from FuXi.Rete.Util import generateTokenSet
-    from FuXi.Horn.HornRules import HornFromN3
-    from FuXi.Rete.Magic import MagicSetTransformation, AdornLiteral
-    from FuXi.SPARQL import RDFTuplesToSPARQL
+    from fuxi.Rete.RuleStore import SetupRuleStore
+    from fuxi.Rete.Util import generateTokenSet
+    from fuxi.Horn.HornRules import HornFromN3
+    from fuxi.Rete.Magic import MagicSetTransformation, AdornLiteral
+    from fuxi.SPARQL import RDFTuplesToSPARQL
 
     exNs = Namespace('http://dev.w3.org/2000/10/swap/test/cwm/fam.n3#')
 
@@ -245,8 +245,8 @@ demonstrated using the previous example rules and facts:
 
 ::
 
-    >>> from FuXi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
-    >>> from FuXi.Horn.HornRules import HornFromN3
+    >>> from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
+    >>> from fuxi.Horn.HornRules import HornFromN3
     >>> from rdflib.Graph import Graph
     >>> from rdflib import Namespace
     >>> from pprint import pprint
@@ -259,7 +259,7 @@ demonstrated using the previous example rules and facts:
     >>> dPreds = [famNs.ancestor]
 
 Next we instantiate a
-`TopDownSPARQLEntailingStore <http://fuxi.googlecode.com/hg/documentation/html/index.html#FuXi.SPARQL.BackwardChainingStore.TopDownSPARQLEntailingStore>`_,
+`TopDownSPARQLEntailingStore <http://fuxi.googlecode.com/hg/documentation/html/index.html#fuxi.SPARQL.BackwardChainingStore.TopDownSPARQLEntailingStore>`_,
 which is an `rdflib <https://github.com/RDFLib>`_ /
 `layercake-python <http://code.google.com/p/python-dlp/wiki/LayerCakePythonDivergence>`_
 `Store <http://rdflib.readthedocs.org/en/latest/_modules/rdflib/store.html>`_

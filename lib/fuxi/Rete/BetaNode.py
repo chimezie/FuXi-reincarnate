@@ -447,11 +447,11 @@ class BetaNode(Node):
      aNode1
        |
     joinNode1
-         \   aNode2
-          \   /    aNode3
-         joinNode2  /
-             \     /
-              \   /
+          \\   aNode2
+           \\   /    aNode3
+          joinNode2  /
+              \\     /
+               \\   /
            joinNode3
 
       joinNode3 is the Terminal node

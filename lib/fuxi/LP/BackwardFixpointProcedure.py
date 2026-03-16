@@ -407,8 +407,8 @@ def SetupEvaluationBetaNode(existingBetaNode, rule, network):
       ------------
 
        ...
-         \     memory <-- evalAlphaNode
-          \   /
+          \\     memory <-- evalAlphaNode
+           \\   /
          existingBetaNode
 
 

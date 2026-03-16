@@ -93,10 +93,10 @@ test:example test:value "example" .
         self.network2 = build_network2(self.rules)
 
     def test_literal_variable_startswith_literal_should_match(self):
-        self.failUnless(self.fact in self.network.inferredFacts)
+        self.assertIn(self.fact, self.network.inferredFacts)
 
     def test_literal_variable_startswith_literal_should_match2(self):
-        self.failUnless(self.fact in self.network2.inferredFacts)
+        self.assertIn(self.fact, self.network2.inferredFacts)
 
 
 class URIRefStringStartsWith(unittest.TestCase):
@@ -115,10 +115,10 @@ test:example test:value test:example .
         self.network2 = build_network2(self.rules)
 
     def test_uriref_variable_startswith_literal_should_match(self):
-        self.failUnless(self.fact in self.network.inferredFacts)
+        self.assertIn(self.fact, self.network.inferredFacts)
 
     def test_uriref_variable_startswith_literal_should_match2(self):
-        self.failUnless(self.fact in self.network2.inferredFacts)
+        self.assertIn(self.fact, self.network2.inferredFacts)
 
 
 if __name__ == "__main__":

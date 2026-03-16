@@ -46,11 +46,14 @@ def _make_store_and_graph():
 
 
 def test_issue_008():
+    """Test that rule variables don't leak between rules (GitHub issue #8)."""
     fam_ns, ns_mapping, top_down_store = _make_store_and_graph()
     target_graph = Graph(store=top_down_store)
     target_graph.bind("ex", fam_ns)
+    target_graph.bind("fam", fam_ns)
     res = target_graph.query(
-        "SELECT ?a { fam:david fam:ancestor ?a }",
+        """PREFIX fam: <http://dev.w3.org/2000/10/swap/test/cwm/fam.n3#>
+SELECT ?a { fam:david fam:ancestor ?a }""",
         initNs=ns_mapping,
     )
-    assert len(list(res)) == 0
+    assert len(list(res)) == 0, "Variables should not leak between rules"

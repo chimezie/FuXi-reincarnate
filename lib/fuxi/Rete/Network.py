@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # -*- coding: utf-8 -*-
 # flake8: noqa
 """
@@ -20,6 +22,7 @@ The network :
 """
 
 from itertools import chain
+from typing import Iterable, Iterator, Optional
 import sys
 import time
 from pprint import pprint
@@ -85,6 +88,7 @@ from .RuleStore import (
     N3Builtin,
     N3RuleStore,
 )
+from fuxi.types import RDFTerm, Triple
 
 
 OWL_NS = Namespace("http://www.w3.org/2002/07/owl#")
@@ -119,12 +123,13 @@ class HashablePatternList(object):
 
     """
 
-    def __init__(self, items=None, skipBNodes=False):
+    def __init__(
+        self,
+        items: Optional[Iterable[tuple[RDFTerm, ...]]] = None,
+        skipBNodes: bool = False,
+    ) -> None:
         self.skipBNodes = skipBNodes
-        if items:
-            self._l = items
-        else:
-            self._l = []
+        self._l = list(items) if items is not None else []
 
     def __len__(self):
         return len(self._l)

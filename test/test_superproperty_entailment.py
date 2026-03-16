@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # encoding: utf-8
-import unittest
+import pytest
 from io import StringIO
 from pprint import pprint
 from rdflib import Graph, Namespace
@@ -56,37 +56,23 @@ exterms:brother
 """
 
 
-class test_superproperty_entailment(unittest.TestCase):
-    def setUp(self):
-        self.rule_store, self.rule_graph, self.network = SetupRuleStore(
-            makeNetwork=True
-        )
-        self.tBoxGraph = Graph().parse(StringIO(TBOX), format="n3")
-
-        self.aBoxGraph = Graph().parse(StringIO(ABOX), format="n3")
-        NormalFormReduction(self.tBoxGraph)
-
-    def testReasoning(self):
-        print("setting up DLP...")
-        self.network.setupDescriptionLogicProgramming(self.tBoxGraph)
-        pprint(list(self.network.rules))
-        print(self.network)
-
-        print("feeding TBox... ")
-        self.network.feedFactsToAdd(generateTokenSet(self.tBoxGraph))
-        print("feeding ABox...")
-        self.network.feedFactsToAdd(generateTokenSet(self.aBoxGraph))
-
-        self.network.inferredFacts.bind("ex", EX)
-        self.network.inferredFacts.bind("exterms", EX_TERMS)
-        print(self.network.inferredFacts.serialize(format="n3"))
-
-        print("Checking...")
-        for triple in expected_triples:
-            self.failUnless(
-                triple in self.network.inferredFacts, "Missing %s" % (repr(triple))
-            )
+pytestmark = pytest.mark.integration
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_superproperty_entailment():
+    rule_store, rule_graph, network = SetupRuleStore(makeNetwork=True)
+    tbox_graph = Graph().parse(StringIO(TBOX), format="n3")
+    abox_graph = Graph().parse(StringIO(ABOX), format="n3")
+    NormalFormReduction(tbox_graph)
+
+    network.setupDescriptionLogicProgramming(tbox_graph)
+    pprint(list(network.rules))
+
+    network.feedFactsToAdd(generateTokenSet(tbox_graph))
+    network.feedFactsToAdd(generateTokenSet(abox_graph))
+
+    network.inferredFacts.bind("ex", EX)
+    network.inferredFacts.bind("exterms", EX_TERMS)
+
+    for triple in expected_triples:
+        assert triple in network.inferredFacts, f"Missing {triple!r}"

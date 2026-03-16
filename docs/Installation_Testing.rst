@@ -62,9 +62,8 @@ and utilize:
    nice visual feedback to the discrimination network built to a
    ruleset.
 
--  `nose <http://somethingaboutorange.com/mrl/projects/nose/0.11.2/>`_ -
-   a testing utility used to enable cleaner execution of the test suite,
-   with better summary statistics.
+-  `pytest <https://docs.pytest.org/>`_ -
+   the supported test runner for the FuXi test suite.
 
 For more information about the `FuXi </p/fuxi/wiki/FuXi>`_ project and
 current release see
@@ -94,14 +93,15 @@ specified using the ``--strategy`` flag. Besides standalone unit tests,
 production modules. These can typically be invoked at the command line
 (as "test mains").
 
-You also can invoke all tests--standalone and embedded, unittest and
-doctest--by running ``/fuxi/test/suite.py``. The ``--variants`` switch
-with this command causes testOWL to run with each of the strategies gms,
-sld and bfp .
+You can run the tests with pytest for modern discovery and reporting::
+
+    pytest FuXi-reincarnate-chimezie/test
+
+The legacy ``/fuxi/test/suite.py`` runner is deprecated and kept only for
+historical reference. Use pytest for new or updated workflows.
 
 `FuXi </p/fuxi/wiki/FuXi>`_ may be released with some tests in error.
 Consult the release notes for further information. Also, refer to the
 `issues
 list <http://code.google.com/p/fuxi/issues/list?thanks=12&ts=1277984968>`_
 for outstanding maintenance and enhancement requests.
-

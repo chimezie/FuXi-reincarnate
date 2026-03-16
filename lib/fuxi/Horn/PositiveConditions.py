@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # -*- coding: utf-8 -*-
 # flake8: noqa
 """
@@ -8,6 +10,8 @@ bodies of such rules are conjunctions of atomic formulas without negation.
 """
 
 import itertools
+from functools import reduce
+from typing import Any, Iterable, Iterator, Mapping, MutableMapping, Optional
 from rdflib import (
     Variable,
 )  # for doctests
@@ -18,22 +22,22 @@ from rdflib import BNode, Literal, Namespace, RDF, URIRef
 from rdflib.graph import Graph
 from rdflib.namespace import NamespaceManager
 
-try:
-    from functools import reduce
-except ImportError:
-    pass
 
 _XSD_NS = Namespace("http://www.w3.org/2001/XMLSchema#")
 from rdflib.util import first
 
+from fuxi.types import MutableBindings, RDFNode, RDFTerm, Triple
+
 OWL = Namespace("http://www.w3.org/2002/07/owl#")
 
 
-def format_doctest_out(obj):
+def format_doctest_out(obj: Any) -> Any:
     return obj
 
 
-def buildUniTerm(triple, newNss=None):
+def buildUniTerm(
+    triple: Triple, newNss: Optional[Iterable[tuple[str, URIRef]]] = None
+) -> "Uniterm":
     if isinstance(triple, tuple):
         (s, p, o) = triple
     else:
@@ -41,7 +45,7 @@ def buildUniTerm(triple, newNss=None):
     return Uniterm(p, [s, o], newNss=newNss)
 
 
-def GetUterm(term):
+def GetUterm(term: "Condition") -> "Uniterm":
     if isinstance(term, Uniterm):
         return term
     elif isinstance(term, Exists):
@@ -51,18 +55,21 @@ def GetUterm(term):
 
 
 class QNameManager(object):
-    def __init__(self, nsDict=None):
-        self.nsDict = nsDict and nsDict or {}
-        self.nsMgr = NamespaceManager(Graph())
+    def __init__(self, nsDict: Optional[Mapping[str, URIRef]] = None) -> None:
+        self.nsDict: dict[str, URIRef] = dict(nsDict) if nsDict else {}
+        self.nsMgr: NamespaceManager = NamespaceManager(Graph())
         self.nsMgr.bind("owl", "http://www.w3.org/2002/07/owl#")
         self.nsMgr.bind("math", "http://www.w3.org/2000/10/swap/math#")
 
-    def bind(self, prefix, namespace):
+    def bind(self, prefix: str, namespace: URIRef) -> None:
         self.nsMgr.bind(prefix, namespace)
 
 
 class SetOperator(object):
-    def repr(self, operator):
+    formulae: list[Condition]
+    naf: bool
+
+    def repr(self, operator: str) -> str:
         nafPrefix = self.naf and "not " or ""
         if len(self.formulae) == 1:
             return nafPrefix + repr(self.formulae[0])
@@ -73,10 +80,10 @@ class SetOperator(object):
                 " ".join([repr(i) for i in self.formulae]),
             )
 
-    def remove(self, item):
+    def remove(self, item: Condition) -> None:
         self.formulae.remove(item)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.formulae)
 
 
@@ -85,13 +92,21 @@ class Condition(object):
     CONDITION   ::= CONJUNCTION | DISJUNCTION | EXISTENTIAL | ATOMIC
     """
 
-    def isSafeForVariable(self, var):
+    formulae: list[Condition]
+
+    def isSafeForVariable(self, var: Variable) -> bool:
         """
         A variable, v is safe in a condition formula if and only if ..
         """
         return False
 
-    def __iter__(self):
+    def binds(self, var: Variable) -> bool:
+        return False
+
+    def n3(self) -> str:
+        return repr(self)
+
+    def __iter__(self) -> Iterator[Condition]:
         for f in self.formulae:
             yield f
 

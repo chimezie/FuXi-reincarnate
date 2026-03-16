@@ -1,5 +1,10 @@
+from __future__ import annotations
+
 # -*- coding: utf-8 -*-
 # flake8: noqa
+
+from functools import reduce
+from typing import Iterable, Iterator, Mapping, MutableMapping, Optional
 
 from rdflib import (
     BNode,
@@ -14,16 +19,11 @@ from rdflib.graph import QuotedGraph, Graph
 from rdflib.namespace import NamespaceManager
 
 from .BuiltinPredicates import FILTERS
+from fuxi.types import MutableBindings, RDFNode, RDFTerm, Triple
 
 
 def format_doctest_out(obj):
     return obj
-
-
-try:
-    from functools import reduce
-except ImportError:
-    pass
 
 
 LOG = Namespace("http://www.w3.org/2000/10/swap/log#")
@@ -38,7 +38,13 @@ class N3Builtin(object):
     An binary N3 Filter: A built-in which evaluates to a boolean
     """
 
-    def __init__(self, uri, func, argument, result):
+    def __init__(
+        self,
+        uri: URIRef,
+        func,
+        argument: RDFTerm,
+        result: RDFTerm,
+    ) -> None:
         self.uri = uri
         self.argument = argument
         self.result = result
@@ -47,10 +53,10 @@ class N3Builtin(object):
             arg for arg in [self.argument, self.result] if isinstance(arg, Variable)
         ]
 
-    def isSecondOrder(self):
+    def isSecondOrder(self) -> bool:
         return False
 
-    def ground(self, varMapping):
+    def ground(self, varMapping: Mapping[RDFTerm, RDFTerm]) -> set[RDFTerm]:
         appliedKeys = set([self.argument, self.result]).intersection(
             list(varMapping.keys())
         )
@@ -58,27 +64,27 @@ class N3Builtin(object):
         self.result = varMapping.get(self.result, self.result)
         return appliedKeys
 
-    def isGround(self):
+    def isGround(self) -> bool:
         for term in [self.result, self.argument]:
             if isinstance(term, Variable):
                 return False
         return True
 
-    def renameVariables(self, varMapping):
+    def renameVariables(self, varMapping: Mapping[RDFTerm, RDFTerm]) -> None:
         if varMapping:
             self.argument = varMapping.get(self.argument, self.argument)
             self.result = varMapping.get(self.result, self.result)
 
-    def binds(self, var):
+    def binds(self, var: Variable) -> bool:
         return True
 
-    def toRDFTuple(self):
+    def toRDFTuple(self) -> tuple[RDFTerm, RDFTerm, RDFTerm]:
         return (self.argument, self.uri, self.result)
 
     def render(self, argument, result):
         return "<%s>(%s, %s)" % (self.uri, argument, result)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[RDFTerm]:
         for f in [self.uri, self.argument, self.result]:
             yield f
 
@@ -98,24 +104,24 @@ class Formula(object):
     and a *list* of triples
     """
 
-    def __init__(self, identifier):
+    def __init__(self, identifier: RDFTerm) -> None:
         self.identifier = identifier
-        self.triples = []
+        self.triples: list[Triple | N3Builtin] = []
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.triples)
 
     def __repr__(self):
         return "{%s}" % (repr(self.triples))
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: int) -> Triple | N3Builtin:
         return self.triples[key]
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Triple | N3Builtin]:
         for item in self.triples:
             yield item
 
-    def extend(self, other):
+    def extend(self, other: Iterable[Triple | N3Builtin]) -> None:
         self.triples.extend(other)
 
     def append(self, other):
@@ -281,6 +287,7 @@ BuiltIn used out of order
     __doc__ = format_doctest_out(doc)
 
     context_aware = True
+    graph_aware = True
     formula_aware = True
 
     def __init__(self, identifier=None, additionalBuiltins=None):

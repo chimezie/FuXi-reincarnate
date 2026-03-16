@@ -43,8 +43,11 @@ def _make_network_and_graph():
     return rule_store, rule_graph, network, graph
 
 
+@pytest.mark.skip(
+    reason="Known failure: transitivity of owl:sameAs not working correctly"
+)
 def test_transitivity():
-    pytest.skip("SKIPFAIL testTransitivity, see test/test_sameAs.py")
+    """Test transitivity of owl:sameAs property."""
     _rule_store, _rule_graph, _network, graph = _make_network_and_graph()
     ns_bindings = {"owl": OWL_NS, "ex": EX}
     top_down_store = TopDownSPARQLEntailingStore(

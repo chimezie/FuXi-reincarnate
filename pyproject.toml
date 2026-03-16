@@ -56,7 +56,7 @@ build-backend = "setuptools.build_meta"
 zip-safe = false
 
 [tool.setuptools.package-dir]
-fuxi = "lib"
+"" = "lib"
 
 [tool.setuptools.packages.find]
 where = ["lib"]
@@ -64,13 +64,15 @@ include = ["fuxi*"]
 
 [tool.pytest.ini_options]
 testpaths = ["test"]
-addopts = ["-ra", "-p", "no:doctest"]
+python_files = ["test_*.py"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--tb=short",
+]
 markers = [
-    "unit: fast isolated tests",
-    "integration: multi-component tests",
-    "slow: long-running tests",
-    "webtest: network-dependent tests",
-    "known_issue: expected failures for tracked issues",
+    "integration: slower integration-style tests",
+    "slow: slow tests",
 ]
 
 [tool.pyupgrade]
@@ -82,22 +84,57 @@ target-version = "py313"
 [tool.ruff.lint]
 select = ["UP"]
 
+[tool.mypy]
+python_version = "3.13"
+files = ["lib"]
+ignore_missing_imports = true
+check_untyped_defs = false
+disallow_incomplete_defs = false
+warn_unused_ignores = true
+warn_return_any = false
+warn_redundant_casts = false
+warn_unreachable = false
+disallow_any_generics = false
+disallow_subclassing_any = false
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = [
+    "fuxi.Horn.PositiveConditions",
+    "fuxi.Rete.RuleStore",
+    "fuxi.Rete.Network",
+    "fuxi.Horn.HornRules",
+]
+check_untyped_defs = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = [
+    "fuxi.SPARQL",
+    "fuxi.SPARQL.BackwardChainingStore",
+    "fuxi.LP.BackwardFixpointProcedure",
+]
+check_untyped_defs = true
+disallow_incomplete_defs = true
+warn_return_any = true
+
 [tool.coverage.run]
 source = ["fuxi"]
 omit = [
     "*/test/*",
     "*/tests/*",
+    "*/.venv/*",
+    "*/.tox/*",
 ]
 branch = true
 
 [tool.coverage.report]
+precision = 2
 show_missing = true
 skip_covered = false
 exclude_lines = [
     "pragma: no cover",
-    "def __repr__",
-    "raise AssertionError",
-    "raise NotImplementedError",
     "if __name__ == .__main__.:",
+    "raise NotImplementedError",
     "if TYPE_CHECKING:",
 ]

@@ -21,7 +21,7 @@ config = dict(
         "Natural Language :: English",
     ],
     package_dir={
-        "fuxi": "lib",
+        "": "lib",
     },
     packages=[
         "fuxi",

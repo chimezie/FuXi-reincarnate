@@ -1,9 +1,13 @@
+from __future__ import annotations
+
 # -*- coding: utf-8 -*-
 # flake8: noqa
 """
 This section defines Horn rules for RIF Phase 1. The syntax and semantics
 incorporates RIF Positive Conditions defined in Section Positive Conditions
 """
+
+from typing import Any, Iterable, Iterator, Mapping, Optional
 
 from fuxi.Horn.PositiveConditions import (
     And,
@@ -24,15 +28,12 @@ from rdflib import (
     Variable,
 )
 
-try:
-    from functools import reduce
-except ImportError:
-    pass
+from functools import reduce
 
 import itertools
 
 
-def format_doctest_out(obj):
+def format_doctest_out(obj: Any) -> Any:
     return obj
 
 
@@ -59,7 +60,12 @@ def NetworkFromN3(n3Source, additionalBuiltins=None):
     return network
 
 
-def HornFromDL(owlGraph, safety=DATALOG_SAFETY_NONE, derivedPreds=[], complSkip=[]):
+def HornFromDL(
+    owlGraph,
+    safety: int = DATALOG_SAFETY_NONE,
+    derivedPreds: Optional[list] = None,
+    complSkip: Optional[list] = None,
+):
     """
     Takes an OWL RDF graph, an indication of what level of ruleset safety
     (see: http://code.google.com/p/fuxi/wiki/FuXiUserManual#Rule_Safety) to apply,
@@ -106,7 +112,7 @@ def extractVariables(term, existential=True):
                 yield t
 
 
-def iterCondition(condition):
+def iterCondition(condition: Condition) -> Iterator[Condition]:
     return isinstance(condition, SetOperator) and condition or iter([condition])
 
 
@@ -115,7 +121,12 @@ class Ruleset(object):
     Ruleset ::= RULE*
     """
 
-    def __init__(self, formulae=None, n3Rules=None, nsMapping=None):
+    def __init__(
+        self,
+        formulae: Optional[list] = None,
+        n3Rules: Optional[list] = None,
+        nsMapping: Optional[Mapping[str, Any]] = None,
+    ) -> None:
         from fuxi.Rete.RuleStore import N3Builtin
 
         self.nsMapping = nsMapping and nsMapping or {}

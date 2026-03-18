@@ -255,7 +255,7 @@ def main():
         "-d",
         "--debug",
         action="store_true",
-        default=True,
+        default=False,
         help="Include debugging output",
     )
 
@@ -479,8 +479,6 @@ def main():
     network.nsMap = nsBinds
 
     if options.dlp:
-        from fuxi.DLP.DLNormalization import NormalFormReduction
-
         if options.ontology:
             ontGraph = Graph()
             for fileN in options.ontology:
@@ -580,14 +578,7 @@ def main():
         nsBinds.update(network.nsMap)
         network.nsMap = nsBinds
         prologue, query_comp = _normalize_sparql_parse(parsed_query, nsBinds)
-        print("query.prologue", prologue)
-        print("query.query", query_comp)
         if hasattr(query_comp, "whereClause"):
-            print("query.query.whereClause", query_comp.whereClause)
-            print(
-                "query.query.whereClause.parsedGraphPattern",
-                query_comp.whereClause.parsedGraphPattern,
-            )
             goals.extend(
                 [
                     (s, p, o)
@@ -635,12 +626,12 @@ def main():
         if options.method == "gms":
             for goal in goals:
                 goalSeed = AdornLiteral(goal).makeMagicPred()
-                print("Magic seed fact (used in bottom-up evaluation)", goalSeed)
+                # print("Magic seed fact (used in bottom-up evaluation)", goalSeed)
                 magicSeeds.append(goalSeed.toRDFTuple())
-            if noMagic:
-                print("Predicates whose magic sets will not be calculated")
-                for p in noMagic:
-                    print("\t", factGraph.qname(p))
+            # if noMagic:
+                # print("Predicates whose magic sets will not be calculated")
+                # for p in noMagic:
+                #     print("\t", factGraph.qname(p))
             for rule in MagicSetTransformation(
                 factGraph,
                 ruleSet,
@@ -652,15 +643,15 @@ def main():
             ):
                 magicRuleNo += 1
                 network.buildNetworkFromClause(rule)
-            if len(list(ruleSet)):
-                print(
-                    "reduction in size of program: %s (%s -> %s clauses)"
-                    % (
-                        100 - (float(magicRuleNo) / float(len(list(ruleSet)))) * 100,
-                        len(list(ruleSet)),
-                        magicRuleNo,
-                    )
-                )
+            # if len(list(ruleSet)):
+            #     print(
+            #         "reduction in size of program: %s (%s -> %s clauses)"
+            #         % (
+            #             100 - (float(magicRuleNo) / float(len(list(ruleSet)))) * 100,
+            #             len(list(ruleSet)),
+            #             magicRuleNo,
+            #         )
+            #     )
             start = time.time()
             network.feedFactsToAdd(generateTokenSet(magicSeeds))
             if not [rule for rule in factGraph.adornedProgram if len(rule.sip)]:
@@ -676,7 +667,7 @@ def main():
             else:
                 sTime = sTime * 1000
                 sTimeStr = "%s milli seconds" % sTime
-            print("Time to calculate closure on working memory: ", sTimeStr)
+            # print("Time to calculate closure on working memory: ", sTimeStr)
 
             if options.output == "rif":
                 print("Rules used for bottom-up evaluation")
@@ -735,10 +726,11 @@ def main():
                 else:
                     sTime = sTime * 1000
                     sTimeStr = "%s milli seconds" % sTime
-                print(
-                    "Time to reach answer ground goal answer of %s: %s"
-                    % (result.askAnswer, sTimeStr)
-                )
+                if options.why:
+                    print(
+                        "Time to reach answer ground goal answer of %s: %s"
+                        % (result.askAnswer, sTimeStr)
+                    )
             else:
                 for rt in result:
                     sTime = time.time() - start
@@ -749,10 +741,11 @@ def main():
                         sTimeStr = "%s milli seconds" % sTime
                     if options.firstAnswer:
                         break
-                    print(
-                        "Time to reach answer %s via top-down SPARQL sip strategy: %s"
-                        % (rt, sTimeStr)
-                    )
+                    if options.why:
+                        print(
+                            "Time to reach answer %s via top-down SPARQL sip strategy: %s"
+                            % (rt, sTimeStr)
+                        )
             if options.output == "conflict" and options.method == "bfp":
                 for _network, _goal in topDownStore.queryNetworks:
                     print(network, _goal)
@@ -769,8 +762,9 @@ def main():
         else:
             sTime = sTime * 1000
             sTimeStr = "%s milli seconds" % sTime
-        print("Time to calculate closure on working memory: ", sTimeStr)
-        print(network)
+        if options.debug:
+            print("Time to calculate closure on working memory: ", sTimeStr)
+            print(network)
         if options.output == "conflict":
             network.reportConflictSet()
 
@@ -781,10 +775,11 @@ def main():
     if options.negation and network.negRules and options.method in ["both", "bottomUp"]:
         now = time.time()
         rt = network.calculateStratifiedModel(factGraph)
-        print(
-            "Time to calculate stratified, stable model (inferred %s facts): %s"
-            % (rt, time.time() - now)
-        )
+        if options.debug:
+            print(
+                "Time to calculate stratified, stable model (inferred %s facts): %s"
+                % (rt, time.time() - now)
+            )
     if options.filter:
         print("Applying filter to entailed facts")
         network.inferredFacts = network.filteredFacts
@@ -802,19 +797,4 @@ def main():
 
 
 if __name__ == "__main__":
-#     from hotshot import Profile, stats
-#
-#     # import pycallgraph
-#     # pycallgraph.start_trace()
     main()
-#     # pycallgraph.make_dot_graph('FuXi-timing.png')
-#     # sys.exit(1)
-#     p = Profile("fuxi.profile")
-#     p.runcall(main)
-#     p.close()
-#     s = stats.load("fuxi.profile")
-#     s.strip_dirs()
-#     s.sort_stats("time", "cumulative", "pcalls")
-#     s.print_stats(0.05)
-#     s.print_callers(0.01)
-#     s.print_callees(0.01)

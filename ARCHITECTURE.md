@@ -231,10 +231,16 @@ theory expressed as any combination of RIF Core, N3, and/or OWL2-RL such that ad
 domain theory will be provided to the query.
 
 #### SPARQL Interlocution Overview
+
+Below is a summary (work in progress) of how FuXi uses SPARQL interlocution as a Semantic Web Query Mediation strategy, 
+the mathematics of which are more fully discussed in [Semantic Web Query Mediation via
+RDF-entailment under Dynamic Rule Sets](/chimezie/FuXi-reincarnate/blob/fuxi-reincarnate/EfficientSPARQL-in-use-generic.pdf),
+an unpublished technical paper written around the time I stopped working on FuXi.
+
 This is the goal-directed SPARQL entailment strategy used by FuXi. It avoids full materialization and instead mediates
 between rules and the RDF store by issuing only the SPARQL queries needed to answer the user’s query.
 
-Key ideas (minimal jargon):
+Key ideas:
 - **Two kinds of predicates:** base predicates come directly from the RDF graph; derived predicates are produced by rules.
 - **No graph mutation:** answers are computed without inserting derived triples into the RDF graph.
 - **Query-driven:** evaluation starts from the user’s query and only follows rule paths that can lead to answers.

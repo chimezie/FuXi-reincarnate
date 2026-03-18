@@ -30,21 +30,20 @@ The legacy `FuXi` import path is still supported for backward compatibility but 
 
 ## Development Setup
 
-Install uv if not already installed (via package manager preferred):
-
-```bash
-sudo zypper install uv
-```
+Install uv if not already installed (via package manager preferred)
 
 Create a virtual environment and install dependencies:
 
 ```bash
 uv venv
 source .venv/bin/activate
-uv pip install -e ".[dev]"
+uv pip install -e .
 ```
 
 ## Details ##
+
+Most of the content here was moved from the (outdated) [Google Code repository](https://code.google.com/archive/p/fuxi/)
+but see this wiki [this wiki](/chimezie/FuXi-reincarnate/blob/fuxi-reincarnate/ARCHITECTURE.md) for more architectural details. 
 
 #### Base and Derived Predicates #### 
 An important distinction needed for FuXi's SIP capabilities is between derived predicates and base predicates, the 

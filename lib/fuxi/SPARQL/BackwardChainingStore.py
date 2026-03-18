@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
 # flake8: noqa
 import sys
+from typing import Any, Mapping
 from pprint import pprint
 from rdflib import RDF, URIRef, Variable
 from rdflib.util import first
 from rdflib.store import Store
 from rdflib.plugins.stores.regexmatching import NATIVE_REGEX
+from rdflib.term import Identifier
 
 # from rdflib.plugins.sparql.algebra import RenderSPARQLAlgebra
 from rdflib.plugins.sparql.algebra import translateQuery as RenderSPARQLAlgebra
-# from rdflib.plugins.sparql.algebra import NonSymmetricBinaryOperator
-# from rdflib.plugins.sparql.graph import BasicGraphPattern
+from rdflib.plugins.sparql.parser import parseQuery
 
 from fuxi.Rete.Magic import SetupDDLAndAdornProgram
 from fuxi.Rete.Magic import DerivedPredicateIterator
@@ -34,6 +35,7 @@ from rdflib import RDFS
 
 assert RDFS
 from rdflib.plugins.sparql.parserutils import Expr as AlgebraExpression
+from rdflib.plugins.sparql.parserutils import CompValue
 
 assert AlgebraExpression
 from rdflib.plugins.sparql.sparql import Query
@@ -72,19 +74,39 @@ class TopDownSPARQLEntailingStore(Store):
     batch_unification = True
 
     def getDerivedPredicates(self, expr, prologue):
-        # if isinstance(expr, BasicGraphPattern):
-        if expr.name == "BGP":
-            for s, p, o, func in expr.patterns:
-                derivedPred = self.derivedPredicateFromTriple((s, p, o))
-                if derivedPred is not None:
-                    yield derivedPred
-        elif isinstance(expr, NonSymmetricBinaryOperator):
+        def iter_bgp_triples(bgp):
+            if hasattr(bgp, "patterns") and bgp.patterns is not None:
+                for item in bgp.patterns:
+                    yield item
+            else:
+                for item in bgp.get("triples", []) or []:
+                    yield item
+
+        if isinstance(expr, NonSymmetricBinaryOperator):
             for term in self.getDerivedPredicates(expr.left, prologue):
                 yield term
             for term in self.getDerivedPredicates(expr.right, prologue):
                 yield term
-        else:
-            raise NotImplementedError(expr)
+            return
+        if isinstance(expr, CompValue):
+            if expr.name == "BGP":
+                for item in iter_bgp_triples(expr):
+                    if len(item) == 4:
+                        s, p, o, _func = item
+                    else:
+                        s, p, o = item
+                    derivedPred = self.derivedPredicateFromTriple((s, p, o))
+                    if derivedPred is not None:
+                        yield derivedPred
+            for key in expr.keys():
+                for term in self.getDerivedPredicates(expr.get(key), prologue):
+                    yield term
+            return
+        if isinstance(expr, (list, tuple)):
+            for item in expr:
+                for term in self.getDerivedPredicates(item, prologue):
+                    yield term
+            return
 
     def isaBaseQuery(self, queryString, queryObj=None):
         """
@@ -104,29 +126,33 @@ class TopDownSPARQLEntailingStore(Store):
         >>> isinstance(rt,(BasicGraphPattern, AlgebraExpression))
         True
         """
+        from rdflib.graph import Graph
+        from rdflib.namespace import NamespaceManager
         from rdflib.plugins.sparql.sparql import Prologue
         from rdflib.plugins.sparql.parser import parseQuery
         from rdflib.plugins.sparql import sparql as sparqlModule
 
-        if queryObj:
+        if queryObj is not None:
             query = queryObj
         else:
             query = parseQuery(queryString)
-        if not query.prologue:
-            query.prologue = Prologue(None, [])
-            query.prologue.prefixBindings.update(self.nsBindings)
-        else:
-            for prefix, nsInst in list(self.nsBindings.items()):
-                if prefix not in query.prologue.prefixBindings:
-                    query.prologue.prefixBindings[prefix] = nsInst
 
-        sparqlModule.prologue = query.prologue
-        algebra = RenderSPARQLAlgebra(query, nsMappings=self.nsBindings)
-        return (
-            first(self.getDerivedPredicates(algebra, sparqlModule.prologue))
-            and algebra
-            or query
-        )
+        prologue = getattr(query, "prologue", None)
+        if prologue is None:
+            prologue = Prologue()
+            query.prologue = prologue
+        if not getattr(prologue, "namespace_manager", None):
+            prologue.namespace_manager = NamespaceManager(Graph())
+        for prefix, nsInst in list(self.nsBindings.items()):
+            prologue.namespace_manager.bind(prefix, nsInst, override=False)
+
+        sparqlModule.prologue = prologue
+        if hasattr(query, "algebra") and query.algebra is not None:
+            algebra = query.algebra
+        else:
+            algebra = RenderSPARQLAlgebra(query, initNs=self.nsBindings).algebra
+
+        return first(self.getDerivedPredicates(algebra, prologue)) and algebra or query
 
     def __init__(
         self,
@@ -204,7 +230,7 @@ class TopDownSPARQLEntailingStore(Store):
             debug=self.DEBUG,
         )
         bfp.createTopDownReteNetwork(self.DEBUG)
-        # rt = bfp.answers(debug=self.DEBUG)
+        bfp.answers(debug=self.DEBUG)
         self.queryNetworks.append((bfp.metaInterpNetwork, tp))
         self.edbQueries.update(bfp.edbQueries)
         if self.DEBUG:
@@ -323,28 +349,29 @@ class TopDownSPARQLEntailingStore(Store):
         else:
             return None
 
-    def sparql_query(
+    def query(
         self,
-        queryString,
-        queryObj,
-        graph,
-        dataSetBase,
-        extensionFunctions,
-        initBindings={},
-        initNs={},
-        DEBUG=False,
+        query: Query | str,
+        # dataSetBase,
+        #extensionFunctions,
+        initNs: Mapping[str, Any],  # noqa: N803
+        initBindings: Mapping[str, Identifier],  # noqa: N803
+        queryGraph: str,  # noqa: N803
+        **kwargs: Any,
     ):
         """
         The default 'native' SPARQL implementation is based on sparql-p's expansion trees
         layered on top of the read-only RDF APIs of the underlying store
         """
         from rdflib.plugins.sparql.evaluate import evalQuery
-        from rdflib.plugins.sparql.processor import SPARQLResult
         from rdflib.query import Result
-
-        _expr = self.isaBaseQuery(None, queryObj)
-        if queryObj.query.name == "AskQuery" and _expr.name == "BGP":
-            # isinstance(_expr, BasicGraphPattern):
+        from fuxi.SPARQL.utilities import extract_triples_from_query, sparql_query_from_result
+        if isinstance(query, Query):
+            raise NotImplementedError("Query object not supported")
+        prologue, query = parseQuery(query)
+        query_name = query.name
+        if query_name == "AskQuery":
+            triples = extract_triples_from_query(query, initNs)
             # This is a ground, BGP, involving IDB and can be solved directly
             # using top-down decision procedure
             # First separate out conjunct into EDB and IDB predicates
@@ -353,16 +380,21 @@ class TopDownSPARQLEntailingStore(Store):
 
             groundConjunct = []
             derivedConjunct = []
-            for s, p, o, func in _expr.patterns:
-                if self.derivedPredicateFromTriple((s, p, o)) is None:
-                    groundConjunct.append(BuildUnitermFromTuple((s, p, o)))
+            for item in triples:
+                if len(item) == 4:
+                    s, p, o, _func = item
                 else:
-                    derivedConjunct.append(BuildUnitermFromTuple((s, p, o)))
+                    s, p, o = item
+                if self.derivedPredicateFromTriple((s, p, o)) is None:
+                    groundConjunct.append(BuildUnitermFromTuple((s, p, o), initNs))
+                else:
+                    derivedConjunct.append(BuildUnitermFromTuple((s, p, o), initNs))
+            ans = None
             if groundConjunct:
                 baseEDBQuery = EDBQuery(groundConjunct, self.edb)
                 subQuery, ans = baseEDBQuery.evaluate(DEBUG)
                 assert isinstance(ans, bool), ans
-            if groundConjunct and not ans:
+            if groundConjunct and (ans is not None and not ans):
                 askResult = False
             else:
                 askResult = True
@@ -403,17 +435,14 @@ class TopDownSPARQLEntailingStore(Store):
                         break
             ask_result = Result("ASK")
             ask_result.askAnswer = askResult
-            return ask_result
-        else:
-            rt = evalQuery(
-                graph,
-                queryObj,
-                initBindings,
-                dataSetBase,
-                DEBUG=self.DEBUG,
-                extensionFunctions=extensionFunctions,
-            )
-            return SPARQLResult(rt)
+            return sparql_query_from_result(ask_result)
+        rt = evalQuery(
+            graph,
+            queryObj,
+            initBindings,
+            dataSetBase,
+        )
+        return SPARQLResult(rt)
 
     def batch_unify(self, patterns):
         """

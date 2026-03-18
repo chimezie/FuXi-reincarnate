@@ -1,0 +1,11 @@
+# $Id: subclass.n3,v 1.4 2004/04/18 20:04:00 amdus Exp $
+
+@prefix log: <http://www.w3.org/2000/10/swap/log#>.
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
+@prefix :  <https://code.google.com/archive/p/fuxi/>.
+@prefix ex: <https://code.google.com/archive/p/fuxi/>.
+
+:A rdfs:subClassOf :B.
+:B rdfs:subClassOf :A.
+
+:i a :B.

@@ -508,7 +508,7 @@ class ReteNetwork:
                         pprint(pattern)
                         print(len(largeMem))
 
-    def reportConflictSet(self, closureSummary=False, stream=sys.stdout):
+    def reportConflictSet(self, closureSummary=False, stream=sys.stdout.buffer):
         tNodeOrder = [
             tNode for tNode in self.terminalNodes if self.instantiations.get(tNode, 0)
         ]

@@ -27,7 +27,12 @@ from rdflib.namespace import NamespaceManager
 from rdflib.plugins.sparql.sparql import Prologue
 from rdflib.plugins.sparql.parser import parseQuery as ParseSPARQL
 
-from rdflib.plugins.sparql.algebra import translate as ReduceGraphPattern
+from rdflib.plugins.sparql.algebra import (
+    translate as ReduceGraphPattern,
+    translateQuery as TranslateQuery,
+    traverse as TraverseAlgebra,
+)
+from rdflib.plugins.sparql.parserutils import CompValue
 
 from rdflib import plugin, RDF, URIRef, Namespace
 from rdflib.store import Store
@@ -52,6 +57,41 @@ RDF_SERIALIZATION_FORMATS = [
     "turtle",
     "n3",
 ]
+
+
+def _normalize_sparql_parse(parsed_query, ns_binds):
+    if isinstance(parsed_query, tuple) and len(parsed_query) == 2:
+        prologue, query = parsed_query
+    elif hasattr(parsed_query, "__len__") and len(parsed_query) == 2:
+        prologue, query = list(parsed_query)
+    else:
+        prologue = getattr(parsed_query, "prologue", None)
+        query = getattr(parsed_query, "query", parsed_query)
+    if not prologue:
+        prologue = Prologue()
+    if not getattr(prologue, "namespace_manager", None):
+        prologue.namespace_manager = NamespaceManager(Graph())
+    for prefix, ns_inst in list(ns_binds.items()):
+        prologue.namespace_manager.bind(prefix, ns_inst)
+    query_comp = query.query if hasattr(query, "query") else query
+    return prologue, query_comp
+
+
+def _collect_bgp_triples(algebra):
+    triples = []
+
+    def walk(node):
+        if isinstance(node, CompValue):
+            if node.name == "BGP":
+                triples.extend(node.get("triples", []))
+            for key in node.keys():
+                walk(node.get(key))
+        elif isinstance(node, (list, tuple)):
+            for item in node:
+                walk(item)
+
+    walk(algebra)
+    return triples
 
 
 def main():
@@ -533,34 +573,34 @@ def main():
             ]
         )
         goals = []
-        query = ParseSPARQL(options.why)
+        parsed_query = ParseSPARQL(options.why)
         network.nsMap["pml"] = PML
         network.nsMap["gmp"] = GMP_NS
         network.nsMap["owl"] = OWL_NS
         nsBinds.update(network.nsMap)
         network.nsMap = nsBinds
-        if not query.prologue:
-            query.prologue = Prologue()
-            query.prologue.prefixBindings.update(nsBinds)
+        prologue, query_comp = _normalize_sparql_parse(parsed_query, nsBinds)
+        print("query.prologue", prologue)
+        print("query.query", query_comp)
+        if hasattr(query_comp, "whereClause"):
+            print("query.query.whereClause", query_comp.whereClause)
+            print(
+                "query.query.whereClause.parsedGraphPattern",
+                query_comp.whereClause.parsedGraphPattern,
+            )
+            goals.extend(
+                [
+                    (s, p, o)
+                    for s, p, o, c in ReduceGraphPattern(
+                        query_comp.whereClause.parsedGraphPattern, prologue
+                    ).patterns
+                ]
+            )
         else:
-            for prefix, nsInst in list(nsBinds.items()):
-                if prefix not in query.prologue.prefixBindings:
-                    query.prologue.prefixBindings[prefix] = nsInst
-        print("query.prologue", query.prologue)
-        print("query.query", query.query)
-        print("query.query.whereClause", query.query.whereClause)
-        print(
-            "query.query.whereClause.parsedGraphPattern",
-            query.query.whereClause.parsedGraphPattern,
-        )
-        goals.extend(
-            [
-                (s, p, o)
-                for s, p, o, c in ReduceGraphPattern(
-                    query.query.whereClause.parsedGraphPattern, query.prologue
-                ).patterns
-            ]
-        )
+            translated = TranslateQuery(parsed_query, initNs=nsBinds)
+            if translated.prologue is not None:
+                prologue = translated.prologue
+            goals.extend(_collect_bgp_triples(translated.algebra))
         # dPreds=[]# p for s, p, o in goals ]
         # print("goals", goals)
         magicRuleNo = 0
@@ -697,7 +737,7 @@ def main():
                     sTimeStr = "%s milli seconds" % sTime
                 print(
                     "Time to reach answer ground goal answer of %s: %s"
-                    % (result.askAnswer[0], sTimeStr)
+                    % (result.askAnswer, sTimeStr)
                 )
             else:
                 for rt in result:
@@ -762,19 +802,19 @@ def main():
 
 
 if __name__ == "__main__":
-    from hotshot import Profile, stats
-
-    # import pycallgraph
-    # pycallgraph.start_trace()
-    # main()
-    # pycallgraph.make_dot_graph('FuXi-timing.png')
-    # sys.exit(1)
-    p = Profile("fuxi.profile")
-    p.runcall(main)
-    p.close()
-    s = stats.load("fuxi.profile")
-    s.strip_dirs()
-    s.sort_stats("time", "cumulative", "pcalls")
-    s.print_stats(0.05)
-    s.print_callers(0.01)
-    s.print_callees(0.01)
+#     from hotshot import Profile, stats
+#
+#     # import pycallgraph
+#     # pycallgraph.start_trace()
+    main()
+#     # pycallgraph.make_dot_graph('FuXi-timing.png')
+#     # sys.exit(1)
+#     p = Profile("fuxi.profile")
+#     p.runcall(main)
+#     p.close()
+#     s = stats.load("fuxi.profile")
+#     s.strip_dirs()
+#     s.sort_stats("time", "cumulative", "pcalls")
+#     s.print_stats(0.05)
+#     s.print_callers(0.01)
+#     s.print_callees(0.01)

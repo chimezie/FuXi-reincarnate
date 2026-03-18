@@ -237,16 +237,14 @@ class QueryExecution(object):
                     _qLit = EDBQuery(
                         [copy.deepcopy(lit) for lit in self.edbConj],
                         self.factGraph,  # closure,
-                        _vars,
-                        specialBNodeHandling=self.bfp.specialBNodeHandling,
+                        _vars
                     )
                 else:
                     _qLit = copy.deepcopy(self.queryLiteral)
                     _qLit = EDBQuery(
                         [_qLit],
                         self.factGraph,  # closure,
-                        list(GetVariables(_qLit, secondOrder=True)),
-                        specialBNodeHandling=self.bfp.specialBNodeHandling,
+                        list(GetVariables(_qLit, secondOrder=True))
                     )
                 origQuery = _qLit.copy()
                 _qLit.ground(_bindings)
@@ -473,10 +471,8 @@ class BackwardFixpointProcedure(object):
         sipCollection=[],
         hybridPredicates=None,
         debug=False,
-        pushDownMDBQ=True,
-        specialBNodeHandling=None,
+        pushDownMDBQ=True
     ):
-        self.specialBNodeHandling = specialBNodeHandling
         self.debug = debug
         self.metaRule2Network = {}
         self.pushDownMDBQ = pushDownMDBQ

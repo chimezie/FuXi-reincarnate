@@ -22,7 +22,7 @@ __author__ = "chimezieogbuji"
 import sys
 
 # from pprint import pprint
-# from fuxi.DLP import non_DHL_OWL_Semantics as SUBSUMPTION_SEMANTICS
+from fuxi.DLP import non_DHL_OWL_Semantics as SUBSUMPTION_SEMANTICS
 from fuxi.DLP import SKOLEMIZED_CLASS_NS
 from fuxi.DLP import SkolemizeExistentialClasses
 from fuxi.Horn.HornRules import HornFromN3

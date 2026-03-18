@@ -377,7 +377,7 @@ class EDBQuery(QNameManager, SetOperator, Condition):
                 )
             termList = lst
 
-        super(EDBQuery, self).__init__(termList)
+        super(EDBQuery, self).__init__(factGraph.namespace_manager.namespaces())
         self.bindings = (
             bindings.normalize() if isinstance(bindings, ImmutableDict) else bindings
         )

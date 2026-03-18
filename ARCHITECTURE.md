@@ -234,7 +234,7 @@ domain theory will be provided to the query.
 
 Below is a summary (work in progress) of how FuXi uses SPARQL interlocution as a Semantic Web Query Mediation strategy, 
 the mathematics of which are more fully discussed in [Semantic Web Query Mediation via
-RDF-entailment under Dynamic Rule Sets](/chimezie/FuXi-reincarnate/blob/fuxi-reincarnate/EfficientSPARQL-in-use-generic.pdf),
+RDF-entailment under Dynamic Rule Sets](https://github.com/chimezie/FuXi-reincarnate/blob/fuxi-reincarnate/EfficientSPARQL-in-use-generic.pdf),
 an unpublished technical paper written around the time I stopped working on FuXi.
 
 This is the goal-directed SPARQL entailment strategy used by FuXi. It avoids full materialization and instead mediates

@@ -43,7 +43,7 @@ uv pip install -e .
 ## Details ##
 
 Most of the content here was moved from the (outdated) [Google Code repository](https://code.google.com/archive/p/fuxi/)
-but see this wiki [this wiki](/chimezie/FuXi-reincarnate/blob/fuxi-reincarnate/ARCHITECTURE.md) for more architectural details. 
+but see this wiki [this wiki](https://github.com/chimezie/FuXi-reincarnate/blob/fuxi-reincarnate/ARCHITECTURE.md) for more architectural details. 
 
 #### Base and Derived Predicates #### 
 An important distinction needed for FuXi's SIP capabilities is between derived predicates and base predicates, the 

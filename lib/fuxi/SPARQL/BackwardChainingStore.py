@@ -436,13 +436,12 @@ class TopDownSPARQLEntailingStore(Store):
             ask_result = Result("ASK")
             ask_result.askAnswer = askResult
             return sparql_query_from_result(ask_result)
-        rt = evalQuery(
-            graph,
-            queryObj,
-            initBindings,
-            dataSetBase,
-        )
-        return SPARQLResult(rt)
+        else:
+            rt = evalQuery(
+                self.edb,
+                query,
+                initNs)
+            return SPARQLResult(rt)
 
     def batch_unify(self, patterns):
         """

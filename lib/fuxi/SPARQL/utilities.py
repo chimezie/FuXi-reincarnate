@@ -1,4 +1,3 @@
-from typing import List, Union, Dict, Tuple, Optional
 from rdflib.plugins.sparql.parserutils import CompValue
 from pyparsing import ParseResults
 from rdflib import URIRef
@@ -16,7 +15,7 @@ def sparql_query_from_result(result: Result) -> SPARQLResult:
     return SPARQLResult(mapping)
 
 def extract_list_from_comp_values(query_structure: CompValue,
-                                  field: str) -> List[Union[ParseResults, CompValue, List[CompValue]]]:
+                                  field: str) -> list[ParseResults | CompValue | list[CompValue]]:
     items = query_structure[field]
     assert isinstance(items, list)
     for component in items:
@@ -29,7 +28,7 @@ def extract_list_from_comp_values(query_structure: CompValue,
 
 
 def extract_triples_from_triple_part(triple_part: CompValue,
-                                     nsBinds: Dict[str, URIRef]) -> Tuple[URIRef, URIRef, URIRef]:
+                                     nsBinds: dict[str, URIRef]) -> tuple[URIRef, URIRef, URIRef]:
     if triple_part.name == 'pname':
         return URIRef(nsBinds[triple_part.prefix] + triple_part.localname)
     elif triple_part.name == 'PathAlternative':
@@ -39,8 +38,8 @@ def extract_triples_from_triple_part(triple_part: CompValue,
 
 
 def extract_triples_from_query(query_structure: CompValue,
-                               nsBinds: Dict[str, URIRef],
-                               triples: Optional[List] = None) -> List[Tuple[URIRef, URIRef, URIRef]]:
+                               nsBinds: dict[str, URIRef],
+                               triples: list | None = None) -> list[tuple[URIRef, URIRef, URIRef]]:
     triples = triples if triples is not None else []
     if query_structure.name == 'AskQuery':
         component = query_structure['where']

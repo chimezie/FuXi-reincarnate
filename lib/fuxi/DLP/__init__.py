@@ -46,7 +46,9 @@ from rdflib.namespace import Namespace, RDF, RDFS
 from rdflib import BNode, Variable, URIRef
 from rdflib.util import first
 
+import collections.abc
 import copy
+import logging
 import warnings
 
 from fuxi.Horn.PositiveConditions import (
@@ -61,12 +63,9 @@ from fuxi.Horn.PositiveConditions import (
 from fuxi.Horn import DATALOG_SAFETY_NONE, DATALOG_SAFETY_STRICT, DATALOG_SAFETY_LOOSE
 from .LPNormalForms import NormalizeDisjunctions
 from fuxi.Horn.HornRules import Clause as OriginalClause, Rule
+from functools import reduce
 
-try:
-    from functools import reduce
-except ImportError:
-    pass
-
+logger = logging.getLogger(__name__)
 
 SKOLEMIZED_CLASS_NS = Namespace("http://code.google.com/p/python-dlp/wiki/SkolemTerm#")
 
@@ -134,9 +133,9 @@ def NormalizeClause(clause):
         assert rt is not None
         return rt
 
-    if hasattr(clause.head, "next"):
+    if isinstance(clause.head, collections.abc.Iterator):
         clause.head = fetchFirst(clause.head)
-    if hasattr(clause.body, "next"):
+    if isinstance(clause.body, collections.abc.Iterator):
         clause.body = fetchFirst(clause.body)
     if isinstance(clause.head, And):
         clause.head.formulae = reduce(reduceAnd, clause.head, [])
@@ -246,12 +245,16 @@ def DisjunctiveNormalForm(program, safety=DATALOG_SAFETY_NONE, network=None):
 def MapDLPtoNetwork(
     network,
     factGraph,
-    complementExpansions=[],
+    complementExpansions=None,
     constructNetwork=False,
-    derivedPreds=[],
+    derivedPreds=None,
     ignoreNegativeStratus=False,
     safety=DATALOG_SAFETY_NONE,
 ):
+    if complementExpansions is None:
+        complementExpansions = []
+    if derivedPreds is None:
+        derivedPreds = []
     ruleset = set()
     negativeStratus = []
     for horn_clause in T(
@@ -313,8 +316,8 @@ def IsaFactFormingConclusion(head):
     elif isinstance(head, OriginalClause):
         return False
     else:
-        print(head)
-        raise
+        logger.error("Unexpected head type: %s", head)
+        raise TypeError(f"Unexpected head type: {type(head)}")
 
 
 def traverseClause(condition):
@@ -373,7 +376,7 @@ def ExtendN3Rules(network, horn_clause, constructNetwork=False):
         PrepareHornClauseForRETE(horn_clause)
         if constructNetwork:
             for term in horn_clause.head:
-                assert not hasattr(term, "next")
+                assert not isinstance(term, collections.abc.Iterator)
                 if isinstance(term, Or):
                     ruleStore.formulae.setdefault(rhs, Formula(rhs)).append(term)
                 else:
@@ -472,19 +475,19 @@ def PrepareHornClauseForRETE(horn_clause):
 
 
 def generatorFlattener(gen):
-    assert hasattr(gen, "next")
+    assert isinstance(gen, collections.abc.Iterator)
     i = list(gen)
     i = (
         len(i) > 1
-        and [hasattr(i2, "next") and generatorFlattener(i2) or i2 for i2 in i]
+        and [isinstance(i2, collections.abc.Iterator) and generatorFlattener(i2) or i2 for i2 in i]
         or i[0]
     )
-    if hasattr(i, "next"):
+    if isinstance(i, collections.abc.Iterator):
         i = listOrThingGenerator(i)
         return i
     elif isinstance(i, SetOperator):
         i.formulae = [
-            hasattr(i2, "next") and generatorFlattener(i2) or i2 for i2 in i.formulae
+            isinstance(i2, collections.abc.Iterator) and generatorFlattener(i2) or i2 for i2 in i.formulae
         ]
         return i
     else:
@@ -600,7 +603,11 @@ def handleConjunct(conjunction, owlGraph, o, conjunctVar=Variable("X")):
                 conjunction.append(bodyUniTerm)
 
 
-def T(owlGraph, complementExpansions=[], derivedPreds=[]):
+def T(owlGraph, complementExpansions=None, derivedPreds=None):
+    if complementExpansions is None:
+        complementExpansions = []
+    if derivedPreds is None:
+        derivedPreds = []
     for s, p, o in owlGraph.triples((None, OWL_NS.complementOf, None)):
         if isinstance(o, URIRef) and isinstance(s, URIRef):
             headLiteral = Uniterm(
@@ -750,7 +757,7 @@ def LloydToporTransformation(clause, fullReduction=True):
     assert isinstance(clause.body, Condition), repr(clause.body)
     if isinstance(clause.body, Or):
         for atom in clause.body.formulae:
-            if hasattr(atom, "next"):
+            if isinstance(atom, collections.abc.Iterator):
                 atom = first(atom)
             for clz in LloydToporTransformation(
                 NormalizeClause(Clause(atom, clause.head)), fullReduction=fullReduction

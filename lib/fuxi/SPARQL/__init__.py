@@ -2,7 +2,6 @@
 # flake8: noqa
 import copy
 from itertools import takewhile
-from typing import List, Dict, Optional
 
 from rdflib import (
     BNode,
@@ -35,11 +34,7 @@ from fuxi.Rete.SidewaysInformationPassing import (
     iterCondition,
 )
 from fuxi.Rete.Util import selective_memoize
-
-try:
-    from functools import reduce
-except ImportError:
-    pass
+from functools import reduce
 
 
 def normalizeBindingsAndQuery(vars, bindings, conjunct):
@@ -92,7 +87,7 @@ def normalizeUri(rdfTerm, revNsMap):
     try:
         namespace, name = split_uri(rdfTerm)
         namespace = URIRef(namespace)
-    except:
+    except (ValueError, AttributeError, TypeError):
         if isinstance(rdfTerm, Variable):
             return "?%s" % rdfTerm
         else:
@@ -134,17 +129,19 @@ def renderTerm(graph, term, predTerm=False):
     else:
         try:
             return isinstance(term, BNode) and term.n3() or graph.qname(term)
-        except:
+        except (ValueError, AttributeError, KeyError):
             return term.n3()
 
 
 def RDFTuplesToSPARQL(
-    conjunct, edb, isGround=False, vars=[], symmAtomicInclusion=False
+    conjunct, edb, isGround=False, vars=None, symmAtomicInclusion=False
 ):
     """
     Takes a conjunction of Horn literals and returns the
     corresponding SPARQL query
     """
+    if vars is None:
+        vars = []
     queryType = isGround and "ASK" or "SELECT %s" % (" ".join([v.n3() for v in vars]))
 
     queryShell = len(conjunct) > 1 and "%s {\n%s\n}" or "%s { %s }"
@@ -179,10 +176,10 @@ def RDFTuplesToSPARQL(
 
 # @selective_memoize([0, 1], ['vars', 'symmAtomicInclusion'])
 def RunQuery(
-    subQueryJoin: List[Uniterm],
-    bindings: Dict,
+    subQueryJoin: list[Uniterm],
+    bindings: dict,
     factGraph: Graph,
-    vars: Optional[List[Variable]] = None,
+    vars: list[Variable] | None = None,
     debug: bool = False,
     symmAtomicInclusion: bool = False,
 ):

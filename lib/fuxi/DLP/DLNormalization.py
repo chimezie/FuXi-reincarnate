@@ -22,11 +22,7 @@ from fuxi.Syntax.InfixOWL import Restriction
 from fuxi.Syntax.InfixOWL import only
 from fuxi.Syntax.InfixOWL import some
 from fuxi.Syntax.InfixOWL import value
-
-try:
-    from functools import reduce
-except ImportError:
-    pass
+from functools import reduce
 
 
 class NominalRangeTransformer(object):

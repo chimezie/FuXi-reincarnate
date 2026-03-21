@@ -25,11 +25,7 @@ from rdflib.collection import Collection
 from rdflib.graph import Graph
 from rdflib import BNode, Namespace, Variable, RDF, URIRef
 from rdflib.util import first
-
-try:
-    from functools import reduce
-except ImportError:
-    pass
+from functools import reduce
 
 
 MAGIC = Namespace("http://doi.acm.org/10.1145/28659.28689#")

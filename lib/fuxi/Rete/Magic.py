@@ -27,11 +27,7 @@ thus restricting the search space."
 import copy
 import itertools
 import unittest
-
-try:
-    from functools import reduce
-except ImportError:
-    pass
+from functools import reduce
 
 
 NON_LINEAR_MS_QUERY = """\

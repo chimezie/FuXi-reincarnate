@@ -7,7 +7,7 @@ This section defines Horn rules for RIF Phase 1. The syntax and semantics
 incorporates RIF Positive Conditions defined in Section Positive Conditions
 """
 
-from typing import Any, Iterable, Iterator, Mapping, Optional
+from typing import Any, TYPE_CHECKING
 
 from fuxi.Horn.PositiveConditions import (
     And,
@@ -17,6 +17,10 @@ from fuxi.Horn.PositiveConditions import (
     SetOperator,
     Uniterm,
 )
+
+if TYPE_CHECKING:
+    from typing import Iterator, Mapping
+    from fuxi.Horn.PositiveConditions import Condition
 
 from fuxi.Horn import (
     DATALOG_SAFETY_NONE,
@@ -63,8 +67,8 @@ def NetworkFromN3(n3Source, additionalBuiltins=None):
 def HornFromDL(
     owlGraph,
     safety: int = DATALOG_SAFETY_NONE,
-    derivedPreds: Optional[list] = None,
-    complSkip: Optional[list] = None,
+    derivedPreds: list | None = None,
+    complSkip: list | None = None,
 ):
     """
     Takes an OWL RDF graph, an indication of what level of ruleset safety
@@ -112,7 +116,7 @@ def extractVariables(term, existential=True):
                 yield t
 
 
-def iterCondition(condition: Condition) -> Iterator[Condition]:
+def iterCondition(condition: "Condition") -> "Iterator[Condition]":
     return isinstance(condition, SetOperator) and condition or iter([condition])
 
 
@@ -123,9 +127,9 @@ class Ruleset(object):
 
     def __init__(
         self,
-        formulae: Optional[list] = None,
-        n3Rules: Optional[list] = None,
-        nsMapping: Optional[Mapping[str, Any]] = None,
+        formulae: list | None = None,
+        n3Rules: list | None = None,
+        nsMapping: "Mapping[str, Any] | None" = None,
     ) -> None:
         from fuxi.Rete.RuleStore import N3Builtin
 

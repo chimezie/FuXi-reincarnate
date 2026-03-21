@@ -35,11 +35,7 @@ from .Node import Node
 
 from rdflib import BNode, Literal, Namespace, RDF, Variable
 from rdflib.util import first
-
-try:
-    from functools import reduce
-except ImportError:
-    pass
+from functools import reduce
 
 
 _XSD_NS = Namespace("http://www.w3.org/2001/XMLSchema#")

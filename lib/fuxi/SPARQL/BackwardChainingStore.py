@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # flake8: noqa
 import sys
-from typing import Any, Mapping, Tuple, Union, List
+from typing import Any, Mapping
 from pprint import pprint
 from rdflib import RDF, URIRef, Variable
 from rdflib.util import first
@@ -166,11 +166,11 @@ class TopDownSPARQLEntailingStore(Store):
         derivedPredicates=None,
         idb=None,
         DEBUG=False,
-        nsBindings={},
+        nsBindings=None,
         decisionProcedure=BFP_METHOD,
         templateMap=None,
         identifyHybridPredicates=False,
-        hybridPredicates=[],
+        hybridPredicates=None,
     ):
         self.dataset = store
         if hasattr(store, "_db"):
@@ -182,7 +182,7 @@ class TopDownSPARQLEntailingStore(Store):
         else:
             self.derivedPredicates = derivedPredicates
         self.DEBUG = DEBUG
-        self.nsBindings = nsBindings
+        self.nsBindings = nsBindings if nsBindings is not None else {}
         self.edb.templateMap = (
             DEFAULT_BUILTIN_MAP if templateMap is None else templateMap
         )
@@ -193,12 +193,13 @@ class TopDownSPARQLEntailingStore(Store):
                 edb, self.derivedPredicates
             )
         else:
-            self.hybridPredicates = hybridPredicates if hybridPredicates else []
+            self.hybridPredicates = hybridPredicates if hybridPredicates is not None else []
 
         # Update derived predicate list for synchrony with hybrid predicate
         # rules
         for hybridPred in self.hybridPredicates:
-            self.derivedPredicates.remove(hybridPred)
+            if hybridPred in self.derivedPredicates:
+                self.derivedPredicates.remove(hybridPred)
             if isinstance(self.derivedPredicates, list):
                 self.derivedPredicates.append(URIRef(hybridPred + "_derived"))
             elif isinstance(self.derivedPredicates, set):
@@ -356,12 +357,12 @@ class TopDownSPARQLEntailingStore(Store):
 
     def solve_triple_pattern(
         self,
-        triples: List[Tuple[Identifier, Identifier, Identifier]],
+        triples: list[tuple[Identifier, Identifier, Identifier]],
         initNs: Mapping[str, Any],
         is_ask: bool = False,
-        projected_vars: List[Variable] | None = None,
+        projected_vars: list[Variable] | None = None,
     ):
-        select_bindings: List[Mapping[Variable, Identifier]] = []
+        select_bindings: list[Mapping[Variable, Identifier]] = []
         groundConjunct = []
         derivedConjunct = []
         for item in triples:

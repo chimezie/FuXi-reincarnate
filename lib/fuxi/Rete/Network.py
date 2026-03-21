@@ -22,16 +22,20 @@ The network :
 """
 
 import atexit
+import collections.abc
 import logging
 import os
 import sys
 import time
 import tracemalloc
 from itertools import chain
-from typing import Iterable, Iterator, Optional, TextIO
 from pprint import pprint
+from typing import TYPE_CHECKING
 
 from io import StringIO
+
+if TYPE_CHECKING:
+    from typing import Iterable, Iterator, TextIO
 
 from .BetaNode import (
     BetaNode,
@@ -106,7 +110,7 @@ def _env_flag(name: str) -> bool:
     return value.lower() not in ("", "0", "false", "no")
 
 
-def any(seq, pred=None):
+def any_match(seq, pred=None):
     """Returns True if pred(x) is true for at least one element in the iterable"""
     for elem in filter(pred, seq):
         return True
@@ -143,6 +147,12 @@ class HashablePatternList(object):
 
     def __len__(self):
         return len(self._l)
+
+    def __getitem__(self, key):
+        if isinstance(key, slice):
+            return HashablePatternList(self._l[key])
+        else:
+            return self._l[key]
 
     def __getslice__(self, beginIdx, endIdx):
         return HashablePatternList(self._l[beginIdx:endIdx])
@@ -237,7 +247,7 @@ class ReteNetwork:
         name=None,
         initialWorkingMemory=None,
         inferredTarget=None,
-        nsMap={},
+        nsMap=None,
         graphVizOutFile=None,
         dontFinalize=False,
         goal=None,
@@ -255,7 +265,7 @@ class ReteNetwork:
             atexit.register(self._report_memstats, "atexit")
         self.leanCheck = {}
         self.goal = goal
-        self.nsMap = nsMap
+        self.nsMap = nsMap if nsMap is not None else {}
         self.name = name and name or BNode()
         self.nodes = {}
         self.alphaPatternHash = {}
@@ -346,7 +356,7 @@ class ReteNetwork:
         nonEmptyHead = False
         for term in rule.formula.head:
             nonEmptyHead = True
-            assert not hasattr(term, "next")
+            assert not isinstance(term, collections.abc.Iterator)
             assert isinstance(term, Uniterm)
             self.ruleStore.formulae.setdefault(rhs, Formula(rhs)).append(
                 term.toRDFTuple()
@@ -388,7 +398,7 @@ class ReteNetwork:
         nonEmptyHead = False
         for term in rule.formula.head:
             nonEmptyHead = True
-            assert not hasattr(term, "next")
+            assert not isinstance(term, collections.abc.Iterator)
             assert isinstance(term, Uniterm)
             self.ruleStore.formulae.setdefault(rhs, Formula(rhs)).append(
                 term.toRDFTuple()

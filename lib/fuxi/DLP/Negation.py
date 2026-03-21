@@ -26,11 +26,7 @@ from fuxi.Syntax.InfixOWL import Property
 
 from fuxi.DLP import MapDLPtoNetwork
 from .DLNormalization import NormalFormReduction
-
-try:
-    from functools import reduce
-except ImportError:
-    pass
+from functools import reduce
 
 
 EX_NS = Namespace("http://example.com/")

@@ -11,7 +11,7 @@ bodies of such rules are conjunctions of atomic formulas without negation.
 
 import itertools
 from functools import reduce
-from typing import Any, Iterable, Iterator, Mapping, MutableMapping, Optional
+from typing import Any, TYPE_CHECKING
 from rdflib import (
     Variable,
 )  # for doctests
@@ -21,6 +21,9 @@ from rdflib import BNode, Literal, Namespace, RDF, URIRef
 # from rdflib.collection import Collection
 from rdflib.graph import Graph
 from rdflib.namespace import NamespaceManager
+
+if TYPE_CHECKING:
+    from typing import Iterable, Iterator, Mapping
 
 
 _XSD_NS = Namespace("http://www.w3.org/2001/XMLSchema#")

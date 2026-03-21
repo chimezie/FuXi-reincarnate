@@ -41,11 +41,7 @@ from rdflib import (
 from rdflib.util import first
 from rdflib.graph import ReadOnlyGraphAggregate
 from rdflib.namespace import split_uri
-
-try:
-    from functools import reduce
-except ImportError:
-    pass
+from functools import reduce
 
 
 def PrepareSipCollection(adornedRuleset):

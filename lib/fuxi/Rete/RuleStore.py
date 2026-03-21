@@ -4,7 +4,7 @@ from __future__ import annotations
 # flake8: noqa
 
 from functools import reduce
-from typing import Iterable, Iterator, Mapping, MutableMapping, Optional
+from typing import TYPE_CHECKING
 
 from rdflib import (
     BNode,
@@ -20,6 +20,9 @@ from rdflib.namespace import NamespaceManager
 
 from .BuiltinPredicates import FILTERS
 from fuxi.types import MutableBindings, RDFNode, RDFTerm, Triple
+
+if TYPE_CHECKING:
+    from typing import Iterable, Iterator, Mapping
 
 
 def format_doctest_out(obj):

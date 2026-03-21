@@ -21,10 +21,14 @@ The network :
 
 """
 
-from itertools import chain
-from typing import Iterable, Iterator, Optional, TextIO
+import atexit
+import logging
+import os
 import sys
 import time
+import tracemalloc
+from itertools import chain
+from typing import Iterable, Iterator, Optional, TextIO
 from pprint import pprint
 
 from io import StringIO
@@ -94,6 +98,12 @@ from fuxi.types import RDFTerm, Triple
 OWL_NS = Namespace("http://www.w3.org/2002/07/owl#")
 Any = None
 LOG = Namespace("http://www.w3.org/2000/10/swap/log#")
+logger = logging.getLogger(__name__)
+
+
+def _env_flag(name: str) -> bool:
+    value = os.environ.get(name, "")
+    return value.lower() not in ("", "0", "false", "no")
 
 
 def any(seq, pred=None):
@@ -232,6 +242,17 @@ class ReteNetwork:
         dontFinalize=False,
         goal=None,
     ):
+        self._memstats_enabled = _env_flag("FUXI_RETE_MEM_STATS")
+        self._memstats_interval = int(
+            os.environ.get("FUXI_RETE_MEM_STATS_INTERVAL", "5000")
+        )
+        self._memstats_counter = 0
+        self._memstats_next = self._memstats_interval
+        self._memstats_tracemalloc = _env_flag("FUXI_RETE_TRACEMALLOC")
+        if self._memstats_tracemalloc and not tracemalloc.is_tracing():
+            tracemalloc.start()
+        if self._memstats_enabled:
+            atexit.register(self._report_memstats, "atexit")
         self.leanCheck = {}
         self.goal = goal
         self.nsMap = nsMap
@@ -769,6 +790,11 @@ class ReteNetwork:
             self.workingMemory.add(token)
             # print(token.unboundCopy().bindingDict)
             self.addWME(token)
+            if self._memstats_enabled:
+                self._memstats_counter += 1
+                if self._memstats_counter >= self._memstats_next:
+                    self._report_memstats("tokens=%d" % self._memstats_counter)
+                    self._memstats_next += self._memstats_interval
 
     def _findPatterns(self, patternList):
         rt = []
@@ -1014,6 +1040,44 @@ class ReteNetwork:
 
         newBetaNode.connectIncomingNodes(firstNode, secondNode)
         return self.attachBetaNodes(patternIterator, newBNodePattern)
+
+    def _report_memstats(self, reason):
+        if not self._memstats_enabled:
+            return
+        left_mem = 0
+        right_mem = 0
+        substitution_keys = 0
+        substitution_values = 0
+        for node in list(self.nodes.values()):
+            if isinstance(node, BetaNode):
+                left_mem += len(node.memories[LEFT_MEMORY])
+                right_mem += len(node.memories[RIGHT_MEMORY])
+                for memory in node.memories.values():
+                    substitution_keys += len(memory.substitutionDict)
+                    substitution_values += sum(
+                        len(vals) for vals in memory.substitutionDict.values()
+                    )
+        logger.warning(
+            "Rete memstats (%s): working=%d inferred=%d nodes=%d terminals=%d",
+            reason,
+            len(self.workingMemory),
+            len(self.inferredFacts),
+            len(self.nodes),
+            len(self.terminalNodes),
+        )
+        logger.warning(
+            "Rete memstats index: left=%d right=%d subs_keys=%d subs_vals=%d",
+            left_mem,
+            right_mem,
+            substitution_keys,
+            substitution_values,
+        )
+        if self._memstats_tracemalloc and tracemalloc.is_tracing():
+            snapshot = tracemalloc.take_snapshot()
+            top_stats = snapshot.statistics("lineno")[:10]
+            logger.warning("Rete tracemalloc top10 (%s)", reason)
+            for stat in top_stats:
+                logger.warning("  %s", stat)
 
 
 def ComplementExpand(tBoxGraph, complementAnnotation):

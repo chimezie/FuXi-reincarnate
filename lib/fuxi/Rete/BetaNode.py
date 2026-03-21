@@ -20,6 +20,7 @@ implemented but null activations are mitigated (somewhat) by the hash / set mech
 """
 
 import copy
+import os
 import unittest
 from pprint import pprint
 from .AlphaNode import AlphaNode, BuiltInAlphaNode, ReteToken
@@ -81,6 +82,11 @@ def any(seq, pred=None):
     for elem in filter(pred, seq):
         return True
     return False
+
+
+def _env_flag(name: str) -> bool:
+    value = os.environ.get(name, "")
+    return value.lower() not in ("", "0", "false", "no")
 
 
 class ReteMemory(set):
@@ -216,6 +222,16 @@ class PartialInstantiation(object):
     <ReteToken: X->urn:uuid:Boo, C->urn:uuid:Foo>
     """
 
+    __slots__ = (
+        "joinedBindings",
+        "inconsistentVars",
+        "debug",
+        "tokens",
+        "_bindings_cache",
+        "_bindings_cache_enabled",
+        "hash",
+    )
+
     def __init__(self, tokens=None, debug=False, consistentBindings=None):
         """
         Note a hash is calculated by
@@ -225,12 +241,12 @@ class PartialInstantiation(object):
         self.inconsistentVars = set()
         self.debug = debug
         self.tokens = set()
-        self.bindings = []
+        self._bindings_cache_enabled = _env_flag("FUXI_RETE_BINDINGS_CACHE")
+        self._bindings_cache = None
         if tokens:
             for token in tokens:
                 self.add(token, noPostProcessing=True)
             self._generateHash()
-            self._generateBindings()
 
     def copy(self):
         tokenList = []
@@ -270,21 +286,19 @@ class PartialInstantiation(object):
             return [left, right]
 
     def _generateBindings(self):
+        if self._bindings_cache_enabled:
+            self._bindings_cache = list(self._iter_bindings())
+        else:
+            self._bindings_cache = None
+
+    def _iter_bindings(self):
         """
-        Generates a list of dictionaries - each a unique variable substitution (binding)
-        which applies to the ReteTokens in this PartialInstantiation
-
-        Unjoined variables with different names aren't bound to the same value
-        (B and Y aren't both bound to "Bart Simpson" simultaneously)
-
-        Different variables which bind to the same value *within* a token includes this combination
-        in the resulting bindings
-
+        Generates unique variable substitutions (bindings) for this partial instantiation.
         """
 
         def product(*args):
             if not args:
-                return iter(((),))  # yield tuple()
+                return iter(((),))
             return (
                 items + (item,) for items in product(*args[:-1]) for item in args[-1]
             )
@@ -293,14 +307,12 @@ class PartialInstantiation(object):
         for token in self.tokens:
             for key, val in list(token.bindingDict.items()):
                 disjunctiveDict.setdefault(key, set()).add(val)
+        if not disjunctiveDict:
+            yield {}
+            return
         keys = list(disjunctiveDict)
-        bindings = [
-            dict([(keys[idx], val) for idx, val in enumerate(entry)])
-            for entry in product(
-                *tuple([disjunctiveDict[var] for var in disjunctiveDict])
-            )
-        ]
-        self.bindings = bindings
+        for entry in product(*tuple([disjunctiveDict[var] for var in disjunctiveDict])):
+            yield dict([(keys[idx], val) for idx, val in enumerate(entry)])
 
     def __hash__(self):
         return self.hash
@@ -365,6 +377,14 @@ class PartialInstantiation(object):
                         newJoinDict[unmappedVar] = unmappedVarVal
         self.joinedBindings.update(newJoinDict)
         self._generateBindings()
+
+    @property
+    def bindings(self):
+        if self._bindings_cache_enabled:
+            if self._bindings_cache is None:
+                self._bindings_cache = list(self._iter_bindings())
+            return self._bindings_cache
+        return self._iter_bindings()
 
     def newJoin(self, rightWME, newJoinVariables):
         """

@@ -5,7 +5,9 @@ Utility functions for a Boost Graph Library (BGL) DiGraph via the BGL Python Bin
 """
 
 import itertools
+import os
 import pickle
+from functools import lru_cache, wraps
 from rdflib import (
     BNode,
     Namespace,
@@ -27,6 +29,11 @@ except:
     warnings.warn("Missing pydot library", ImportWarning)
 
 LOG = Namespace("http://www.w3.org/2000/10/swap/log#")
+
+
+def _env_flag(name: str) -> bool:
+    value = os.environ.get(name, "")
+    return value.lower() not in ("", "0", "false", "no")
 
 
 def xcombine(*seqin):
@@ -161,9 +168,27 @@ class selective_memoize(object):
     def __init__(self, cacheableArgPos=[], cacheableArgKey=[]):
         self.cacheableArgPos = cacheableArgPos
         self.cacheableArgKey = cacheableArgKey
-        self._cache = {}
 
     def __call__(self, func):
+        class _KeyedArgs:
+            __slots__ = ("key", "args", "kwds")
+
+            def __init__(self, key, args, kwds):
+                self.key = key
+                self.args = args
+                self.kwds = kwds
+
+            def __hash__(self):
+                return hash(self.key)
+
+            def __eq__(self, other):
+                return isinstance(other, _KeyedArgs) and self.key == other.key
+
+        @lru_cache(maxsize=None)
+        def cached(call_args):
+            return func(*call_args.args, **call_args.kwds)
+
+        @wraps(func)
         def innerHandler(*args, **kwds):
             if self.cacheableArgPos:
                 chosenKeys = []
@@ -185,20 +210,13 @@ class selective_memoize(object):
                 items.sort()
                 key = key + tuple(items)
             try:
-                if key in self._cache:
-                    return self._cache[key]
-                self._cache[key] = result = func(*args, **kwds)
-                return result
+                hash(key)
             except TypeError:
                 try:
-                    dump = pickle.dumps(key)
+                    key = pickle.dumps(key)
                 except pickle.PicklingError:
                     return func(*args, **kwds)
-                else:
-                    if dump in self._cache:
-                        return self._cache[dump]
-                    self._cache[dump] = result = func(*args, **kwds)
-                    return result
+            return cached(_KeyedArgs(key, args, kwds))
 
         return innerHandler
 
@@ -317,6 +335,8 @@ def generateTokenSet(graph, debugTriples=[], skipImplies=True):
     from fuxi.Rete import ReteToken
 
     rt = set()
+    intern_terms = _env_flag("FUXI_RETE_TERM_INTERN")
+    term_cache = {} if intern_terms else None
 
     def normalizeGraphTerms(term):
         if isinstance(term, Collection):
@@ -324,16 +344,27 @@ def generateTokenSet(graph, debugTriples=[], skipImplies=True):
         else:
             return term
 
+    def maybe_intern(term):
+        if term_cache is None:
+            return term
+        try:
+            return term_cache.setdefault(term, term)
+        except TypeError:
+            return term
+
     for s, p, o in graph:
         if not skipImplies or p != LOG.implies:
             # print(s, p, o)
             debug = debugTriples and (s, p, o) in debugTriples
+            s = maybe_intern(normalizeGraphTerms(s))
+            p = maybe_intern(normalizeGraphTerms(p))
+            o = maybe_intern(normalizeGraphTerms(o))
             rt.add(
                 ReteToken(
                     (
-                        normalizeGraphTerms(s),
-                        normalizeGraphTerms(p),
-                        normalizeGraphTerms(o),
+                        s,
+                        p,
+                        o,
                     ),
                     debug,
                 )

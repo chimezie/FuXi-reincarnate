@@ -1,19 +1,11 @@
 # -*- coding: utf-8 -*-
 # flake8: noqa
+from functools import lru_cache, reduce
+
 from rdflib.graph import Graph
-from rdflib import (
-    BNode,
-    Namespace,
-    Variable,
-)
+from rdflib import BNode, Namespace, Variable
 
 from .Node import Node
-
-try:
-    from functools import reduce
-except ImportError:
-    pass
-
 
 OWL_NS = Namespace("http://www.w3.org/2002/07/owl#")
 
@@ -37,52 +29,8 @@ def normalizeTerm(term):
         return term
 
 
-from pickle import dumps, PicklingError  # for memoize
-
-
 def format_doctest_out(obj):
     return obj
-
-
-class memoize(object):
-    """Decorator that caches a function's return value each time it is called.
-    If called later with the same arguments, the cached value is returned, and
-    not re-evaluated. Slow for mutable types."""
-
-    # Ideas from MemoizeMutable class of Recipe 52201 by Paul Moore and
-    # from memoized decorator of
-    # http://wiki.python.org/moin/PythonDecoratorLibrary
-    # For a version with timeout see Recipe 325905
-    # For a self cleaning version see Recipe 440678
-    # Weak references (a dict with weak values) can be used, like this:
-    #   self._cache = weakref.WeakValueDictionary()
-    #   but the keys of such dict can't be int
-
-    def __init__(self, func):
-        self.func = func
-        self._cache = {}
-
-    def __call__(self, *args, **kwds):
-        key = args
-        if kwds:
-            items = list(kwds.items())
-            items.sort()
-            key = key + tuple(items)
-        try:
-            if key in self._cache:
-                return self._cache[key]
-            self._cache[key] = result = self.func(*args, **kwds)
-            return result
-        except TypeError:
-            try:
-                dump = dumps(key)
-            except PicklingError:
-                return self.func(*args, **kwds)
-            else:
-                if dump in self._cache:
-                    return self._cache[dump]
-                self._cache[dump] = result = self.func(*args, **kwds)
-                return result
 
 
 class ReteToken:
@@ -90,6 +38,18 @@ class ReteToken:
     A ReteToken, an RDF triple in a Rete network.  Once it passes an alpha
     node test, if will have unification substitutions per variable
     """
+
+    __slots__ = (
+        "debug",
+        "subject",
+        "predicate",
+        "object_",
+        "bindingDict",
+        "_termConcat",
+        "hash",
+        "inferred",
+        "pattern",
+    )
 
     def __init__(self, triple, debug=False):
         (subject, predicate, object) = triple
@@ -99,7 +59,7 @@ class ReteToken:
         self.object_ = (None, normalizeTerm(object))
         self.bindingDict = {}
         self._termConcat = self.concatenateTerms(
-            [self.subject, self.predicate, self.object_]
+            tuple(term[VALUE] for term in [self.subject, self.predicate, self.object_])
         )
         self.hash = hash(self._termConcat)
         self.inferred = False
@@ -116,9 +76,10 @@ class ReteToken:
         """
         return self.hash
 
-    @memoize
-    def concatenateTerms(terms):
-        return reduce(lambda x, y: str(x) + str(y), [term[VALUE] for term in terms])
+    @staticmethod
+    @lru_cache(maxsize=4096)
+    def concatenateTerms(values):
+        return reduce(lambda x, y: str(x) + str(y), values)
 
     def __eq__(self, other):
         return hash(self) == hash(other)

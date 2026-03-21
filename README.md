@@ -40,6 +40,38 @@ source .venv/bin/activate
 uv pip install -e .
 ```
 
+## Testing
+
+Run the full pytest suite:
+
+```bash
+uv run --active pytest
+```
+
+Run the OWL test suite (each APPROVED test is an individual pytest case):
+
+```bash
+uv run --active pytest test/testOWL.py
+```
+
+OWL test options:
+
+```bash
+uv run --active pytest test/testOWL.py --strategy bfp
+uv run --active pytest test/testOWL.py --groundQuery
+uv run --active pytest test/testOWL.py --singleTest OWL/differentFrom/premises002
+uv run --active pytest test/testOWL.py --profile
+uv run --active pytest test/testOWL.py -k "OWL_I5.1_Manifest001.rdf"
+uv run --active pytest test/testOWL.py -k "I5.1/Manifest001#test"
+```
+
+Note: `--profile` requires a pytest profiling plugin to produce output.
+
+Filtering OWL tests with `-k`:
+
+- Use the normalized manifest path (slashes replaced with `_`), for example `OWL_I5.1_Manifest001.rdf`.
+- The manifest test IDs are always `test`, so the test ID form is `I5.1/Manifest001#test`.
+
 ## Details ##
 
 Most of the content here was moved from the (outdated) [Google Code repository](https://code.google.com/archive/p/fuxi/)

@@ -1,15 +1,20 @@
 # -*- coding: utf-8 -*-
 # flake8: noqa
 import sys
-from typing import Any, Mapping
+from typing import Any, Mapping, Tuple, Union, List
 from pprint import pprint
 from rdflib import RDF, URIRef, Variable
 from rdflib.util import first
 from rdflib.store import Store
 from rdflib.plugins.stores.regexmatching import NATIVE_REGEX
-from rdflib.term import Identifier
+from rdflib.query import Result
+from rdflib.term import Identifier, IdentifiedNode
 
-# from rdflib.plugins.sparql.algebra import RenderSPARQLAlgebra
+from fuxi.SPARQL.utilities import (
+    extract_triples_from_query,
+    sparql_query_from_result,
+)
+from rdflib.plugins.sparql.algebra import translateQuery
 from rdflib.plugins.sparql.algebra import translateQuery as RenderSPARQLAlgebra
 from rdflib.plugins.sparql.parser import parseQuery
 
@@ -247,7 +252,7 @@ class TopDownSPARQLEntailingStore(Store):
             yield True, None
         if debug:
             print(bfp.metaInterpNetwork)
-            bfp.metaInterpNetwork.reportConflictSet(True, sys.stderr)
+            bfp.metaInterpNetwork.reportConflictSet(True, sys.stderr, self.nsBindings)
             for query in self.edbQueries:
                 print("Dispatched query against dataset: ", query.asSPARQL())
 
@@ -349,11 +354,112 @@ class TopDownSPARQLEntailingStore(Store):
         else:
             return None
 
+    def solve_triple_pattern(
+        self,
+        triples: List[Tuple[Identifier, Identifier, Identifier]],
+        initNs: Mapping[str, Any],
+        is_ask: bool = False,
+        projected_vars: List[Variable] | None = None,
+    ):
+        select_bindings: List[Mapping[Variable, Identifier]] = []
+        groundConjunct = []
+        derivedConjunct = []
+        for item in triples:
+            if len(item) == 4:
+                s, p, o, _func = item
+            else:
+                s, p, o = item
+            if self.derivedPredicateFromTriple((s, p, o)) is None:
+                groundConjunct.append(BuildUnitermFromTuple((s, p, o), initNs))
+            else:
+                derivedConjunct.append(BuildUnitermFromTuple((s, p, o), initNs))
+        ans = None
+        askResult = True
+        if groundConjunct:
+            baseEDBQuery = EDBQuery(groundConjunct, self.edb)
+            subQuery, ans = baseEDBQuery.evaluate(self.DEBUG)
+            if is_ask:
+                if not bool(ans):
+                    askResult = False
+            else:
+                if ans:
+                    for binding in ans:
+                        select_bindings.append(binding)
+        if not is_ask or askResult:
+            for derivedLiteral in derivedConjunct:
+                goal = derivedLiteral.toRDFTuple()
+                # Solve ground, derived goal directly
+                SetupDDLAndAdornProgram(
+                    self.edb,
+                    self.idb,
+                    [goal],
+                    derivedPreds=self.derivedPredicates,
+                    ignoreUnboundDPreds=True,
+                    hybridPreds2Replace=self.hybridPredicates,
+                )
+
+                if self.hybridPredicates:
+                    lit = BuildUnitermFromTuple(goal)
+                    op = GetOp(lit)
+                    if op in self.hybridPredicates:
+                        lit.setOperator(URIRef(op + "_derived"))
+                        goal = lit.toRDFTuple()
+
+                sipCollection = PrepareSipCollection(self.edb.adornedProgram)
+                if self.DEBUG and sipCollection:
+                    for sip in SIPRepresentation(sipCollection):
+                        print(sip)
+                    pprint(list(self.edb.adornedProgram))
+                elif self.DEBUG:
+                    print("No SIP graph.")
+                if is_ask:
+                    rt, node = first(
+                        self.invokeDecisionProcedure(
+                            goal, self.edb, {}, self.DEBUG, sipCollection
+                        )
+                    )
+                    if not rt:
+                        askResult = False
+                        break
+                else:
+                    for rt, node in self.invokeDecisionProcedure(
+                        goal, self.edb, {}, self.DEBUG, sipCollection
+                    ):
+                        if isinstance(rt, dict):
+                            select_bindings.append(rt)
+                        elif rt:
+                            select_bindings.append({})
+        if is_ask:
+            ask_result = Result("ASK")
+            ask_result.askAnswer = askResult
+            return sparql_query_from_result(ask_result)
+        else:
+            select_result = Result("SELECT")
+            if projected_vars is None:
+                projected_vars = []
+                for binding in select_bindings:
+                    for var in binding:
+                        if var not in projected_vars:
+                            projected_vars.append(var)
+
+            if projected_vars:
+                projected_bindings = []
+                for binding in select_bindings:
+                    projected_bindings.append(
+                        {var: binding[var] for var in projected_vars if var in binding}
+                    )
+            else:
+                projected_bindings = select_bindings
+
+            select_result.vars = projected_vars
+            select_result.bindings = projected_bindings
+            return sparql_query_from_result(select_result)
+
     def query(
         self,
         query: Query | str,
         # dataSetBase,
-        #extensionFunctions,
+        # extensionFunctions,
         initNs: Mapping[str, Any],  # noqa: N803
         initBindings: Mapping[str, Identifier],  # noqa: N803
         queryGraph: str,  # noqa: N803
@@ -364,11 +470,12 @@ class TopDownSPARQLEntailingStore(Store):
         layered on top of the read-only RDF APIs of the underlying store
         """
         from rdflib.plugins.sparql.evaluate import evalQuery
-        from rdflib.query import Result
-        from fuxi.SPARQL.utilities import extract_triples_from_query, sparql_query_from_result
+
         if isinstance(query, Query):
             raise NotImplementedError("Query object not supported")
-        prologue, query = parseQuery(query)
+        query_string = query
+        parsed_query = parseQuery(query_string)
+        prologue, query = parsed_query
         query_name = query.name
         if query_name == "AskQuery":
             triples = extract_triples_from_query(query, initNs)
@@ -378,70 +485,17 @@ class TopDownSPARQLEntailingStore(Store):
             # (solving the former first)
             from fuxi.SPARQL import EDBQuery
 
-            groundConjunct = []
-            derivedConjunct = []
-            for item in triples:
-                if len(item) == 4:
-                    s, p, o, _func = item
-                else:
-                    s, p, o = item
-                if self.derivedPredicateFromTriple((s, p, o)) is None:
-                    groundConjunct.append(BuildUnitermFromTuple((s, p, o), initNs))
-                else:
-                    derivedConjunct.append(BuildUnitermFromTuple((s, p, o), initNs))
-            ans = None
-            if groundConjunct:
-                baseEDBQuery = EDBQuery(groundConjunct, self.edb)
-                subQuery, ans = baseEDBQuery.evaluate(DEBUG)
-                assert isinstance(ans, bool), ans
-            if groundConjunct and (ans is not None and not ans):
-                askResult = False
-            else:
-                askResult = True
-                for derivedLiteral in derivedConjunct:
-                    goal = derivedLiteral.toRDFTuple()
-                    # Solve ground, derived goal directly
-                    SetupDDLAndAdornProgram(
-                        self.edb,
-                        self.idb,
-                        [goal],
-                        derivedPreds=self.derivedPredicates,
-                        ignoreUnboundDPreds=True,
-                        hybridPreds2Replace=self.hybridPredicates,
-                    )
-
-                    if self.hybridPredicates:
-                        lit = BuildUnitermFromTuple(goal)
-                        op = GetOp(lit)
-                        if op in self.hybridPredicates:
-                            lit.setOperator(URIRef(op + "_derived"))
-                            goal = lit.toRDFTuple()
-
-                    sipCollection = PrepareSipCollection(self.edb.adornedProgram)
-                    if self.DEBUG and sipCollection:
-                        for sip in SIPRepresentation(sipCollection):
-                            print(sip)
-                        pprint(list(self.edb.adornedProgram))
-                    elif self.DEBUG:
-                        print("No SIP graph.")
-
-                    rt, node = first(
-                        self.invokeDecisionProcedure(
-                            goal, self.edb, {}, self.DEBUG, sipCollection
-                        )
-                    )
-                    if not rt:
-                        askResult = False
-                        break
-            ask_result = Result("ASK")
-            ask_result.askAnswer = askResult
-            return sparql_query_from_result(ask_result)
+            return self.solve_triple_pattern(triples, initNs, is_ask=True)
         else:
-            rt = evalQuery(
-                self.edb,
-                query,
-                initNs)
-            return SPARQLResult(rt)
+            query_object = translateQuery(parsed_query, None, initNs)
+            triples = extract_triples_from_query(query_object.algebra, initNs)
+            projected_vars = None
+            if hasattr(query_object.algebra, "PV"):
+                projected_vars = list(query_object.algebra.PV)
+            rt = self.solve_triple_pattern(
+                triples, initNs, projected_vars=projected_vars
+            )
+            return rt
 
     def batch_unify(self, patterns):
         """
@@ -529,8 +583,7 @@ class TopDownSPARQLEntailingStore(Store):
         A conjunctive query can be indicated by either providing a value of None
         for the context or the identifier associated with the Conjunctive Graph (if it's context aware).
         """
-        for rt in self.dataset.triples(triple, context):
-            yield rt
+        return self.solve_triple_pattern([triple], self.nsBindings)
 
     def __len__(self, context=None):
         """

@@ -22,7 +22,7 @@ The network :
 """
 
 from itertools import chain
-from typing import Iterable, Iterator, Optional
+from typing import Iterable, Iterator, Optional, TextIO
 import sys
 import time
 from pprint import pprint
@@ -508,7 +508,10 @@ class ReteNetwork:
                         pprint(pattern)
                         print(len(largeMem))
 
-    def reportConflictSet(self, closureSummary=False, stream=sys.stdout.buffer):
+    def reportConflictSet(self,
+                          closureSummary: bool = False,
+                          stream: TextIO | None = sys.stdout,
+                          nsBindings: dict[str, str] | None = None):
         tNodeOrder = [
             tNode for tNode in self.terminalNodes if self.instantiations.get(tNode, 0)
         ]
@@ -518,7 +521,11 @@ class ReteNetwork:
             print("\t", termNode.clauseRepresentation())
             print("\t\t%s instantiations" % self.instantiations[termNode])
         if closureSummary:
-            print(self.inferredFacts.serialize(destination=stream, format="turtle"))
+            if nsBindings:
+                for prefix, url in nsBindings.items():
+                    self.inferredFacts.bind(prefix, url)
+            ttl = self.inferredFacts.serialize(format="turtle")
+            print(ttl, file=stream)
 
     def parseN3Logic(self, src):
         store = N3RuleStore(additionalBuiltins=self.ruleStore.filters)

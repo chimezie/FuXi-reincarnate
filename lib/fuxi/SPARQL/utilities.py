@@ -49,12 +49,18 @@ def extract_triples_from_query(query_structure: CompValue,
     elif query_structure.name in ['GroupGraphPatternSub']:
         for component in extract_list_from_comp_values(query_structure, 'part'):
             extract_triples_from_query(component, nsBinds, triples)
-    elif query_structure.name == 'TriplesBlock':
+    elif query_structure.name in 'TriplesBlock':
         for item in extract_list_from_comp_values(query_structure, 'triples'):
             if isinstance(item, list) and len(item) == 3:
                 triples.append(tuple(map(lambda i: extract_triples_from_triple_part(i, nsBinds), item)))
             else:
                 raise Exception(f"Unknown type: {type(item)}")
+    elif query_structure.name == 'BGP':
+        triples.extend(query_structure.triples)
+    elif query_structure.name == 'SelectQuery':
+        extract_triples_from_query(query_structure.p, nsBinds, triples)
+    elif query_structure.name == 'Project':
+        extract_triples_from_query(query_structure.p, nsBinds, triples)
     else:
         raise Exception(f"Unknown type: {type(query_structure)}")
     return triples

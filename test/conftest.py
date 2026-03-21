@@ -5,6 +5,33 @@ from fuxi.Horn.HornRules import HornFromN3
 from fuxi.Rete.RuleStore import SetupRuleStore
 
 
+def pytest_addoption(parser):
+    """Add custom command-line options for OWL tests."""
+    parser.addoption(
+        "--profile",
+        action="store_true",
+        default=False,
+        help="Whether or not to run a profile",
+    )
+    parser.addoption(
+        "--singleTest",
+        default="",
+        help="The identifier for the test to run",
+    )
+    parser.addoption(
+        "--groundQuery",
+        action="store_true",
+        default=False,
+        help="For top-down strategies, whether to solve ground triple patterns or not",
+    )
+    parser.addoption(
+        "--strategy",
+        default="bfp",
+        choices=["gms", "sld", "bfp"],
+        help="Which reasoning strategy to use in solving the OWL test cases",
+    )
+
+
 @pytest.fixture()
 def ns_test():
     return Namespace("http://example.org/test#")

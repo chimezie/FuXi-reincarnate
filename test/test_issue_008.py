@@ -11,13 +11,13 @@ from fuxi.Horn.HornRules import HornFromN3
 from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
 
 rules = """\
-@prefix : <fam.n3#>.
+@prefix : <http://dev.w3.org/2000/10/swap/test/cwm/fam.n3#>.
 @keywords is, of, a.
 { ?x begat ?y } => { ?y ancestor ?x }.
 { ?x ancestor ?y. ?y ancestor ?z } => { ?x ancestor ?z }."""
 
 facts = """\
-@prefix : <fam.n3#>.
+@prefix : <http://dev.w3.org/2000/10/swap/test/cwm/fam.n3#>.
 @keywords is, of, a.
 
 albert begat bill, bevan.
@@ -26,6 +26,8 @@ bertha begat carol, charlie.
 bevan begat chaude, christine.
 christine begat david, diana, douglas."""
 
+QUERY = """PREFIX fam: <http://dev.w3.org/2000/10/swap/test/cwm/fam.n3#>
+SELECT ?a { fam:david fam:ancestor ?a }"""
 
 def _make_store_and_graph():
     fam_ns = Namespace("http://dev.w3.org/2000/10/swap/test/cwm/fam.n3#")
@@ -39,8 +41,10 @@ def _make_store_and_graph():
         fact_graph.store,
         fact_graph,
         idb=parsed_rules,
+        DEBUG=True,
         derivedPredicates=derived_predicates,
         nsBindings=ns_mapping,
+        identifyHybridPredicates=True
     )
     return fam_ns, ns_mapping, top_down_store
 
@@ -52,8 +56,8 @@ def test_issue_008():
     target_graph.bind("ex", fam_ns)
     target_graph.bind("fam", fam_ns)
     res = target_graph.query(
-        """PREFIX fam: <http://dev.w3.org/2000/10/swap/test/cwm/fam.n3#>
-SELECT ?a { fam:david fam:ancestor ?a }""",
+        QUERY,
         initNs=ns_mapping,
     )
-    assert len(list(res)) == 0, "Variables should not leak between rules"
+    result_list = list(res)
+    assert len(result_list) == 0, "Variables should not leak between rules"

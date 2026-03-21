@@ -2,6 +2,8 @@
 # flake8: noqa
 import copy
 from itertools import takewhile
+from typing import List, Dict, Optional
+
 from rdflib import (
     BNode,
     # Graph,
@@ -9,6 +11,7 @@ from rdflib import (
     RDF,
     URIRef,
     Variable,
+    Graph,
 )
 from rdflib.util import first
 from rdflib.namespace import split_uri
@@ -176,7 +179,12 @@ def RDFTuplesToSPARQL(
 
 # @selective_memoize([0, 1], ['vars', 'symmAtomicInclusion'])
 def RunQuery(
-    subQueryJoin, bindings, factGraph, vars=None, debug=False, symmAtomicInclusion=False
+    subQueryJoin: List[Uniterm],
+    bindings: Dict,
+    factGraph: Graph,
+    vars: Optional[List[Variable]] = None,
+    debug: bool = False,
+    symmAtomicInclusion: bool = False,
 ):
     initialNs = (
         hasattr(factGraph, "nsMap")
@@ -210,15 +218,15 @@ def RunQuery(
                     projectedBindings
                     and " %s apriori binding(s)" % len(projectedBindings)
                     or "",
-                    rt.askAnswer[0],
+                    bool(rt),
                 )
             )
-        return subquery, rt.askAnswer[0]
+        return subquery, bool(rt)
     else:
         rt = (
             len(vars) > 1
             and (dict([(vars[idx], i) for idx, i in enumerate(v)]) for v in rt)
-            or (dict([(vars[0], v)]) for v in rt)
+            or (dict([(vars[0], v[0] if hasattr(v, "__getitem__") else v)]) for v in rt)
         )
         if debug:
             print(

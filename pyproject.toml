@@ -75,6 +75,10 @@ markers = [
     "slow: slow tests",
 ]
 
+[tool.fuxi.testing]
+owl_cli = "uv run --active pytest test/testOWL.py"
+owl_strategy_default = "bfp"
+
 [tool.pyupgrade]
 target-version = "py313"
 

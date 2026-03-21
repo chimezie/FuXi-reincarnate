@@ -263,7 +263,7 @@ def manchesterSyntax(thing, store, boolean=None, transientList=False):
         for val in store.objects(subject=thing, predicate=OWL_NS.hasValue):
             return "( %s VALUE %s )" % (
                 propString,
-                manchesterSyntax(val.encode("utf-8", "ignore"), store),
+                manchesterSyntax(val, store),
             )
         for someClass in store.objects(subject=thing, predicate=OWL_NS.someValuesFrom):
             return "( %s SOME %s )" % (propString, manchesterSyntax(someClass, store))
@@ -276,7 +276,7 @@ def manchesterSyntax(thing, store, boolean=None, transientList=False):
             return "( %s %s %s )" % (
                 propString,
                 cardLookup[p],
-                o.encode("utf-8", "ignore"),
+                str(o),
             )
     compl = list(store.objects(subject=thing, predicate=OWL_NS.complementOf))
     if compl:
@@ -301,9 +301,9 @@ def manchesterSyntax(thing, store, boolean=None, transientList=False):
             return "[]"  # +thing._id.encode('utf-8')+'</em>'
         label = first(Class(thing, graph=store).label)
         if label:
-            return label.encode("utf-8", "ignore")
+            return str(label)
         else:
-            return qname.encode("utf-8", "ignore")
+            return qname
 
 
 def GetIdentifiedClasses(graph):

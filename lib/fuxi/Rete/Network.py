@@ -508,10 +508,12 @@ class ReteNetwork:
                         pprint(pattern)
                         print(len(largeMem))
 
-    def reportConflictSet(self,
-                          closureSummary: bool = False,
-                          stream: TextIO | None = sys.stdout,
-                          nsBindings: dict[str, str] | None = None):
+    def reportConflictSet(
+        self,
+        closureSummary: bool = False,
+        stream: TextIO | None = sys.stdout,
+        nsBindings: dict[str, str] | None = None,
+    ):
         tNodeOrder = [
             tNode for tNode in self.terminalNodes if self.instantiations.get(tNode, 0)
         ]
@@ -573,8 +575,14 @@ class ReteNetwork:
             return roGraph
         else:
             cg = Dataset(default_union=True)
-            cg += sourceGraph
-            cg += self.inferredFacts
+            if isinstance(sourceGraph, Dataset):
+                cg += sourceGraph
+            else:
+                cg.default_graph += sourceGraph
+            if isinstance(self.inferredFacts, Dataset):
+                cg += self.inferredFacts
+            else:
+                cg.default_graph += self.inferredFacts
             return cg
 
     def _setupDefaultRules(self):

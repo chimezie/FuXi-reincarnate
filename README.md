@@ -99,13 +99,15 @@ dispatched against the user-specified RDF graph (which can be connected to a lar
 The FuXi.Rete.TopDown module is essentially a refutation (proof)-based implementation of a top-down strategy. Adding 
 tabling / memoization to this strategy became quite complicated and the BFP is meant to address (and replace) this complexity:
 
-> One conclusion that can be drawn fromthe BFP is that it does not make sense to hierarchically structure queries according to their generation. In contrast it makes sense to rely on a static rewriting such as the Alexander or Magic Set rewriting and process the resulting rules with a semi-naive bottom-up rule engine. -- Foundations of Rule-Based Query Answering
+> One conclusion that can be drawn from the BFP is that it does not make sense to hierarchically structure queries 
+> according to their generation. In contrast it makes sense to rely on a static rewriting such as the Alexander or 
+> Magic Set rewriting and process the resulting rules with a semi-naive bottom-up rule engine. 
+>     -- Foundations of Rule-Based Query Answering
 > BFP collects generated queries and proven facts in (n-ary) relations [...] In contrast SLD-Resolution relies on 
 > hierarchical data structure that relate proven facts and generated queries to the queries they come from. 
->                                   -- Backwards Fixpoint Procedure
+>     -- Backwards Fixpoint Procedure
 
-It provides a core method 
-shown below:
+It provides a core method:
 
 ```python
 def MagicSetTransformation( factGraph, rules, GOALS, derivedPreds=None, strictCheck = ..., noMagic=[], defaultPredicates=None):
@@ -134,15 +136,8 @@ create the re-written ruleset and also used by the backward chainer (see below).
 The MagicSetTransformation method requires some input about which predicates are derived 
 (it assumes the others are base predicates). For more information on this distinction, see Base and Derived Predicates. 
 In addition, the method also takes a flag that takes 1 of 4 values (the strictCheck argument) determining how strictly 
-to adhere to a clean separation between the two:
+to adhere to a clean separation between the two.
 
-```python
-FuXi.Rete.Magic.DDL_STRICTNESS_LOOSE
-FuXi.Rete.Magic.DDL_STRICTNESS_LOOSE
-FuXi.Rete.Magic.DDL_STRICTNESS_HARSH
-FuXi.Rete.Magic.DDL_STRICTNESS_FALLBACK_BASE
-FuXi.Rete.Magic.DDL_STRICTNESS_FALLBACK_DERIVED
-```
 
 Finally, it also takes a defaultPredicates argument that is a two item tuple where the first item is a list of 
 default base predicates and the second is a list of default derived predicates. These are meant to be used with the 
@@ -157,30 +152,6 @@ but a clashing predicate is in the provided list of derived predicates, it will 
 
 ### IdentifyDerivedPredicates ### 
 A helper function which takes a DDL graph, an OWL graph (the TBox), and a ruleset and returns the set of derived predicates. See the signature of the method.
-
-### FuXi.SPARQL ###
-The implementation for a BackwardsChainingStore. A backwards chaining store can be setup this way:
-
-```python
-from FuXi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore 
-topDownStore=TopDownSPARQLEntailingStore( factGraph.store, factGraph, set(dPreds), rules, nsBindings=nsMap, DEBUG=DEBUG) 
-targetGraph = Graph(topDownStore) 
-topDownStore.targetGraph = targetGraph
-```
-
-Where factGraph is an rdflib graph instance, dPreds is a set of URIs each of which is the name of a derived predicate 
-in the IDB, rules is a set of clauses that comprise the IDB, and nsBindings is a namespace mapping. At this point, a 
-SPARQL query can be dispatched to targetGraph (via targetGraph.query('... SPARQL ...') using derived predicates and the 
-sip strategy will be used to solve the (high-level) query through a series of query re-writing which produce base 
-queries (i.e., queries only involving base predicates) to evaluate against factGraph and combine such answers in order 
-to answer the original query.
-
-In this way, a (possibly large) SQL-based RDFLib backend can be queried using derived predicates defined by a domain 
-theory expressed as any combination of RIF Core, N3, and/or OWL2-RL such that additional answers that follow from the 
-domain theory will be provided to the query.
-
-### FuXi.Rete.TopDown ### 
-The FuXi.Rete.TopDown module has since been deprecated by the Backwards Fixpoint Procedure (BFP). See backward chaining
 
 #### SPARQL FILTER Templates and Top Down Builtins ####
 Building a ruleset with a set of defined builtin implementations (as Python functions) will provide the means to use 
@@ -281,10 +252,10 @@ We can look at the OWL formulae associated with the TeachingAssistant class to s
 an unsafe rule:
 
 ```console
-$ FuXi --class=:TeachingAssistant --output=man-owl
-http://www.lehigh.edu/%7Ezhp2/2004/0401/univ-bench.owl 
-... snip ... 
-Class: :TeachingAssistant ## A Defined Class (university teaching assistant) ## EquivalentTo: :Person that ( :teachingAssistantOf some :Course )```
+$ fuxi --class=:TeachingAssistant --output=man-owl http://www.lehigh.edu/%7Ezhp2/2004/0401/univ-bench.owl
+Class: :TeachingAssistant 
+    ## A Defined Class (university teaching assistant) ##
+    EquivalentTo: person THAT ( 'is a teaching assistant for' SOME teaching course )
 ```
 
 ### FuXi.LP ### 

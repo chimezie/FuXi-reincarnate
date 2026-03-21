@@ -1,5 +1,9 @@
 /.tox/
 /build/
+/rdflib/
+/lib/
+/test/OWL/*/
+!/test/OWL/OWL-TESTS.txt
 /FuXi.egg-info/
 FuXi.sublime-*
 *.pyc

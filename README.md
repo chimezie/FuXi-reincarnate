@@ -40,6 +40,120 @@ source .venv/bin/activate
 uv pip install -e .
 ```
 
+## Command Line Usage
+
+```console
+$ fuxi --help
+Usage: fuxi [options] factFile1 factFile2 ... factFileN
+
+Options:
+  -h, --help            show this help message and exit
+  --why=WHY             Specifies the goals to solve for using the non-naive
+                        methodssee --method
+  --closure             Whether or not to serialize the inferred triples along
+                        with the original triples.  Otherwise (the default
+                        behavior), serialize only the inferred triples
+  --imports             Whether or not to follow owl:imports in the fact graph
+  --output=RDF_FORMAT   Serialize the inferred triples and/or original RDF
+                        triples to STDOUT using the specified RDF syntax
+                        ('xml', 'pretty-xml', 'nt', 'turtle', or 'n3') or to
+                        print a summary of the conflict set (from the RETE
+                        network) if the value of this option is 'conflict'.
+                        If the the  value is 'rif' or 'rif-xml', Then the
+                        rules used for inference will be serialized as RIF.
+                        If the value is 'pml' and --why is used,  then the PML
+                        RDF statements are serialized.  If output is 'proof-
+                        graph then a graphviz .dot file of the proof graph is
+                        printed. Finally if the value is 'man-owl', then the
+                        RDF facts are assumed to be OWL/RDF and serialized via
+                        Manchester OWL syntax. The default is n3
+  --class=QNAME         Used with --output=man-owl to determine which classes
+                        within the entire OWL/RDF are targetted for
+                        serialization.  Can be used more than once
+  --hybrid              Used with with --method=bfp to determine whether or
+                        not to peek into the fact graph to identify predicates
+                        that are both derived and base.  This is expensive for
+                        large fact graphsand is explicitely not used against
+                        SPARQL endpoints
+  --property=QNAME      Used with --output=man-owl or --extract to determine
+                        which properties are serialized / extracted.  Can be
+                        used more than once
+  --normalize           Used with --output=man-owl to attempt to determine if
+                        the ontology is 'normalized' [Rector, A. 2003]The
+                        default is False
+  --ddlGraph=DDLGRAPH   The location of a N3 Data Description document
+                        describing the IDB predicates
+  --input-format=RDF_FORMAT
+                        The format of the RDF document(s) which serve as the
+                        initial facts  for the RETE network. One of 'xml',
+                        'n3', 'trix', 'nt', or 'rdfa'.  The default is xml
+  --safety=RULE_SAFETY  Determines how to handle RIF Core safety.  A value of
+                        'loose'  means that unsafe rules will be ignored.  A
+                        value of 'strict'  will cause a syntax exception upon
+                        any unsafe rule.  A value of 'none' (the default) does
+                        nothing
+  --pDSemantics         Used with --dlp to add pD semantics ruleset for
+                        semantics not covered by DLP but can be expressed in
+                        definite Datalog Logic Programming The default is
+                        False
+  --stdin               Parse STDIN as an RDF graph to contribute to the
+                        initial facts. The default is False
+  --ns=PREFIX=URI       Register a namespace binding (QName prefix to a base
+                        URI).  This can be used more than once
+  --rules=PATH_OR_URI   The Notation 3 documents to use as rulesets for the
+                        RETE network.  Can be specified more than once
+  -d, --debug           Include debugging output
+  --strictness=DDL_STRICTNESS
+                        Used with --why to specify whether to: *not* check if
+                        predicates are  both derived and base (loose), if they
+                        are, mark as derived (defaultDerived) or as base
+                        (defaultBase) predicates, else raise an exception
+                        (harsh)
+  --method=reasoning algorithm
+                        Used with --why to specify how to evaluate answers for
+                        query.  One of: gms, sld, bfp, naive
+  --firstAnswer         Used with --why to determine whether to fetch all
+                        answers or just the first
+  --edb=EXTENSIONAL_DB_PREDICATE_QNAME
+                        Used with --why/--strictness=defaultDerived to specify
+                        which clashing predicate will be designated as a base
+                        predicate
+  --idb=INTENSIONAL_DB_PREDICATE_QNAME
+                        Used with --why/--strictness=defaultBase to specify
+                        which clashing predicate will be designated as a
+                        derived predicate
+  --hybridPredicate=PREDICATE_QNAME
+                        Used with --why to explicitely specify a hybrid
+                        predicate (in both  IDB and EDB)
+  --noMagic=DB_PREDICATE_QNAME
+                        Used with --why to specify that the predicate shouldnt
+                        have its magic sets calculated
+  --filter=PATH_OR_URI  The Notation 3 documents to use as a filter
+                        (entailments do not particpate in network)
+  --ruleFacts           Determines whether or not to attempt to parse initial
+                        facts from the rule graph.  The default is False
+  --builtins=PATH_TO_PYTHON_MODULE
+                        The path to a python module with function definitions
+                        (and a dicitonary called ADDITIONAL_FILTERS) to use
+                        for builtins implementations
+  --dlp                 Use Description Logic Programming (DLP) to extract
+                        rules from OWL/RDF.  The default is False
+  --sparqlEndpoint      Indicates that the sole argument is the URI of a
+                        SPARQL endpoint to query
+  --ontology=PATH_OR_URI
+                        The path to an OWL RDF/XML graph to use DLP to extract
+                        rules from (other wise, fact graph(s) are used)
+  --ontologyFormat=RDF_FORMAT
+                        The format of the OWL RDF/XML graph specified via
+                        --ontology.  The default is xml
+  --builtinTemplates=N3_DOC_PATH_OR_URI
+                        The path to an N3 document associating SPARQL FILTER
+                        templates to rule builtins
+  --negation            Extract negative rules?
+  --normalForm          Whether or not to reduce DL axioms & LP rules to a
+                        normal form
+```
+
 ## Testing
 
 Run the full pytest suite:

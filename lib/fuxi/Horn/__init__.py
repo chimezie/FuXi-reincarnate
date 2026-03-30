@@ -6,8 +6,8 @@ import unittest
 from fuxi.Syntax.InfixOWL import BooleanClass
 from fuxi.Syntax.InfixOWL import Class
 from fuxi.Syntax.InfixOWL import Individual
-from fuxi.Syntax.InfixOWL import CastClass
-from fuxi.Syntax.InfixOWL import classOrIdentifier
+from fuxi.Syntax.InfixOWL import cast_class
+from fuxi.Syntax.InfixOWL import class_or_identifier
 from fuxi.Syntax.InfixOWL import OWL_NS
 from rdflib.graph import Graph
 from rdflib.namespace import NamespaceManager
@@ -26,7 +26,7 @@ safetyNameMap = {
 
 
 def SubSumptionExpansion(owlClass):
-    owlClass = CastClass(owlClass)
+    owlClass = cast_class(owlClass)
     if isinstance(owlClass, BooleanClass) and owlClass._operator == OWL_NS.unionOf:
         for member in owlClass:
             expanded = False
@@ -36,7 +36,7 @@ def SubSumptionExpansion(owlClass):
             if not expanded:
                 yield member
     else:
-        for member in owlClass.subSumpteeIds():
+        for member in owlClass.sub_sumptee_ids():
             expanded = False
             for innerMember in SubSumptionExpansion(Class(member)):
                 expanded = True
@@ -49,7 +49,7 @@ def ComplementExpansion(owlClass, debug=False):
     """
     For binary conjunctions of a positive conjunction concept and a negative atomic concept
     """
-    owlClass = CastClass(owlClass.identifier, owlClass.graph)
+    owlClass = cast_class(owlClass.identifier, owlClass.graph)
     if (
         isinstance(owlClass, BooleanClass)
         and len(owlClass) == 2
@@ -61,10 +61,10 @@ def ComplementExpansion(owlClass, debug=False):
         otherClasses = set()
         for member in owlClass:
             member = Class(member)
-            if member.complementOf:
+            if member.complement_of:
                 # A negative class, expand it and add to bucket of classes to
                 # 'remove'
-                for expandedClass in SubSumptionExpansion(member.complementOf):
+                for expandedClass in SubSumptionExpansion(member.complement_of):
                     negativeClasses.add(expandedClass)
             else:
                 # A positive class, expand it and add to bucket of base classes
@@ -83,8 +83,8 @@ def ComplementExpansion(owlClass, debug=False):
             # Recreate the list of operands, exluding the expanded negative
             # classes
             for allowedClasses in otherClasses.difference(negativeClasses):
-                oldList.append(classOrIdentifier(allowedClasses))
-            owlClass.changeOperator(OWL_NS.unionOf)
+                oldList.append(class_or_identifier(allowedClasses))
+            owlClass.change_operator(OWL_NS.unionOf)
             if debug:
                 print("Incoming boolean class: ", oldRepr)
                 print("Expanded boolean class: ", owlClass.__repr__())

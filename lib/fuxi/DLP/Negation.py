@@ -388,7 +388,7 @@ class NegatedExistentialRestrictionTest(unittest.TestCase):
         self.failUnless(not posRules, "There should be no rules in the 0 strata.")
         self.assertEqual(len(negRules), 2, "There should be 2 'negative' rules")
         Individual.factoryGraph = network.inferredFacts
-        targetClass = Class(EX_NS.NoExclusion, skipOWLClassMembership=False)
+        targetClass = Class(EX_NS.NoExclusion, skip_owl_class_membership=False)
         self.failUnless(
             individual1 in targetClass.extent,
             "There is a BNode that bears the contains relation with another individual that is not a member of Exclusion.",

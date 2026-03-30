@@ -15,7 +15,7 @@ from fuxi.Rete.Magic import AdornLiteral, MagicSetTransformation
 from fuxi.Rete.Util import generateTokenSet
 from fuxi.SPARQL import EDBQuery
 from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
-from fuxi.Syntax.InfixOWL import nsBinds, AllClasses, Individual
+from fuxi.Syntax.InfixOWL import nsBinds, all_classes, Individual
 from rdflib import BNode, Namespace, RDF, RDFS, URIRef, plugin
 from rdflib.graph import Graph
 from rdflib.plugins.sparql.parser import parseQuery
@@ -354,7 +354,7 @@ class OwlTestSuite(unittest.TestCase):
                         )
                     Individual.factoryGraph = factGraph
 
-                    for c in AllClasses(factGraph):
+                    for c in all_classes(factGraph):
                         if not isinstance(c.identifier, BNode):
                             log.debug(c.__repr__(True))
 

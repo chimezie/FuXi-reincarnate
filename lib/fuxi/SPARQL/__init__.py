@@ -37,7 +37,7 @@ from fuxi.Rete.Util import selective_memoize
 from functools import reduce
 
 
-def normalizeBindingsAndQuery(vars, bindings, conjunct):
+def normalize_bindings_and_query(vars, bindings, conjunct):
     """
     Takes a query in the form of a list of variables to bind to
     an a priori set of bindings and a conjunct of literals and applies the bindings
@@ -48,79 +48,79 @@ def normalizeBindingsAndQuery(vars, bindings, conjunct):
 
     """
     _vars = set(vars)
-    bindingDomain = set(bindings.keys())
-    appliedBindings = False
+    binding_domain = set(bindings.keys())
+    applied_bindings = False
     if bindings:
         # Apply a priori substitutions
         for lit in conjunct:
-            substitutedVars = bindingDomain.intersection(lit.toRDFTuple())
+            substituted_vars = binding_domain.intersection(lit.toRDFTuple())
             lit.ground(bindings)
-            if substitutedVars:
-                appliedBindings = True
-                _vars.difference_update(substitutedVars)
+            if substituted_vars:
+                applied_bindings = True
+                _vars.difference_update(substituted_vars)
     return (
         list(_vars),
         conjunct,
-        project(bindings, _vars, inverse=True) if appliedBindings else bindings,
+        project(bindings, _vars, inverse=True) if applied_bindings else bindings,
     )
 
 
-def tripleToTriplePattern(graph, term):
+def triple_to_triple_pattern(graph, term):
     if isinstance(term, N3Builtin):
-        template = graph.templateMap[term.uri]
+        template = graph.template_map[term.uri]
         return "FILTER(%s)" % (template % (term.argument.n3(), term.result.n3()))
     else:
         return "%s %s %s" % tuple(
             [
-                renderTerm(graph, trm, predTerm=idx == 1)
+                render_term(graph, trm, pred_term=idx == 1)
                 for idx, trm in enumerate(term.toRDFTuple())
             ]
         )
 
 
 @selective_memoize([0])
-def normalizeUri(rdfTerm, revNsMap):
+def normalize_uri(rdf_term, rev_ns_map):
     """
     Takes an RDF Term and 'normalizes' it into a QName (using the registered prefix)
     or (unlike compute_qname) the Notation 3 form for URIs: <...URI...>
     """
     try:
-        namespace, name = split_uri(rdfTerm)
+        namespace, name = split_uri(rdf_term)
         namespace = URIRef(namespace)
     except (ValueError, AttributeError, TypeError):
-        if isinstance(rdfTerm, Variable):
-            return "?%s" % rdfTerm
+        if isinstance(rdf_term, Variable):
+            return "?%s" % rdf_term
         else:
-            return "<%s>" % rdfTerm
-    prefix = revNsMap.get(namespace)
-    if prefix is None and isinstance(rdfTerm, Variable):
-        return "?%s" % rdfTerm
+            return "<%s>" % rdf_term
+    prefix = rev_ns_map.get(namespace)
+    if prefix is None and isinstance(rdf_term, Variable):
+        return "?%s" % rdf_term
     elif prefix is None:
-        return "<%s>" % rdfTerm
+        return "<%s>" % rdf_term
     else:
-        qNameParts = compute_qname(rdfTerm, revNsMap)
-        return ":".join([qNameParts[0], qNameParts[-1]])
+        q_name_parts = compute_qname(rdf_term, rev_ns_map)
+        return ":".join([q_name_parts[0], q_name_parts[-1]])
 
 
 @selective_memoize([0])
-def compute_qname(uri, revNsMap):
+def compute_qname(uri, rev_ns_map):
     namespace, name = split_uri(uri)
     namespace = URIRef(namespace)
-    prefix = revNsMap.get(namespace)
+    prefix = rev_ns_map.get(namespace)
     if prefix is None:
-        prefix = "_%s" % len(revNsMap)
-        revNsMap[namespace] = prefix
+        prefix = "_%s" % len(rev_ns_map)
+        rev_ns_map[namespace] = prefix
     return (prefix, namespace, name)
 
 
-def renderTerm(graph, term, predTerm=False):
-    if term == RDF.type and predTerm:
+def render_term(graph, term, pred_term=False):
+    if term == RDF.type and pred_term:
         return " a "
     elif isinstance(term, URIRef):
-        qname = normalizeUri(
+        qname = normalize_uri(
             term,
-            hasattr(graph, "revNsMap")
-            and graph.revNsMap
+            hasattr(graph, "rev_ns_map")
+            and graph.rev_ns_map
             or dict([(u, p) for p, u in graph.namespaces()]),
         )
         return qname[0] == "_" and "<%s>" % term or qname
@@ -133,20 +133,34 @@ def renderTerm(graph, term, predTerm=False):
             return term.n3()
 
 
-def RDFTuplesToSPARQL(
-    conjunct, edb, isGround=False, vars=None, symmAtomicInclusion=False
+def rdf_tuples_to_sparql(
+        conjunct,
+        edb,
+        is_ground=False,
+        vars=None,
+        symm_atomic_inclusion=False,
+        service_url=None
 ):
     """
     Takes a conjunction of Horn literals and returns the
     corresponding SPARQL query
+
+    if service_url is specified, the query is wrapped in a service definition like so
+
+    SELECT ?s { SERVICE <service_url> { ?body } }
+
     """
     if vars is None:
         vars = []
-    queryType = isGround and "ASK" or "SELECT %s" % (" ".join([v.n3() for v in vars]))
+    query_type = is_ground and "ASK" or "SELECT %s" % (" ".join([v.n3() for v in vars]))
 
-    queryShell = len(conjunct) > 1 and "%s {\n%s\n}" or "%s { %s }"
+    if service_url:
+        service_expr = f"SERVICE <{service_url}> "
+        query_shell = "%s {\n " + service_expr + "{ %s\n}}" if len(conjunct) > 1 else "%s { " + service_expr + "{ %s }}"
+    else:
+        query_shell = len(conjunct) > 1 and "%s {\n%s\n}" or "%s { %s }"
 
-    if symmAtomicInclusion:
+    if symm_atomic_inclusion:
         if vars:
             var = vars.pop()
             prefix = "%s a ?KIND" % var.n3()
@@ -156,8 +170,8 @@ def RDFTuplesToSPARQL(
             )
         conjunct = (i.formulae[0] if isinstance(i, And) else i for i in conjunct)
 
-        subquery = queryShell % (
-            queryType,
+        subquery = query_shell % (
+            query_type,
             "%s\nFILTER(%s)"
             % (
                 prefix,
@@ -167,53 +181,53 @@ def RDFTuplesToSPARQL(
             ),
         )
     else:
-        subquery = queryShell % (
-            queryType,
-            " .\n".join(["\t" + tripleToTriplePattern(edb, lit) for lit in conjunct]),
+        subquery = query_shell % (
+            query_type,
+            " .\n".join(["\t" + triple_to_triple_pattern(edb, lit) for lit in conjunct]),
         )
     return subquery
 
 
-# @selective_memoize([0, 1], ['vars', 'symmAtomicInclusion'])
-def RunQuery(
-    subQueryJoin: list[Uniterm],
+# @selective_memoize([0, 1], ['vars', 'symm_atomic_inclusion'])
+def run_query(
+    sub_query_join: list[Uniterm],
     bindings: dict,
-    factGraph: Graph,
+    fact_graph: Graph,
     vars: list[Variable] | None = None,
     debug: bool = False,
-    symmAtomicInclusion: bool = False,
+    symm_atomic_inclusion: bool = False,
 ):
-    initialNs = (
-        hasattr(factGraph, "nsMap")
-        and factGraph.nsMap
-        or dict([(k, v) for k, v in factGraph.namespaces()])
+    initial_ns = (
+        hasattr(fact_graph, "ns_map")
+        and fact_graph.ns_map
+        or dict([(k, v) for k, v in fact_graph.namespaces()])
     )
-    if not subQueryJoin:
+    if not sub_query_join:
         return False
     if not vars:
         vars = []
     if bool(bindings):
         # Apply a priori substitutions
-        openVars, conjGroundLiterals, bindings = normalizeBindingsAndQuery(
-            set(vars), bindings, subQueryJoin
+        open_vars, conj_ground_literals, bindings = normalize_bindings_and_query(
+            set(vars), bindings, sub_query_join
         )
-        vars = list(openVars)
+        vars = list(open_vars)
     else:
-        conjGroundLiterals = subQueryJoin
-    isGround = not vars
-    subquery = RDFTuplesToSPARQL(
-        conjGroundLiterals, factGraph, isGround, [v for v in vars], symmAtomicInclusion
+        conj_ground_literals = sub_query_join
+    is_ground = not vars
+    subquery = rdf_tuples_to_sparql(
+        conj_ground_literals, fact_graph, is_ground, [v for v in vars], symm_atomic_inclusion
     )
-    rt = factGraph.query(subquery, initNs=initialNs)  # DEBUG=debug)
-    projectedBindings = vars and project(bindings, vars) or bindings
-    if isGround:
+    rt = fact_graph.query(subquery, initNs=initial_ns)  # DEBUG=debug)
+    projected_bindings = vars and project(bindings, vars) or bindings
+    if is_ground:
         if debug:
             print(
                 "%s%s-> %s"
                 % (
                     subquery,
-                    projectedBindings
-                    and " %s apriori binding(s)" % len(projectedBindings)
+                    projected_bindings
+                    and " %s apriori binding(s)" % len(projected_bindings)
                     or "",
                     bool(rt),
                 )
@@ -230,8 +244,8 @@ def RunQuery(
                 "%s%s-> %s"
                 % (
                     subquery,
-                    projectedBindings
-                    and " %s apriori binding(s)" % len(projectedBindings)
+                    projected_bindings
+                    and " %s apriori binding(s)" % len(projected_bindings)
                     or "",
                     rt and "[]",
                 )
@@ -239,39 +253,39 @@ def RunQuery(
         return subquery, rt
 
 
-def EDBQueryFromBodyIterator(
-    factGraph, remainingBodyList, derivedPreds, hybridPredicates=None
+def edb_query_from_body_iterator(
+    fact_graph, remaining_body_list, derived_preds, hybrid_predicates=None
 ):
-    hybridPredicates = hybridPredicates if hybridPredicates is not None else []
+    hybrid_predicates = hybrid_predicates if hybrid_predicates is not None else []
 
-    def sparqlResolvable(literal):
-        predTerm = GetOp(literal)
+    def sparql_resolvable(literal):
+        pred_term = GetOp(literal)
         if not isinstance(literal, AdornedUniTerm) and isinstance(literal, Uniterm):
             return not literal.naf and (
-                predTerm not in derivedPreds
-                or (predTerm in hybridPredicates and not predTerm.find("_derived") + 1)
+                pred_term not in derived_preds
+                or (pred_term in hybrid_predicates and not pred_term.find("_derived") + 1)
             )
         else:
             return (
-                isinstance(literal, N3Builtin) and literal.uri in factGraph.templateMap
+                isinstance(literal, N3Builtin) and literal.uri in fact_graph.template_map
             )
 
-    def sparqlResolvableNoTemplates(literal):
-        predTerm = GetOp(literal)
+    def sparql_resolvable_no_templates(literal):
+        pred_term = GetOp(literal)
         if isinstance(literal, Uniterm):
             return not literal.naf and (
-                predTerm not in derivedPreds
-                or (predTerm in hybridPredicates and not predTerm.find("_derived") + 1)
+                pred_term not in derived_preds
+                or (pred_term in hybrid_predicates and not pred_term.find("_derived") + 1)
             )
         else:
             return False
 
     return list(
         takewhile(
-            hasattr(factGraph, "templateMap")
-            and sparqlResolvable
-            or sparqlResolvableNoTemplates,
-            remainingBodyList,
+            hasattr(fact_graph, "template_map")
+            and sparql_resolvable
+            or sparql_resolvable_no_templates,
+            remaining_body_list,
         )
     )
 
@@ -289,23 +303,23 @@ class ConjunctiveQueryMemoize(object):
     def __init__(self, cache=None):
         self._cache = cache if cache is not None else {}
 
-    def produceAnswersAndCache(self, answers, key, cache=None):
+    def produce_answers_and_cache(self, answers, key, cache=None):
         cache = cache if cache is not None else []
         for item in answers:
             self._cache.setdefault(key, cache).append(item)
             yield item
 
     def __call__(self, func):
-        def innerHandler(queryExecAction, conjQuery):
-            key = (conjQuery.factGraph, conjQuery)
+        def inner_handler(query_exec_action, conj_query):
+            key = (conj_query.fact_graph, conj_query)
             try:
                 rt = self._cache.get(key)
                 if rt is not None:
                     for item in rt:
                         yield item
                 else:
-                    for item in self.produceAnswersAndCache(
-                        func(queryExecAction, conjQuery), key
+                    for item in self.produce_answers_and_cache(
+                        func(query_exec_action, conj_query), key
                     ):
                         yield item
             except TypeError:
@@ -322,12 +336,12 @@ class ConjunctiveQueryMemoize(object):
                         for item in self._cache[dump]:
                             yield item
                     else:
-                        for item in self.produceAnswersAndCache(
-                            func(queryExecAction, conjQuery), dump
+                        for item in self.produce_answers_and_cache(
+                            func(query_exec_action, conj_query), dump
                         ):
                             yield item
 
-        return innerHandler
+        return inner_handler
 
 
 class EDBQuery(QNameManager, SetOperator, Condition):
@@ -346,43 +360,49 @@ class EDBQuery(QNameManager, SetOperator, Condition):
     def __init__(
         self,
         lst,
-        factGraph,
-        returnVars=None,
-        bindings={},
-        varMap={},
-        symIncAxMap={},
-        symmAtomicInclusion=False,
+        fact_graph,
+        return_vars=None,
+        bindings=None,
+        var_map=None,
+        sym_inc_ax_map=None,
+        symm_atomic_inclusion=False,
     ):
-        self.factGraph = factGraph
-        self.varMap = varMap
-        self.symmAtomicInclusion = symmAtomicInclusion
+        if sym_inc_ax_map is None:
+            sym_inc_ax_map = {}
+        if var_map is None:
+            var_map = {}
+        if bindings is None:
+            bindings = {}
+        self.fact_graph = fact_graph
+        self.var_map = var_map
+        self.symm_atomic_inclusion = symm_atomic_inclusion
         self.formulae = lst
         self.naf = False
 
         # apply an apriori solutions
         if bool(bindings):
             # Apply a priori substitutions
-            openVars, termList, bindings = normalizeBindingsAndQuery(
-                set(returnVars) if returnVars else [v for v in self.getOpenVars()],
+            open_vars, term_list, bindings = normalize_bindings_and_query(
+                set(return_vars) if return_vars else [v for v in self.get_open_vars()],
                 bindings,
                 lst,
             )
-            self.returnVars = list(openVars)
+            self.return_vars = list(open_vars)
         else:
-            if returnVars is None:
+            if return_vars is None:
                 # return vars not specified, but meant to be determined by
                 # constructor
-                self.returnVars = self.getOpenVars()
+                self.return_vars = self.get_open_vars()
             else:
-                # Note if returnVars is an empty list, this
-                self.returnVars = (
-                    (returnVars if isinstance(returnVars, list) else list(returnVars))
-                    if returnVars
+                # Note if return_vars is an empty list, this
+                self.return_vars = (
+                    (return_vars if isinstance(return_vars, list) else list(return_vars))
+                    if return_vars
                     else []
                 )
-            termList = lst
+            term_list = lst
 
-        super(EDBQuery, self).__init__(factGraph.namespace_manager.namespaces())
+        super(EDBQuery, self).__init__(fact_graph.namespace_manager.namespaces())
         self.bindings = (
             bindings.normalize() if isinstance(bindings, ImmutableDict) else bindings
         )
@@ -393,34 +413,34 @@ class EDBQuery(QNameManager, SetOperator, Condition):
         """
         return EDBQuery(
             [copy.deepcopy(t) for t in self.formulae],
-            self.factGraph,
-            self.returnVars,
+            self.fact_graph,
+            self.return_vars,
             self.bindings.copy(),
-            self.varMap.copy(),
-            symmAtomicInclusion=self.symmAtomicInclusion,
+            self.var_map.copy(),
+            symm_atomic_inclusion=self.symm_atomic_inclusion,
         )
 
-    def renameVariables(self, varMap):
+    def rename_variables(self, var_map):
         for item in self.formulae:
-            item.renameVariables(varMap)
+            item.renameVariables(var_map)
 
     def ground(self, mapping):
-        appliedVars = set()
+        applied_vars = set()
         for item in self.formulae:
             if isinstance(item, Or):
                 for _item in item.formulae:
-                    appliedVars.update(item.ground(mapping))
+                    applied_vars.update(item.ground(mapping))
             else:
-                appliedVars.update(item.ground(mapping))
-        self.bindings = project(self.bindings, appliedVars, True)
-        self.returnVars = self.getOpenVars()
-        return appliedVars
+                applied_vars.update(item.ground(mapping))
+        self.bindings = project(self.bindings, applied_vars, True)
+        self.return_vars = self.get_open_vars()
+        return applied_vars
 
-    def accumulateBindings(self, bindings):
+    def accumulate_bindings(self, bindings):
         """ """
-        self.bindings.update(project(bindings, self.getOpenVars(), inverse=True))
+        self.bindings.update(project(bindings, self.get_open_vars(), inverse=True))
 
-    def getOpenVars(self):
+    def get_open_vars(self):
         return list(
             set(
                 reduce(
@@ -433,32 +453,34 @@ class EDBQuery(QNameManager, SetOperator, Condition):
             )
         )
 
-    def applyMGU(self, substitutions):
+    def apply_mgu(self, substitutions):
         for term in self.formulae:
             term.renameVariables(substitutions)
         self.bindings = dict(
             [(substitutions.get(k, k), v) for k, v in list(self.bindings.items())]
         )
 
-    def evaluate(self, debug=False, symmAtomicInclusion=False):
-        return RunQuery(
+    def evaluate(self, debug=False, symm_atomic_inclusion=False):
+        return run_query(
             self.formulae,
             self.bindings,
-            self.factGraph,
-            vars=self.returnVars,
+            self.fact_graph,
+            vars=self.return_vars,
             debug=debug,
-            symmAtomicInclusion=symmAtomicInclusion,
+            symm_atomic_inclusion=symm_atomic_inclusion,
         )
 
-    def asSPARQL(self):
-        # initialNs = hasattr(self.factGraph, 'nsMap') and self.factGraph.nsMap or \
-        #             dict([(k, v) for k, v in self.factGraph.namespaces()])
-        return RDFTuplesToSPARQL(
+    def as_owl_dsl_phase(self):
+        pass
+
+    def as_sparql(self, service_url: str = None):
+        return rdf_tuples_to_sparql(
             self.formulae,
-            self.factGraph,
-            not self.returnVars,
-            self.returnVars,
-            self.symmAtomicInclusion,
+            self.fact_graph,
+            not self.return_vars,
+            self.return_vars,
+            self.symm_atomic_inclusion,
+            service_url=service_url
         )
 
     def __len__(self):
@@ -487,12 +509,12 @@ class EDBQuery(QNameManager, SetOperator, Condition):
         )
         return hash(conj)
 
-    def extend(self, query, newVarMap=None):
-        assert not query.symmAtomicInclusion
-        assert not self.symmAtomicInclusion
-        if newVarMap:
-            query.renameVariables(newVarMap)
-            self.varMap.update(newVarMap)
+    def extend(self, query, new_var_map=None):
+        assert not query.symm_atomic_inclusion
+        assert not self.symm_atomic_inclusion
+        if new_var_map:
+            query.rename_variables(new_var_map)
+            self.var_map.update(new_var_map)
         self.formulae.extend(
             [term for term in query.formulae if term not in self.formulae]
         )
@@ -500,7 +522,7 @@ class EDBQuery(QNameManager, SetOperator, Condition):
 
     def __repr__(self):
         return "EDBQuery(%s%s)" % (
-            self.repr(self.symmAtomicInclusion and "Or" or "And"),
+            self.repr(self.symm_atomic_inclusion and "Or" or "And"),
             self.bindings and ", %s" % self.bindings or "",
         )
 
@@ -514,13 +536,3 @@ def test():
 if __name__ == "__main__":
     test()
 
-# from fuxi.SPARQL import normalizeBindingsAndQuery
-# from fuxi.SPARQL import tripleToTriplePattern
-# from fuxi.SPARQL import normalizeUri
-# from fuxi.SPARQL import compute_qname
-# from fuxi.SPARQL import renderTerm
-# from fuxi.SPARQL import RDFTuplesToSPARQL
-# from fuxi.SPARQL import RunQuery
-# from fuxi.SPARQL import EDBQueryFromBodyIterator
-# from fuxi.SPARQL import ConjunctiveQueryMemoize
-# from fuxi.SPARQL import EDBQuery

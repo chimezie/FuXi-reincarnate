@@ -139,7 +139,7 @@ class HashablePatternList(object):
 
     def __init__(
         self,
-        items: Optional[Iterable[tuple[RDFTerm, ...]]] = None,
+        items: "Iterable[tuple[RDFTerm, ...]] | None" = None,
         skipBNodes: bool = False,
     ) -> None:
         self.skipBNodes = skipBNodes
@@ -275,7 +275,7 @@ class ReteNetwork:
         if inferredTarget is None:
             self.inferredFacts = Graph()
             namespace_manager = NamespaceManager(self.inferredFacts)
-            for k, v in list(nsMap.items()):
+            for k, v in list(self.nsMap.items()):
                 namespace_manager.bind(k, v)
             self.inferredFacts.namespace_manager = namespace_manager
         else:
@@ -329,7 +329,7 @@ class ReteNetwork:
             )
         if graphVizOutFile:
             print("Writing out RETE network to ", graphVizOutFile)
-            renderNetwork(self, nsMap=nsMap).write(graphVizOutFile)
+            renderNetwork(self, nsMap=self.nsMap).write(graphVizOutFile)
 
     def getNsBindings(self, nsMgr):
         for prefix, Uri in nsMgr.namespaces():
@@ -474,14 +474,18 @@ class ReteNetwork:
     def setupDescriptionLogicProgramming(
         self,
         owlN3Graph,
-        expanded=[],
+        expanded=None,
         addPDSemantics=True,
         classifyTBox=False,
         constructNetwork=True,
-        derivedPreds=[],
+        derivedPreds=None,
         ignoreNegativeStratus=False,
         safety=DATALOG_SAFETY_NONE,
     ):
+        if expanded is None:
+            expanded = []
+        if derivedPreds is None:
+            derivedPreds = []
         rt = [
             rule
             for rule in MapDLPtoNetwork(
@@ -542,7 +546,7 @@ class ReteNetwork:
     def reportConflictSet(
         self,
         closureSummary: bool = False,
-        stream: TextIO | None = sys.stdout,
+        stream: "TextIO | None" = sys.stdout,
         nsBindings: dict[str, str] | None = None,
     ):
         tNodeOrder = [

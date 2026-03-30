@@ -35,7 +35,7 @@ from rdflib.graph import ReadOnlyGraphAggregate
 from rdflib import Literal, Namespace, RDF, Variable, URIRef
 from rdflib.util import first
 
-from fuxi.SPARQL import EDBQuery, EDBQueryFromBodyIterator, ConjunctiveQueryMemoize
+from fuxi.SPARQL import EDBQuery, edb_query_from_body_iterator, ConjunctiveQueryMemoize
 from fuxi.Rete.SidewaysInformationPassing import (
     GetArgs,
     GetVariables,
@@ -228,7 +228,7 @@ class QueryExecution(object):
                 closure = ReadOnlyGraphAggregate(
                     [self.factGraph, self.bfp.metaInterpNetwork.inferredFacts]
                 )
-                closure.templateMap = self.factGraph.templateMap
+                closure.templateMap = self.factGraph.template_map
                 # For each mapping that unifies with theory
                 if self.edbConj:
                     _vars = set()
@@ -264,7 +264,7 @@ class QueryExecution(object):
                 #                 if v not in queryVars
                 #         ]
                 # ]
-                isGround = not _qLit.returnVars
+                isGround = not _qLit.return_vars
                 rt = self.tabledQuery(_qLit)
                 if isGround:
                     if first(rt):
@@ -581,7 +581,7 @@ class BackwardFixpointProcedure(object):
                 continue
 
             # remainingBodyList = body[bodyIdx+1:] if bodyIdx+1<_len else []
-            conjunct = EDBQueryFromBodyIterator(
+            conjunct = edb_query_from_body_iterator(
                 self.factGraph,
                 rule.formula.body.formulae[bodyIdx:],
                 self.derivedPredicates,
@@ -977,7 +977,7 @@ class BackwardFixpointProcedure(object):
                 priorEvaluateTerm = Uniterm(
                     BFP_NS.evaluate, [label, Literal(bodyIdx)], newNss=self.namespaces
                 )
-                conj = EDBQueryFromBodyIterator(
+                conj = edb_query_from_body_iterator(
                     self.factGraph,
                     rule.formula.body.formulae[bodyIdx:],
                     self.derivedPredicates,

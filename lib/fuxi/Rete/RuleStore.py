@@ -59,7 +59,7 @@ class N3Builtin(object):
     def isSecondOrder(self) -> bool:
         return False
 
-    def ground(self, varMapping: Mapping[RDFTerm, RDFTerm]) -> set[RDFTerm]:
+    def ground(self, varMapping: "Mapping[RDFTerm, RDFTerm]") -> set[RDFTerm]:
         appliedKeys = set([self.argument, self.result]).intersection(
             list(varMapping.keys())
         )
@@ -73,7 +73,7 @@ class N3Builtin(object):
                 return False
         return True
 
-    def renameVariables(self, varMapping: Mapping[RDFTerm, RDFTerm]) -> None:
+    def renameVariables(self, varMapping: "Mapping[RDFTerm, RDFTerm]") -> None:
         if varMapping:
             self.argument = varMapping.get(self.argument, self.argument)
             self.result = varMapping.get(self.result, self.result)
@@ -87,7 +87,7 @@ class N3Builtin(object):
     def render(self, argument, result):
         return "<%s>(%s, %s)" % (self.uri, argument, result)
 
-    def __iter__(self) -> Iterator[RDFTerm]:
+    def __iter__(self) -> "Iterator[RDFTerm]":
         for f in [self.uri, self.argument, self.result]:
             yield f
 
@@ -120,11 +120,11 @@ class Formula(object):
     def __getitem__(self, key: int) -> Triple | N3Builtin:
         return self.triples[key]
 
-    def __iter__(self) -> Iterator[Triple | N3Builtin]:
+    def __iter__(self) -> "Iterator[Triple | N3Builtin]":
         for item in self.triples:
             yield item
 
-    def extend(self, other: Iterable[Triple | N3Builtin]) -> None:
+    def extend(self, other: "Iterable[Triple | N3Builtin]") -> None:
         self.triples.extend(other)
 
     def append(self, other):

@@ -30,7 +30,7 @@ from fuxi.Rete.SidewaysInformationPassing import IncomingSIPArcs
 from fuxi.Rete.SidewaysInformationPassing import SIPRepresentation
 from fuxi.Rete.Magic import AdornLiteral
 from fuxi.Rete.Util import selective_memoize, lazyGeneratorPeek
-from fuxi.SPARQL import EDBQuery, normalizeBindingsAndQuery
+from fuxi.SPARQL import EDBQuery, normalize_bindings_and_query
 
 from rdflib import (
     BNode,
@@ -790,7 +790,7 @@ def SipStrategy(
                 for v in GetArgs(queryLiteral, secondOrder=True)
                 if isinstance(v, Variable)
             ]
-            openVars, axioms, _bindings = normalizeBindingsAndQuery(
+            openVars, axioms, _bindings = normalize_bindings_and_query(
                 vars, bindings, axioms
             )
             if openVars:
@@ -964,20 +964,3 @@ def test():
 if __name__ == "__main__":
     test()
 
-# from fuxi.Rete.TopDown import RuleFailure
-
-# from fuxi.Rete.TopDown import makeMD5Digest
-# from fuxi.Rete.TopDown import PrepareSipCollection
-# from fuxi.Rete.TopDown import getBindingsFromLiteral
-# from fuxi.Rete.TopDown import tripleToTriplePattern
-# from fuxi.Rete.TopDown import normalizeUri
-# from fuxi.Rete.TopDown import compute_qname
-# from fuxi.Rete.TopDown import renderTerm
-# from fuxi.Rete.TopDown import RDFTuplesToSPARQL
-# from fuxi.Rete.TopDown import lazyCollapseBooleanProofs
-# from fuxi.Rete.TopDown import literalIsGround
-# from fuxi.Rete.TopDown import mergeMappings1To2
-# from fuxi.Rete.TopDown import invokeRule
-# from fuxi.Rete.TopDown import refactorMapping
-# from fuxi.Rete.TopDown import prepMemiozedAns
-# from fuxi.Rete.TopDown import SipStrategy

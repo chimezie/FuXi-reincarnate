@@ -11,7 +11,7 @@ from rdflib.util import first
 import unittest
 
 from fuxi.Syntax.InfixOWL import BooleanClass
-from fuxi.Syntax.InfixOWL import CastClass
+from fuxi.Syntax.InfixOWL import cast_class
 from fuxi.Syntax.InfixOWL import Class
 from fuxi.Syntax.InfixOWL import ClassNamespaceFactory
 from fuxi.Syntax.InfixOWL import EnumeratedClass
@@ -43,15 +43,15 @@ SELECT ?RESTRICTION ?INTERMEDIATE_CLASS ?NOMINAL ?PROP
             nominalCollection = Collection(graph, nominal)
             # purge restriction
             restr = Class(restriction)
-            parentSets = [i for i in restr.subClassOf]
-            restr.clearOutDegree()
+            parentSets = [i for i in restr.sub_class_of]
+            restr.clear_out_degree()
             newConjunct = BooleanClass(
                 restriction,
                 OWL_NS.unionOf,
                 [Property(prop) | value | val for val in nominalCollection],
                 graph,
             )
-            newConjunct.subClassOf = parentSets
+            newConjunct.sub_class_of = parentSets
 
             # purge nominalization placeholder
             iClass = BooleanClass(intermediateCl)
@@ -84,7 +84,7 @@ SELECT ?RESTRICTION ?INTERMEDIATE_CLASS ?NOMINAL ?PROP ?PARTITION
                 if i not in nominalCollection:
                     exceptions._rdfList.append(i)
                     # exceptions+=i
-            exists = Class(complementOf=(Property(prop) | some | exceptions))
+            exists = Class(complement_of=(Property(prop) | some | exceptions))
             for s, p, o in graph.triples((None, None, restriction)):
                 graph.add((s, p, exists.identifier))
             Individual(restriction).delete()
@@ -103,13 +103,13 @@ class GeneralUniversalTransformer(object):
         Individual.factoryGraph = graph
         for restr, p, o in graph.triples((None, OWL_NS.allValuesFrom, None)):
             graph.remove((restr, p, o))
-            innerCompl = Class(complementOf=o)
+            innerCompl = Class(complement_of=o)
             graph.add((restr, OWL_NS.someValuesFrom, innerCompl.identifier))
             outerCompl = Class()
             for _s, _p, _o in graph.triples((None, None, restr)):
                 graph.add((_s, _p, outerCompl.identifier))
                 graph.remove((_s, _p, _o))
-            outerCompl.complementOf = restr
+            outerCompl.complement_of = restr
 
 
 class DoubleNegativeTransformer(object):
@@ -157,13 +157,13 @@ class DemorganTransformer(object):
             elif ((disjunctId, OWL_NS.unionOf, None) in graph) and not [
                 item
                 for item in BooleanClass(disjunctId, operator=OWL_NS.unionOf)
-                if not Class(item).complementOf
+                if not Class(item).complement_of
             ]:
                 # ( not A1 or  not A2  or .. or  not An )
                 #                 =
                 # not ( A1 and A2 and .. and An )
                 disjunct = BooleanClass(disjunctId, operator=OWL_NS.unionOf)
-                items = [Class(item).complementOf for item in disjunct]
+                items = [Class(item).complement_of for item in disjunct]
                 for negation in disjunct:
                     Class(negation).delete()
                 negatedConjunct = ~BooleanClass(members=items)
@@ -232,29 +232,31 @@ class ReductionTestA(unittest.TestCase):
         subPartition = EnumeratedClass(EX_NS.partition, members=[EX_NS.individual1])
         partitionProp = Property(EX_NS.propFoo, range=partition)
         self.foo = EX.foo
-        self.foo.subClassOf = [partitionProp | only | subPartition]
+        self.foo.sub_class_of = [partitionProp | only | subPartition]
 
     def testUnivInversion(self):
         UniversalNominalRangeTransformer().transform(self.ontGraph)
         self.failUnlessEqual(
-            len(list(self.foo.subClassOf)),
+            len(list(self.foo.sub_class_of)),
             1,
             "There should still be one subsumed restriction",
         )
-        subC = CastClass(first(self.foo.subClassOf))
+        subC = cast_class(first(self.foo.sub_class_of))
         self.failUnless(not isinstance(subC, Restriction), "subclass of a restriction")
-        self.failUnless(subC.complementOf is not None, "Should be a complement.")
-        innerC = CastClass(subC.complementOf)
+        self.failUnless(subC.complement_of is not None, "Should be a complement.")
+        innerC = cast_class(subC.complement_of)
         self.failUnless(
             isinstance(innerC, Restriction),
             "complement of a restriction, not %r" % innerC,
         )
-        self.failUnlessEqual(innerC.onProperty, EX_NS.propFoo, "restriction on propFoo")
+        self.failUnlessEqual(
+            innerC.on_property, EX_NS.propFoo, "restriction on propFoo"
+        )
         self.failUnless(
-            innerC.someValuesFrom,
+            innerC.some_values_from,
             "converted to an existential restriction not %r" % innerC,
         )
-        invertedC = CastClass(innerC.someValuesFrom)
+        invertedC = cast_class(innerC.some_values_from)
         self.failUnless(
             isinstance(invertedC, EnumeratedClass),
             "existential restriction on enumerated class",
@@ -270,7 +272,7 @@ class ReductionTestA(unittest.TestCase):
         NominalRangeTransformer().transform(self.ontGraph)
         DemorganTransformer().transform(self.ontGraph)
 
-        subC = CastClass(first(self.foo.subClassOf))
+        subC = cast_class(first(self.foo.sub_class_of))
         self.assertEqual(
             repr(subC),
             "( ( not ( ex:propFoo value ex:individual2 ) ) and ( not ( ex:propFoo value ex:individual3 ) ) )",
@@ -290,10 +292,10 @@ class ReductionTestB(unittest.TestCase):
     def testHiddenDemorgan(self):
         NormalFormReduction(self.ontGraph)
         self.failUnless(
-            first(self.foo.subClassOf).complementOf,
+            first(self.foo.sub_class_of).complement_of,
             "should be the negation of a boolean class",
         )
-        innerC = CastClass(first(self.foo.subClassOf).complementOf)
+        innerC = cast_class(first(self.foo.sub_class_of).complement_of)
         self.failUnless(
             isinstance(innerC, BooleanClass)
             and innerC._operator == OWL_NS.intersectionOf,

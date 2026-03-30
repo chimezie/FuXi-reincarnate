@@ -39,7 +39,7 @@ def format_doctest_out(obj: Any) -> Any:
 
 
 def buildUniTerm(
-    triple: Triple, newNss: Optional[Iterable[tuple[str, URIRef]]] = None
+    triple: Triple, newNss: "Iterable[tuple[str, URIRef]] | None" = None
 ) -> "Uniterm":
     if isinstance(triple, tuple):
         (s, p, o) = triple
@@ -58,7 +58,7 @@ def GetUterm(term: "Condition") -> "Uniterm":
 
 
 class QNameManager(object):
-    def __init__(self, nsDict: Optional[Mapping[str, URIRef]] = None) -> None:
+    def __init__(self, nsDict: "Mapping[str, URIRef] | None" = None) -> None:
         self.nsDict: dict[str, URIRef] = dict(nsDict) if nsDict else {}
         self.nsMgr: NamespaceManager = NamespaceManager(Graph())
         self.nsMgr.bind("owl", "http://www.w3.org/2002/07/owl#")
@@ -109,7 +109,7 @@ class Condition(object):
     def n3(self) -> str:
         return repr(self)
 
-    def __iter__(self) -> Iterator[Condition]:
+    def __iter__(self) -> "Iterator[Condition]":
         for f in self.formulae:
             yield f
 

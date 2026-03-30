@@ -28,9 +28,9 @@ from fuxi.DLP import SkolemizeExistentialClasses
 from fuxi.Horn.HornRules import HornFromN3
 from fuxi.Rete.RuleStore import SetupRuleStore
 from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
-from fuxi.Syntax.InfixOWL import AllClasses
+from fuxi.Syntax.InfixOWL import all_classes
 from fuxi.Syntax.InfixOWL import BooleanClass
-from fuxi.Syntax.InfixOWL import CastClass
+from fuxi.Syntax.InfixOWL import cast_class
 from fuxi.Syntax.InfixOWL import Class
 from fuxi.Syntax.InfixOWL import ClassNamespaceFactory
 from fuxi.Syntax.InfixOWL import Individual
@@ -271,9 +271,9 @@ def StructuralTransformation(owlGraph, newOwlGraph):
     >>> leg = EX_CL.Leg
     >>> hasLocation = Property(EX.hasLocation)
 
-    >>> kneeJoint.equivalentClass = [joint & (isPartOf | some | knee)]
+    >>> kneeJoint.equivalent_class = [joint & (isPartOf | some | knee)]
     >>> legStructure = EX_CL.LegStructure
-    >>> legStructure.equivalentClass = [structure & (isPartOf | some | leg)]
+    >>> legStructure.equivalent_class = [structure & (isPartOf | some | leg)]
     >>> structure += leg
     >>> locatedInLeg = hasLocation | some | leg
     >>> locatedInLeg += knee
@@ -297,7 +297,7 @@ def StructuralTransformation(owlGraph, newOwlGraph):
     FreshConcept = {}
     newOwlGraph.bind("skolem", SKOLEMIZED_CLASS_NS, True)
 
-    for cls in AllClasses(owlGraph):
+    for cls in all_classes(owlGraph):
         ProcessConcept(cls, owlGraph, FreshConcept, newOwlGraph)
     return newOwlGraph, FreshConcept
 
@@ -317,7 +317,7 @@ def ProcessConcept(klass, owlGraph, FreshConcept, newOwlGraph):
     # A fresh atomic concept (A_c)
     newCls = Class(FreshConcept[iD], graph=newOwlGraph)
 
-    cls = CastClass(klass, owlGraph)
+    cls = cast_class(klass, owlGraph)
 
     # determine if the concept is the left, right (or both)
     # operand of a subsumption axiom in the ontology
@@ -349,7 +349,7 @@ def ProcessConcept(klass, owlGraph, FreshConcept, newOwlGraph):
 
             # An existential role restriction
             log.debug("Original (role restriction) appears in a subsumption axiom")
-            role = Property(cls.onProperty, graph=newOwlGraph)
+            role = Property(cls.on_property, graph=newOwlGraph)
 
             fillerCls = ProcessConcept(
                 Class(cls.restrictionRange), owlGraph, FreshConcept, newOwlGraph
@@ -406,12 +406,12 @@ def createTestOntGraph():
     graph.add((isPartOf.identifier, RDF.type, OWL_NS.TransitiveProperty))
     structure = EX_CL.Structure
     leg = EX_CL.Leg
-    hasLocation = Property(EX_NS.hasLocation, subPropertyOf=[isPartOf])
+    hasLocation = Property(EX_NS.hasLocation, sub_property_of=[isPartOf])
     # graph.add((hasLocation.identifier,RDFS.subPropertyOf,isPartOf.identifier))
 
-    kneeJoint.equivalentClass = [joint & (isPartOf | some | knee)]
+    kneeJoint.equivalent_class = [joint & (isPartOf | some | knee)]
     legStructure = EX_CL.LegStructure
-    legStructure.equivalentClass = [structure & (isPartOf | some | leg)]
+    legStructure.equivalent_class = [structure & (isPartOf | some | leg)]
     structure += leg
     structure += joint
     locatedInLeg = hasLocation | some | leg
@@ -538,7 +538,7 @@ if __name__ == "__main__":
     #               RDFS.subClassOf,
     #               EX_NS.KneeJoint))
     NormalizeSubsumption(ontGraph)
-    for c in AllClasses(ontGraph):
+    for c in all_classes(ontGraph):
         log.debug(c.__repr__(True))
     SetupMetaInterpreter(ontGraph, goal)
 #    test()

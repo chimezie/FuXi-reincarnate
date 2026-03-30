@@ -10,7 +10,6 @@ OWL/RDF
 
 try:
     from pydot import Node, Edge, Dot
-
     dot = Dot(graph_type="digraph")
 except:
     import warnings
@@ -40,21 +39,6 @@ from rdflib import (
     URIRef,
     Variable,
 )
-
-
-def any(seq, pred=None):
-    """Returns True if pred(x) is true for at least one element in the iterable"""
-    for elem in filter(pred, seq):
-        return True
-    return False
-
-
-def all(seq, pred=None):
-    "Returns True if pred(x) is true for every element in the iterable"
-    for elem in filterfalse(pred, seq):
-        return False
-    return True
-
 
 def fillBindings(terms, bindings):
     for term in terms:
@@ -141,13 +125,8 @@ def fetchRETEJustifications(goal, nodeset, builder, antecedent=None):
                 # is the premise already proven?
                 failedCheck = True
                 try:
-                    failedCheck = any(
-                        termIterator(bodyTerm),
-                        lambda x: tuple(
-                            fillBindings(x.toRDFTuple(), antecedent.bindings)
-                        )
-                        in builder.goals,
-                    )
+                    failedCheck = any(fillBindings(termIterator(bodyTerm).toRDFTuple(),
+                                                   antecedent.bindings) in builder.goals)
                 except KeyError:
                     failedCheck = False
                 validJustification = not failedCheck

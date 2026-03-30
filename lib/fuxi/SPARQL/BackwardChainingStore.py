@@ -3,6 +3,9 @@
 import sys
 from typing import Any, Mapping
 from pprint import pprint
+
+from pyparsing import ParseResults
+
 from rdflib import RDF, URIRef, Variable
 from rdflib.util import first
 from rdflib.store import Store
@@ -10,12 +13,8 @@ from rdflib.plugins.stores.regexmatching import NATIVE_REGEX
 from rdflib.query import Result
 from rdflib.term import Identifier, IdentifiedNode
 
-from fuxi.SPARQL.utilities import (
-    extract_triples_from_query,
-    sparql_query_from_result,
-)
+from fuxi.SPARQL.utilities import extract_triples_from_query, sparql_query_from_result
 from rdflib.plugins.sparql.algebra import translateQuery
-from rdflib.plugins.sparql.algebra import translateQuery as RenderSPARQLAlgebra
 from rdflib.plugins.sparql.parser import parseQuery
 
 from fuxi.Rete.Magic import SetupDDLAndAdornProgram
@@ -78,7 +77,7 @@ class TopDownSPARQLEntailingStore(Store):
     regex_matching = NATIVE_REGEX
     batch_unification = True
 
-    def getDerivedPredicates(self, expr, prologue):
+    def get_derived_predicates(self, expr, prologue):
         def iter_bgp_triples(bgp):
             if hasattr(bgp, "patterns") and bgp.patterns is not None:
                 for item in bgp.patterns:
@@ -88,9 +87,9 @@ class TopDownSPARQLEntailingStore(Store):
                     yield item
 
         if isinstance(expr, NonSymmetricBinaryOperator):
-            for term in self.getDerivedPredicates(expr.left, prologue):
+            for term in self.get_derived_predicates(expr.left, prologue):
                 yield term
-            for term in self.getDerivedPredicates(expr.right, prologue):
+            for term in self.get_derived_predicates(expr.right, prologue):
                 yield term
             return
         if isinstance(expr, CompValue):
@@ -100,20 +99,20 @@ class TopDownSPARQLEntailingStore(Store):
                         s, p, o, _func = item
                     else:
                         s, p, o = item
-                    derivedPred = self.derivedPredicateFromTriple((s, p, o))
-                    if derivedPred is not None:
-                        yield derivedPred
+                    derived_pred = self.derived_predicate_from_triple((s, p, o))
+                    if derived_pred is not None:
+                        yield derived_pred
             for key in expr.keys():
-                for term in self.getDerivedPredicates(expr.get(key), prologue):
+                for term in self.get_derived_predicates(expr.get(key), prologue):
                     yield term
             return
         if isinstance(expr, (list, tuple)):
             for item in expr:
-                for term in self.getDerivedPredicates(item, prologue):
+                for term in self.get_derived_predicates(item, prologue):
                     yield term
             return
 
-    def isaBaseQuery(self, queryString, queryObj=None):
+    def is_a_base_query(self, query_string, query_obj=None):
         """
         If the given SPARQL query involves purely base predicates
         it returns it (as a parsed string), otherwise it returns a SPARQL algebra
@@ -137,10 +136,10 @@ class TopDownSPARQLEntailingStore(Store):
         from rdflib.plugins.sparql.parser import parseQuery
         from rdflib.plugins.sparql import sparql as sparqlModule
 
-        if queryObj is not None:
-            query = queryObj
+        if query_obj is not None:
+            query = query_obj
         else:
-            query = parseQuery(queryString)
+            query = parseQuery(query_string)
 
         prologue = getattr(query, "prologue", None)
         if prologue is None:
@@ -148,62 +147,64 @@ class TopDownSPARQLEntailingStore(Store):
             query.prologue = prologue
         if not getattr(prologue, "namespace_manager", None):
             prologue.namespace_manager = NamespaceManager(Graph())
-        for prefix, nsInst in list(self.nsBindings.items()):
-            prologue.namespace_manager.bind(prefix, nsInst, override=False)
+        for prefix, ns_inst in list(self.ns_bindings.items()):
+            prologue.namespace_manager.bind(prefix, ns_inst, override=False)
 
         sparqlModule.prologue = prologue
         if hasattr(query, "algebra") and query.algebra is not None:
             algebra = query.algebra
         else:
-            algebra = RenderSPARQLAlgebra(query, initNs=self.nsBindings).algebra
+            algebra = translateQuery(query, init_ns=self.ns_bindings).algebra
 
-        return first(self.getDerivedPredicates(algebra, prologue)) and algebra or query
+        return first(self.get_derived_predicates(algebra, prologue)) and algebra or query
 
     def __init__(
         self,
         store,
         edb,
-        derivedPredicates=None,
+        derived_predicates=None,
         idb=None,
         DEBUG=False,
-        nsBindings=None,
-        decisionProcedure=BFP_METHOD,
-        templateMap=None,
-        identifyHybridPredicates=False,
-        hybridPredicates=None,
+        ns_bindings=None,
+        decision_procedure=BFP_METHOD,
+        template_map=None,
+        identify_hybrid_predicates=False,
+        hybrid_predicates=None,
     ):
         self.dataset = store
         if hasattr(store, "_db"):
             self._db = store._db
         self.idb = idb and idb or set()
         self.edb = edb
-        if derivedPredicates is None:
-            self.derivedPredicates = list(DerivedPredicateIterator(self.edb, self.idb))
+        if derived_predicates is None:
+            self.derived_predicates = list(DerivedPredicateIterator(self.edb, self.idb))
         else:
-            self.derivedPredicates = derivedPredicates
+            self.derived_predicates = derived_predicates
         self.DEBUG = DEBUG
-        self.nsBindings = nsBindings if nsBindings is not None else {}
-        self.edb.templateMap = (
-            DEFAULT_BUILTIN_MAP if templateMap is None else templateMap
+        self.ns_bindings = ns_bindings if ns_bindings is not None else {}
+        self.edb.template_map = (
+            DEFAULT_BUILTIN_MAP if template_map is None else template_map
         )
-        self.queryNetworks = []
-        self.edbQueries = set()
-        if identifyHybridPredicates:
-            self.hybridPredicates = IdentifyHybridPredicates(
-                edb, self.derivedPredicates
+        self.query_networks = []
+        self.edb_queries = set()
+        if identify_hybrid_predicates:
+            self.hybrid_predicates = IdentifyHybridPredicates(
+                edb, self.derived_predicates
             )
         else:
-            self.hybridPredicates = hybridPredicates if hybridPredicates is not None else []
+            self.hybrid_predicates = (
+                hybrid_predicates if hybrid_predicates is not None else []
+            )
 
         # Update derived predicate list for synchrony with hybrid predicate
         # rules
-        for hybridPred in self.hybridPredicates:
-            if hybridPred in self.derivedPredicates:
-                self.derivedPredicates.remove(hybridPred)
-            if isinstance(self.derivedPredicates, list):
-                self.derivedPredicates.append(URIRef(hybridPred + "_derived"))
-            elif isinstance(self.derivedPredicates, set):
-                self.derivedPredicates.add(URIRef(hybridPred + "_derived"))
+        for hybrid_pred in self.hybrid_predicates:
+            if hybrid_pred in self.derived_predicates:
+                self.derived_predicates.remove(hybrid_pred)
+            if isinstance(self.derived_predicates, list):
+                self.derived_predicates.append(URIRef(hybrid_pred + "_derived"))
+            elif isinstance(self.derived_predicates, set):
+                self.derived_predicates.add(URIRef(hybrid_pred + "_derived"))
             else:
                 import warnings
 
@@ -214,142 +215,144 @@ class TopDownSPARQLEntailingStore(Store):
 
         # Add a cache of the namespace bindings to use later in coining Qnames in
         # generated queries
-        self.edb.revNsMap = {}
-        self.edb.nsMap = {}
-        for k, v in list(nsBindings.items()):
-            self.edb.revNsMap[v] = k
-            self.edb.nsMap[k] = v
+        self.edb.rev_ns_map = {}
+        self.edb.ns_map = {}
+        for k, v in list(ns_bindings.items()):
+            self.edb.rev_ns_map[v] = k
+            self.edb.ns_map[k] = v
         for key, uri in self.edb.namespaces():
-            self.edb.revNsMap[uri] = key
-            self.edb.nsMap[key] = uri
+            self.edb.rev_ns_map[uri] = key
+            self.edb.ns_map[key] = uri
 
-    def invokeDecisionProcedure(self, tp, factGraph, bindings, debug, sipCollection):
-        isNotGround = first(filter(lambda i: isinstance(i, Variable), tp))
+    def invoke_decision_procedure(self, tp, fact_graph, bindings, debug, sip_collection):
+        is_not_ground = first(filter(lambda i: isinstance(i, Variable), tp))
         rule_store, rule_graph, network = SetupRuleStore(makeNetwork=True)
         bfp = BackwardFixpointProcedure(
-            factGraph,
+            fact_graph,
             network,
-            self.derivedPredicates,
+            self.derived_predicates,
             tp,
-            sipCollection,
-            hybridPredicates=self.hybridPredicates,
+            sip_collection,
+            hybridPredicates=self.hybrid_predicates,
             debug=self.DEBUG,
         )
         bfp.createTopDownReteNetwork(self.DEBUG)
-        bfp.answers(debug=self.DEBUG)
-        self.queryNetworks.append((bfp.metaInterpNetwork, tp))
-        self.edbQueries.update(bfp.edbQueries)
+        response = bfp.answers(debug=self.DEBUG)
+        self.query_networks.append((bfp.metaInterpNetwork, tp))
+        self.edb_queries.update(bfp.edbQueries)
         if self.DEBUG:
             print("Goal/Query: ", tp)
             print(
                 "Query was not ground"
-                if isNotGround is not None
+                if is_not_ground is not None
                 else "Query was ground"
             )
-        if isNotGround is not None:
+            print("Inferred facts from adorned rules:\n",
+                  bfp.metaInterpNetwork.inferredFacts.serialize(format="turtle"))
+        if is_not_ground is not None:
             for item in bfp.goalSolutions:
                 yield item, None
         else:
-            yield True, None
+            yield response, None
         if debug:
             print(bfp.metaInterpNetwork)
-            bfp.metaInterpNetwork.reportConflictSet(True, sys.stderr, self.nsBindings)
-            for query in self.edbQueries:
-                print("Dispatched query against dataset: ", query.asSPARQL())
+            bfp.metaInterpNetwork.reportConflictSet(True, sys.stderr, self.ns_bindings)
+            for query in self.edb_queries:
+                print("Dispatched query against dataset: ", query.as_sparql())
 
-    def conjunctiveSipStrategy(self, goalsRemaining, factGraph, bindings=None):
+    def conjunctive_sip_strategy(self, goals_remaining, fact_graph, bindings=None):
         """
         Given a conjunctive set of triples, invoke sip-strategy passing
         on intermediate solutions to facilitate 'join' behavior
         """
         bindings = bindings if bindings else {}
         try:
-            tp = next(goalsRemaining)
+            tp = next(goals_remaining)
             assert isinstance(bindings, dict)
-            dPred = self.derivedPredicateFromTriple(tp)
-            if dPred is None:
-                baseEDBQuery = EDBQuery(
+            d_pred = self.derived_predicate_from_triple(tp)
+            if d_pred is None:
+                base_edb_query = EDBQuery(
                     [BuildUnitermFromTuple(tp)], self.edb, bindings=bindings
                 )
                 if self.DEBUG:
-                    print("Evaluating TP against EDB:%s" % baseEDBQuery.asSPARQL())
-                query, rt = baseEDBQuery.evaluate()
-                # _vars = baseEDBQuery.returnVars
+                    print("Evaluating TP against EDB:%s" % base_edb_query.as_sparql())
+                query, rt = base_edb_query.evaluate()
+                # _vars = base_edb_query.return_vars
                 for item in rt:
                     bindings.update(item)
-                for ansDict in self.conjunctiveSipStrategy(
-                    goalsRemaining, factGraph, bindings
+                for ans_dict in self.conjunctive_sip_strategy(
+                    goals_remaining, fact_graph, bindings
                 ):
-                    yield ansDict
+                    yield ans_dict
 
             else:
-                queryLit = BuildUnitermFromTuple(tp)
-                currentOp = GetOp(queryLit)
-                queryLit.setOperator(currentOp)
-                query = EDBQuery([queryLit], self.edb, bindings=bindings)
+                query_lit = BuildUnitermFromTuple(tp)
+                current_op = GetOp(query_lit)
+                query_lit.setOperator(current_op)
+                query = EDBQuery([query_lit], self.edb, bindings=bindings)
                 if bindings:
                     tp = first(query.formulae).toRDFTuple()
                 if self.DEBUG:
-                    print("Goal/Query: ", query.asSPARQL())
+                    print("Goal/Query: ", query.as_sparql())
                 SetupDDLAndAdornProgram(
                     self.edb,
                     self.idb,
                     [tp],
-                    derivedPreds=self.derivedPredicates,
-                    ignoreUnboundDPreds=True,
-                    hybridPreds2Replace=self.hybridPredicates,
+                    derived_preds=self.derived_predicates,
+                    ignore_unbound_d_preds=True,
+                    hybrid_preds_2_replace=self.hybrid_predicates,
                 )
 
-                if self.hybridPredicates:
+                if self.hybrid_predicates:
                     lit = BuildUnitermFromTuple(tp)
                     op = GetOp(lit)
-                    if op in self.hybridPredicates:
+                    if op in self.hybrid_predicates:
                         lit.setOperator(URIRef(op + "_derived"))
                         tp = lit.toRDFTuple()
 
-                sipCollection = PrepareSipCollection(self.edb.adornedProgram)
-                if self.DEBUG and sipCollection:
-                    for sip in SIPRepresentation(sipCollection):
+                sip_collection = PrepareSipCollection(self.edb.adorned_program)
+                if self.DEBUG and sip_collection:
+                    for sip in SIPRepresentation(sip_collection):
                         print(sip)
-                    pprint(list(self.edb.adornedProgram), sys.stderr)
+                    pprint(list(self.edb.adorned_program), sys.stderr)
                 elif self.DEBUG:
                     print("No SIP graph.")
-                for nextAnswer, ns in self.invokeDecisionProcedure(
-                    tp, factGraph, bindings, self.DEBUG, sipCollection
+                for next_answer, ns in self.invoke_decision_procedure(
+                    tp, fact_graph, bindings, self.DEBUG, sip_collection
                 ):
-                    nonGroundGoal = isinstance(nextAnswer, dict)
-                    if nonGroundGoal or nextAnswer:
+                    non_ground_goal = isinstance(next_answer, dict)
+                    if non_ground_goal or next_answer:
                         # Either we recieved bindings from top-down evaluation
                         # or we (successfully) proved a ground query
-                        if not nonGroundGoal:
+                        if not non_ground_goal:
                             # Attempt to prove a ground query, return the
                             # response
-                            rt = nextAnswer
+                            rt = next_answer
                         else:
                             # Recieved solutions to 'open' query, merge with given bindings
                             # and continue
-                            rt = mergeMappings1To2(bindings, nextAnswer)
+                            rt = mergeMappings1To2(bindings, next_answer)
                         # either answers were provided (the goal wasn't grounded) or
                         # the goal was ground and successfully proved
-                        for ansDict in self.conjunctiveSipStrategy(
-                            goalsRemaining, factGraph, rt
+                        for ans_dict in self.conjunctive_sip_strategy(
+                            goals_remaining, fact_graph, rt
                         ):
-                            yield ansDict
+                            yield ans_dict
         except StopIteration:
             yield bindings
 
-    def derivedPredicateFromTriple(self, triple):
+    def derived_predicate_from_triple(self, triple):
         """
         Given a triple, return its predicate (if derived)
         or None otherwise
         """
         (s, p, o) = triple
-        if p in self.derivedPredicates or p in self.hybridPredicates:
+        if p in self.derived_predicates or p in self.hybrid_predicates:
             return p
         elif (
             p == RDF.type
             and o != p
-            and (o in self.derivedPredicates or o in self.hybridPredicates)
+            and (o in self.derived_predicates or o in self.hybrid_predicates)
         ):
             return o
         else:
@@ -358,82 +361,82 @@ class TopDownSPARQLEntailingStore(Store):
     def solve_triple_pattern(
         self,
         triples: list[tuple[Identifier, Identifier, Identifier]],
-        initNs: Mapping[str, Any],
+        init_ns: Mapping[str, Any],
         is_ask: bool = False,
         projected_vars: list[Variable] | None = None,
     ):
         select_bindings: list[Mapping[Variable, Identifier]] = []
-        groundConjunct = []
-        derivedConjunct = []
+        ground_conjunct = []
+        derived_conjunct = []
         for item in triples:
             if len(item) == 4:
                 s, p, o, _func = item
             else:
                 s, p, o = item
-            if self.derivedPredicateFromTriple((s, p, o)) is None:
-                groundConjunct.append(BuildUnitermFromTuple((s, p, o), initNs))
+            if self.derived_predicate_from_triple((s, p, o)) is None:
+                ground_conjunct.append(BuildUnitermFromTuple((s, p, o), init_ns))
             else:
-                derivedConjunct.append(BuildUnitermFromTuple((s, p, o), initNs))
+                derived_conjunct.append(BuildUnitermFromTuple((s, p, o), init_ns))
         ans = None
-        askResult = True
-        if groundConjunct:
-            baseEDBQuery = EDBQuery(groundConjunct, self.edb)
-            subQuery, ans = baseEDBQuery.evaluate(self.DEBUG)
+        ask_result = True
+        if ground_conjunct:
+            base_edb_query = EDBQuery(ground_conjunct, self.edb)
+            sub_query, ans = base_edb_query.evaluate(self.DEBUG)
             if is_ask:
                 if not bool(ans):
-                    askResult = False
+                    ask_result = False
             else:
                 if ans:
                     for binding in ans:
                         select_bindings.append(binding)
-        if not is_ask or askResult:
-            for derivedLiteral in derivedConjunct:
-                goal = derivedLiteral.toRDFTuple()
+        if not is_ask or ask_result:
+            for derived_literal in derived_conjunct:
+                goal = derived_literal.toRDFTuple()
                 # Solve ground, derived goal directly
                 SetupDDLAndAdornProgram(
                     self.edb,
                     self.idb,
                     [goal],
-                    derivedPreds=self.derivedPredicates,
+                    derivedPreds=self.derived_predicates,
                     ignoreUnboundDPreds=True,
-                    hybridPreds2Replace=self.hybridPredicates,
+                    hybridPreds2Replace=self.hybrid_predicates,
                 )
 
-                if self.hybridPredicates:
+                if self.hybrid_predicates:
                     lit = BuildUnitermFromTuple(goal)
                     op = GetOp(lit)
-                    if op in self.hybridPredicates:
+                    if op in self.hybrid_predicates:
                         lit.setOperator(URIRef(op + "_derived"))
                         goal = lit.toRDFTuple()
 
-                sipCollection = PrepareSipCollection(self.edb.adornedProgram)
-                if self.DEBUG and sipCollection:
-                    for sip in SIPRepresentation(sipCollection):
+                sip_collection = PrepareSipCollection(self.edb.adornedProgram)
+                if self.DEBUG and sip_collection:
+                    for sip in SIPRepresentation(sip_collection):
                         print(sip)
                     pprint(list(self.edb.adornedProgram))
                 elif self.DEBUG:
                     print("No SIP graph.")
                 if is_ask:
                     rt, node = first(
-                        self.invokeDecisionProcedure(
-                            goal, self.edb, {}, self.DEBUG, sipCollection
+                        self.invoke_decision_procedure(
+                            goal, self.edb, {}, self.DEBUG, sip_collection
                         )
                     )
                     if not rt:
-                        askResult = False
+                        ask_result = False
                         break
                 else:
-                    for rt, node in self.invokeDecisionProcedure(
-                        goal, self.edb, {}, self.DEBUG, sipCollection
+                    for rt, node in self.invoke_decision_procedure(
+                        goal, self.edb, {}, self.DEBUG, sip_collection
                     ):
                         if isinstance(rt, dict):
                             select_bindings.append(rt)
                         elif rt:
                             select_bindings.append({})
         if is_ask:
-            ask_result = Result("ASK")
-            ask_result.askAnswer = askResult
-            return sparql_query_from_result(ask_result)
+            ask_result_obj = Result("ASK")
+            ask_result_obj.ask_answer = ask_result
+            return sparql_query_from_result(ask_result_obj)
         else:
             select_result = Result("SELECT")
             if projected_vars is None:
@@ -461,9 +464,9 @@ class TopDownSPARQLEntailingStore(Store):
         query: Query | str,
         # dataSetBase,
         # extensionFunctions,
-        initNs: Mapping[str, Any],  # noqa: N803
-        initBindings: Mapping[str, Identifier],  # noqa: N803
-        queryGraph: str,  # noqa: N803
+        init_ns: Mapping[str, Any],  # noqa: N803
+        init_bindings: Mapping[str, Identifier],  # noqa: N803
+        query_graph: str,  # noqa: N803
         **kwargs: Any,
     ):
         """
@@ -472,29 +475,32 @@ class TopDownSPARQLEntailingStore(Store):
         """
         from rdflib.plugins.sparql.evaluate import evalQuery
 
-        if isinstance(query, Query):
-            raise NotImplementedError("Query object not supported")
-        query_string = query
-        parsed_query = parseQuery(query_string)
-        prologue, query = parsed_query
-        query_name = query.name
+        if isinstance(query, ParseResults):
+            parsed_result = query
+            prologue, parsed_query = query
+        else:
+            parsed_result = parseQuery(query)
+            prologue, parsed_query = parsed_result
+        query_name = parsed_query.name
         if query_name == "AskQuery":
-            triples = extract_triples_from_query(query, initNs)
+            _service_url, triples = extract_triples_from_query(parsed_query, init_ns)
             # This is a ground, BGP, involving IDB and can be solved directly
             # using top-down decision procedure
             # First separate out conjunct into EDB and IDB predicates
             # (solving the former first)
             from fuxi.SPARQL import EDBQuery
 
-            return self.solve_triple_pattern(triples, initNs, is_ask=True)
+            return self.solve_triple_pattern(triples, init_ns, is_ask=True)
         else:
-            query_object = translateQuery(parsed_query, None, initNs)
-            triples = extract_triples_from_query(query_object.algebra, initNs)
+            query_object = translateQuery(parsed_result, None, init_ns)
+            _service_url, triples = extract_triples_from_query(
+                query_object.algebra, init_ns
+            )
             projected_vars = None
             if hasattr(query_object.algebra, "PV"):
                 projected_vars = list(query_object.algebra.PV)
             rt = self.solve_triple_pattern(
-                triples, initNs, projected_vars=projected_vars
+                triples, init_ns, projected_vars=projected_vars
             )
             return rt
 
@@ -514,20 +520,20 @@ class TopDownSPARQLEntailingStore(Store):
         Returns a generator over dictionaries of solutions to the list of
         triple patterns that are entailed by the regime.
         """
-        dPreds = set()
+        d_preds = set()
         goals = []
         for s, p, o, g in patterns:
             goals.append((s, p, o))
-            dPred = o if p == RDF.type else p
-            if dPred in self.hybridPredicates:
-                dPreds.add(URIRef(dPred + "_derived"))
+            d_pred = o if p == RDF.type else p
+            if d_pred in self.hybrid_predicates:
+                d_preds.add(URIRef(d_pred + "_derived"))
             else:
-                dPreds.add(p == RDF.type and o or p)
-        if set(dPreds).intersection(self.derivedPredicates):
+                d_preds.add(p == RDF.type and o or p)
+        if set(d_preds).intersection(self.derived_predicates):
             # Patterns involve derived predicates
             self.batch_unification = False
-            for ansDict in self.conjunctiveSipStrategy(iter(goals), self.edb):
-                yield ansDict
+            for ans_dict in self.conjunctive_sip_strategy(iter(goals), self.edb):
+                yield ans_dict
             self.batch_unification = True
         else:
             # conjunctive query involving EDB predicateso only
@@ -542,7 +548,7 @@ class TopDownSPARQLEntailingStore(Store):
                 print("Batch unify resolved against EDB")
                 print(query)
 
-            rt = self.edb.query(query, initNs=self.nsBindings)
+            rt = self.edb.query(query, init_ns=self.ns_bindings)
 
             rt = (
                 len(vars) > 1
@@ -584,7 +590,7 @@ class TopDownSPARQLEntailingStore(Store):
         A conjunctive query can be indicated by either providing a value of None
         for the context or the identifier associated with the Conjunctive Graph (if it's context aware).
         """
-        return self.solve_triple_pattern([triple], self.nsBindings)
+        return self.solve_triple_pattern([triple], self.ns_bindings)
 
     def __len__(self, context=None):
         """
@@ -604,19 +610,19 @@ class TopDownSPARQLEntailingStore(Store):
     # Optional Namespace methods
 
     def bind(self, prefix, namespace):
-        self.nsBindings[prefix] = namespace
+        self.ns_bindings[prefix] = namespace
         # self.targetGraph.bind(prefix, namespace)
 
     def prefix(self, namespace):
-        revDict = dict([(v, k) for k, v in list(self.nsBindings.items())])
-        return revDict.get(namespace)
+        rev_dict = dict([(v, k) for k, v in list(self.ns_bindings.items())])
+        return rev_dict.get(namespace)
 
     def namespace(self, prefix):
-        return self.nsBindings.get(prefix)
+        return self.ns_bindings.get(prefix)
 
     def namespaces(self):
-        for prefix, nsUri in list(self.nsBindings.items()):
-            yield prefix, nsUri
+        for prefix, ns_uri in list(self.ns_bindings.items()):
+            yield prefix, ns_uri
 
     # Optional Transactional methods
 

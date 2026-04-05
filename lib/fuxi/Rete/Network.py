@@ -657,14 +657,12 @@ class ReteNetwork:
 
     def fireConsequent(self, tokens, termNode, debug=False):
         """
-
-        "In general, a p-node also contains a specifcation of what production it corresponds to | the
+        "In general, a p-node also contains a specification of what production it corresponds to - the
         name of the production, its right-hand-side actions, etc. A p-node may also contain information
         about the names of the variables that occur in the production. Note that variable names
         are not mentioned in any of the Rete node data structures we describe in this chapter. This is
-        intentional |it enables nodes to be shared when two productions have conditions with the same
+        intentional - it enables nodes to be shared when two productions have conditions with the same
         basic form, but with different variable names."
-
 
         Takes a set of tokens and the terminal Beta node they came from
         and fires the inferred statements using the patterns associated
@@ -774,7 +772,8 @@ class ReteNetwork:
 
     def addWME(self, wme):
         """
-        procedure add-wme (w: WME) exhaustive hash table versiong
+        procedure add-wme (w: WME) exhaustive hash table versioning::
+
             let v1, v2, and v3 be the symbols in the three fields of w
             alpha-mem = lookup-in-hash-table (v1, v2, v3)
             if alpha-mem then alpha-memory-activation (alpha-mem, w)
@@ -785,7 +784,7 @@ class ReteNetwork:
             ...
             alpha-mem = lookup-in-hash-table (*, *, *)
             if alpha-mem then alpha-memory-activation (alpha-mem, w)
-        end
+            end
         """
         # print(wme.asTuple())
         for termComb, termDict in self.alphaPatternHash.items():

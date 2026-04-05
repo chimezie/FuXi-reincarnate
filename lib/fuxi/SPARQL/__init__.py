@@ -134,12 +134,12 @@ def render_term(graph, term, pred_term=False):
 
 
 def rdf_tuples_to_sparql(
-        conjunct,
-        edb,
-        is_ground=False,
-        vars=None,
-        symm_atomic_inclusion=False,
-        service_url=None
+    conjunct,
+    edb,
+    is_ground=False,
+    vars=None,
+    symm_atomic_inclusion=False,
+    service_url=None,
 ):
     """
     Takes a conjunction of Horn literals and returns the
@@ -156,7 +156,11 @@ def rdf_tuples_to_sparql(
 
     if service_url:
         service_expr = f"SERVICE <{service_url}> "
-        query_shell = "%s {\n " + service_expr + "{ %s\n}}" if len(conjunct) > 1 else "%s { " + service_expr + "{ %s }}"
+        query_shell = (
+            "%s {\n " + service_expr + "{ %s\n}}"
+            if len(conjunct) > 1
+            else "%s { " + service_expr + "{ %s }}"
+        )
     else:
         query_shell = len(conjunct) > 1 and "%s {\n%s\n}" or "%s { %s }"
 
@@ -183,7 +187,9 @@ def rdf_tuples_to_sparql(
     else:
         subquery = query_shell % (
             query_type,
-            " .\n".join(["\t" + triple_to_triple_pattern(edb, lit) for lit in conjunct]),
+            " .\n".join(
+                ["\t" + triple_to_triple_pattern(edb, lit) for lit in conjunct]
+            ),
         )
     return subquery
 
@@ -216,7 +222,11 @@ def run_query(
         conj_ground_literals = sub_query_join
     is_ground = not vars
     subquery = rdf_tuples_to_sparql(
-        conj_ground_literals, fact_graph, is_ground, [v for v in vars], symm_atomic_inclusion
+        conj_ground_literals,
+        fact_graph,
+        is_ground,
+        [v for v in vars],
+        symm_atomic_inclusion,
     )
     rt = fact_graph.query(subquery, initNs=initial_ns)  # DEBUG=debug)
     projected_bindings = vars and project(bindings, vars) or bindings
@@ -263,11 +273,15 @@ def edb_query_from_body_iterator(
         if not isinstance(literal, AdornedUniTerm) and isinstance(literal, Uniterm):
             return not literal.naf and (
                 pred_term not in derived_preds
-                or (pred_term in hybrid_predicates and not pred_term.find("_derived") + 1)
+                or (
+                    pred_term in hybrid_predicates
+                    and not pred_term.find("_derived") + 1
+                )
             )
         else:
             return (
-                isinstance(literal, N3Builtin) and literal.uri in fact_graph.template_map
+                isinstance(literal, N3Builtin)
+                and literal.uri in fact_graph.template_map
             )
 
     def sparql_resolvable_no_templates(literal):
@@ -275,7 +289,10 @@ def edb_query_from_body_iterator(
         if isinstance(literal, Uniterm):
             return not literal.naf and (
                 pred_term not in derived_preds
-                or (pred_term in hybrid_predicates and not pred_term.find("_derived") + 1)
+                or (
+                    pred_term in hybrid_predicates
+                    and not pred_term.find("_derived") + 1
+                )
             )
         else:
             return False
@@ -396,7 +413,11 @@ class EDBQuery(QNameManager, SetOperator, Condition):
             else:
                 # Note if return_vars is an empty list, this
                 self.return_vars = (
-                    (return_vars if isinstance(return_vars, list) else list(return_vars))
+                    (
+                        return_vars
+                        if isinstance(return_vars, list)
+                        else list(return_vars)
+                    )
                     if return_vars
                     else []
                 )
@@ -480,8 +501,11 @@ class EDBQuery(QNameManager, SetOperator, Condition):
             not self.return_vars,
             self.return_vars,
             self.symm_atomic_inclusion,
-            service_url=service_url
+            service_url=service_url,
         )
+
+    def asSPARQL(self, service_url: str = None):
+        return self.as_sparql(service_url=service_url)
 
     def __len__(self):
         return len(self.formulae)
@@ -535,4 +559,3 @@ def test():
 
 if __name__ == "__main__":
     test()
-

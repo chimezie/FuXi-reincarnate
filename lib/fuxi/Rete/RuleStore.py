@@ -146,7 +146,26 @@ class Rule(object):
 
 def SetupRuleStore(n3Stream=None, additionalBuiltins=None, makeNetwork=False):
     """
-    Sets up a N3RuleStore, a Graph (that uses it as a store, and )
+    Create a N3RuleStore and a backing Graph, optionally a ReteNetwork.
+
+    This is the main entry point for building a RETE-UL network from N3
+    rules. When ``n3Stream`` is provided, the graph is populated from the
+    source before the store is finalized.
+
+    :param n3Stream: N3 source to parse (path, URL, or file-like).
+    :param additionalBuiltins: Optional mapping of builtin predicates to
+        Python callables.
+    :param makeNetwork: If True, also create and return a ReteNetwork with
+        an empty inferred-facts graph.
+    :return: ``(rule_store, rule_graph)`` or
+        ``(rule_store, rule_graph, rete_network)`` when ``makeNetwork`` is
+        True.
+
+    Example:
+    >>> from fuxi.Horn.HornRules import HornFromN3
+    >>> store, graph, net = SetupRuleStore(makeNetwork=True)
+    >>> for rule in HornFromN3('test/sameAsTestRules.n3'):
+    ...     net.buildNetworkFromClause(rule)
     """
     ruleStore = N3RuleStore(additionalBuiltins=additionalBuiltins)
     nsMgr = NamespaceManager(Graph(ruleStore))

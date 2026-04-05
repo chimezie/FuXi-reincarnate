@@ -11,67 +11,61 @@ from fuxi.Syntax.InfixOWL import (
     Individual,
     Property,
     some,
-    value
+    value,
 )
 from fuxi.DLP import SKOLEMIZED_CLASS_NS
 
-EX_NS = Namespace('http://example.com/')
+EX_NS = Namespace("http://example.com/")
 EX = ClassNamespaceFactory(EX_NS)
 
 
 class AdditionalDescriptionLogicTests(unittest.TestCase):
-
     def setUp(self):
         self.ontGraph = Graph()
-        self.ontGraph.bind('ex', EX_NS)
-        self.ontGraph.bind('owl', OWL_NS)
+        self.ontGraph.bind("ex", EX_NS)
+        self.ontGraph.bind("owl", OWL_NS)
         Individual.factoryGraph = self.ontGraph
 
     def testGCIConDisjunction(self):
         conjunct = EX.Foo & (EX.Omega | EX.Alpha)
-        (EX.Bar) += conjunct
-        ruleStore, ruleGraph, network = SetupRuleStore(
-            makeNetwork=True)
+        EX.Bar += conjunct
+        ruleStore, ruleGraph, network = SetupRuleStore(makeNetwork=True)
         rules = network.setupDescriptionLogicProgramming(
             self.ontGraph,
             derivedPreds=[EX_NS.Bar],
             addPDSemantics=False,
-            constructNetwork=False)
+            constructNetwork=False,
+        )
         self.assertEqual(
             repr(rules),
-            'set([Forall ?X ( ex:Bar(?X) :- And( ex:Foo(?X) ex:Alpha(?X) ) ), Forall ?X ( ex:Bar(?X) :- And( ex:Foo(?X) ex:Omega(?X) ) )])')
-        self.assertEqual(len(rules),
-                         2,
-                         "There should be 2 rules")
+            "set([Forall ?X ( ex:Bar(?X) :- And( ex:Foo(?X) ex:Alpha(?X) ) ), Forall ?X ( ex:Bar(?X) :- And( ex:Foo(?X) ex:Omega(?X) ) )])",
+        )
+        self.assertEqual(len(rules), 2, "There should be 2 rules")
 
-#    def testMalformedUnivRestriction(self):
-#        someProp = Property(EX_NS.someProp)
-#        conjunct = EX.Foo & (someProp|only|EX.Omega)
-#        conjunct.identifier = EX_NS.Bar
-#        ruleStore,ruleGraph,network=SetupRuleStore(makeNetwork=True)
-#        self.failUnlessRaises(MalformedDLPFormulaError,
-#                              network.setupDescriptionLogicProgramming,
-#                              self.ontGraph,
-#                              derivedPreds=[EX_NS.Bar],
-#                              addPDSemantics=False,
-#                              constructNetwork=False)
+    #    def testMalformedUnivRestriction(self):
+    #        someProp = Property(EX_NS.someProp)
+    #        conjunct = EX.Foo & (someProp|only|EX.Omega)
+    #        conjunct.identifier = EX_NS.Bar
+    #        ruleStore,ruleGraph,network=SetupRuleStore(makeNetwork=True)
+    #        self.failUnlessRaises(MalformedDLPFormulaError,
+    #                              network.setupDescriptionLogicProgramming,
+    #                              self.ontGraph,
+    #                              derivedPreds=[EX_NS.Bar],
+    #                              addPDSemantics=False,
+    #                              constructNetwork=False)
 
     def testBasePredicateEquivalence(self):
-        (EX.Foo).equivalentClass = [EX.Bar]
-        self.assertEqual(repr(Class(EX_NS.Foo)),
-                         "Class: ex:Foo EquivalentTo: ex:Bar")
-        ruleStore, ruleGraph, network = SetupRuleStore(
-            makeNetwork=True)
+        (EX.Foo).equivalent_class = [EX.Bar]
+        self.assertEqual(repr(Class(EX_NS.Foo)), "Class: ex:Foo EquivalentTo: ex:Bar")
+        ruleStore, ruleGraph, network = SetupRuleStore(makeNetwork=True)
         rules = network.setupDescriptionLogicProgramming(
-            self.ontGraph,
-            addPDSemantics=False,
-            constructNetwork=False)
+            self.ontGraph, addPDSemantics=False, constructNetwork=False
+        )
         self.assertEqual(
             repr(rules),
-            'set([Forall ?X ( ex:Bar(?X) :- ex:Foo(?X) ), Forall ?X ( ex:Foo(?X) :- ex:Bar(?X) )])')
-        self.assertEqual(len(rules),
-                         2,
-                         "There should be 2 rules")
+            "set([Forall ?X ( ex:Bar(?X) :- ex:Foo(?X) ), Forall ?X ( ex:Foo(?X) :- ex:Bar(?X) )])",
+        )
+        self.assertEqual(len(rules), 2, "There should be 2 rules")
 
     def testExistentialInRightOfGCI(self):
         someProp = Property(EX_NS.someProp)
@@ -79,9 +73,9 @@ class AdditionalDescriptionLogicTests(unittest.TestCase):
         existential += EX.Foo
         self.assertEqual(
             repr(Class(EX_NS.Foo)),
-            "Class: ex:Foo SubClassOf: ( ex:someProp SOME ex:Omega )")
-        ruleStore, ruleGraph, network = SetupRuleStore(
-            makeNetwork=True)
+            "Class: ex:Foo SubClassOf: ( ex:someProp SOME ex:Omega )",
+        )
+        ruleStore, ruleGraph, network = SetupRuleStore(makeNetwork=True)
         # rules = network.setupDescriptionLogicProgramming(
         #     self.ontGraph,
         #     addPDSemantics=False,
@@ -100,61 +94,67 @@ class AdditionalDescriptionLogicTests(unittest.TestCase):
         leftGCI = (someProp | value | EX.fish) & EX.Bar
         foo = EX.Foo
         foo += leftGCI
-        self.assertEqual(repr(leftGCI),
-                         'ex:Bar THAT ( ex:someProp VALUE <http://example.com/fish> )')
+        self.assertEqual(
+            repr(leftGCI), "ex:Bar THAT ( ex:someProp VALUE <http://example.com/fish> )"
+        )
         ruleStore, ruleGraph, network = SetupRuleStore(makeNetwork=True)
         rules = network.setupDescriptionLogicProgramming(
-            self.ontGraph,
-            addPDSemantics=False,
-            constructNetwork=False)
+            self.ontGraph, addPDSemantics=False, constructNetwork=False
+        )
         self.assertEqual(
             repr(rules),
-            "set([Forall ?X ( ex:Foo(?X) :- " +
-            "And( ex:someProp(?X ex:fish) ex:Bar(?X) ) )])")
+            "set([Forall ?X ( ex:Foo(?X) :- "
+            + "And( ex:someProp(?X ex:fish) ex:Bar(?X) ) )])",
+        )
 
     def testNestedConjunct(self):
         nestedConj = (EX.Foo & EX.Bar) & EX.Baz
-        (EX.Omega) += nestedConj
+        EX.Omega += nestedConj
         ruleStore, ruleGraph, network = SetupRuleStore(makeNetwork=True)
         rules = network.setupDescriptionLogicProgramming(
-            self.ontGraph,
-            addPDSemantics=False,
-            constructNetwork=False)
+            self.ontGraph, addPDSemantics=False, constructNetwork=False
+        )
         for rule in rules:
             if rule.formula.head.arg[-1] == EX_NS.Omega:
                 self.assertEqual(len(rule.formula.body), 2)
-                skolemPredicate = [term.arg[-1]
-                                   for term in rule.formula.body
-                                   if term.arg[-1].find(SKOLEMIZED_CLASS_NS) != -1]
-                self.assertEqual(len(skolemPredicate), 1,
-                                 "Couldn't find skolem unary predicate!")
+                skolemPredicate = [
+                    term.arg[-1]
+                    for term in rule.formula.body
+                    if term.arg[-1].find(SKOLEMIZED_CLASS_NS) != -1
+                ]
+                self.assertEqual(
+                    len(skolemPredicate), 1, "Couldn't find skolem unary predicate!"
+                )
             else:
                 self.assertEqual(len(rule.formula.body), 2)
                 skolemPredicate = rule.formula.head.arg[-1]
                 self.failUnless(
                     skolemPredicate.find(SKOLEMIZED_CLASS_NS) != -1,
-                    "Head should be a unary skolem predicate")
+                    "Head should be a unary skolem predicate",
+                )
                 skolemPredicate = skolemPredicate[0]
 
     def testOtherForm(self):
         contains = Property(EX_NS.contains)
         locatedIn = Property(EX_NS.locatedIn)
         topConjunct = (
-            EX.Cath &
-            (contains | some |
-             (EX.MajorStenosis & (locatedIn | value | EX_NS.LAD))) &
-            (contains | some |
-             (EX.MajorStenosis & (locatedIn | value | EX_NS.RCA))))
-        (EX.NumDisV2D) += topConjunct
+            EX.Cath
+            & (contains | some | (EX.MajorStenosis & (locatedIn | value | EX_NS.LAD)))
+            & (contains | some | (EX.MajorStenosis & (locatedIn | value | EX_NS.RCA)))
+        )
+        EX.NumDisV2D += topConjunct
         from fuxi.DLP.DLNormalization import NormalFormReduction
+
         NormalFormReduction(self.ontGraph)
         ruleStore, ruleGraph, network = SetupRuleStore(makeNetwork=True)
         rules = network.setupDescriptionLogicProgramming(
             self.ontGraph,
             derivedPreds=[EX_NS.NumDisV2D],
             addPDSemantics=False,
-            constructNetwork=False)
+            constructNetwork=False,
+        )
         from fuxi.Rete.Magic import PrettyPrintRule
+
         for rule in rules:
             PrettyPrintRule(rule)
 
@@ -163,17 +163,27 @@ class AdditionalDescriptionLogicTests(unittest.TestCase):
 
         ITALeft = EX.ITALeft
         ITALeft += (
-            hasCoronaryBypassConduit | some | EnumeratedClass(members=[
-                EX_NS.CoronaryBypassConduit_internal_thoracic_artery_left_insitu,
-                EX_NS.CoronaryBypassConduit_internal_thoracic_artery_left_free]))
+            hasCoronaryBypassConduit
+            | some
+            | EnumeratedClass(
+                members=[
+                    EX_NS.CoronaryBypassConduit_internal_thoracic_artery_left_insitu,
+                    EX_NS.CoronaryBypassConduit_internal_thoracic_artery_left_free,
+                ]
+            )
+        )
         from fuxi.DLP.DLNormalization import NormalFormReduction
+
         self.assertEquals(
             repr(Class(first(ITALeft.subSumpteeIds()))),
-            "Some Class SubClassOf: Class: ex:ITALeft ")
+            "Some Class SubClassOf: Class: ex:ITALeft ",
+        )
         NormalFormReduction(self.ontGraph)
         self.assertEquals(
             repr(Class(first(ITALeft.subSumpteeIds()))),
-            'Some Class SubClassOf: Class: ex:ITALeft  . EquivalentTo: ( ( ex:hasCoronaryBypassConduit VALUE <http://example.com/CoronaryBypassConduit_internal_thoracic_artery_left_insitu> ) OR ( ex:hasCoronaryBypassConduit VALUE <http://example.com/CoronaryBypassConduit_internal_thoracic_artery_left_free> ) )')
+            "Some Class SubClassOf: Class: ex:ITALeft  . EquivalentTo: ( ( ex:hasCoronaryBypassConduit VALUE <http://example.com/CoronaryBypassConduit_internal_thoracic_artery_left_insitu> ) OR ( ex:hasCoronaryBypassConduit VALUE <http://example.com/CoronaryBypassConduit_internal_thoracic_artery_left_free> ) )",
+        )
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

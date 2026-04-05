@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # flake8: noqa
 import sys
+import warnings
 from typing import Any, Mapping
 from pprint import pprint
 
@@ -51,6 +52,21 @@ BFP_METHOD = 1
 
 DEFAULT_BUILTIN_MAP = {LOG.equal: "%s  = %s", LOG.notEqualTo: "%s != %s"}
 
+_DECISION_PROCEDURE_MISSING = object()
+_WARNED_DECISIONPROCEDURE = False
+
+
+def _warn_decision_procedure_deprecated() -> None:
+    global _WARNED_DECISIONPROCEDURE
+    if not _WARNED_DECISIONPROCEDURE:
+        warnings.warn(
+            "decisionProcedure is deprecated; use decision_procedure. "
+            "If both are provided, decision_procedure takes precedence.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        _WARNED_DECISIONPROCEDURE = True
+
 
 class NonSymmetricBinaryOperator(AlgebraExpression):
     def fetchTerminalExpression(self):
@@ -63,12 +79,21 @@ class NonSymmetricBinaryOperator(AlgebraExpression):
 
 class TopDownSPARQLEntailingStore(Store):
     """
-    A Store which uses FuXi's magic set "sip strategies" and the in-memory SPARQL Algebra
-    implementation as a store-agnostic, top-down decision procedure for
-    semanic web SPARQL (OWL2-RL/RIF/N3) entailment regimes.  Exposed
-    as a rdflib / layercake-python API for SPARQL datasets with entailment regimes
-    Queries are mediated over the SPARQL protocol using global schemas captured
-    as SW theories which describe and distinguish their predicate symbols
+    A SPARQL store that mediates queries via top-down entailment.
+
+    This store uses FuXi's magic set (SIP) strategies and SPARQL algebra
+    rewriting to answer queries against derived predicates without
+    materializing full closure. It supports OWL2-RL, RIF-Core, and N3
+    entailment regimes by delegating base predicates to the underlying
+    RDF store and evaluating derived predicates via the ruleset.
+
+    Key configuration:
+
+    - ``derived_predicates`` (or ``derivedPredicates``): IDB predicates.
+    - ``decision_procedure``: choose BFP vs top-down methods.
+    - ``identify_hybrid_predicates``: detect predicates that are both IDB
+      and EDB for SIP optimization.
+    - ``ns_bindings``: namespace bindings for query mediation.
     """
 
     context_aware = True
@@ -76,6 +101,14 @@ class TopDownSPARQLEntailingStore(Store):
     transaction_aware = True
     regex_matching = NATIVE_REGEX
     batch_unification = True
+
+    @property
+    def queryNetworks(self):
+        return self.query_networks
+
+    @property
+    def edbQueries(self):
+        return self.edb_queries
 
     def get_derived_predicates(self, expr, prologue):
         def iter_bgp_triples(bgp):
@@ -156,21 +189,39 @@ class TopDownSPARQLEntailingStore(Store):
         else:
             algebra = translateQuery(query, init_ns=self.ns_bindings).algebra
 
-        return first(self.get_derived_predicates(algebra, prologue)) and algebra or query
+        return (
+            first(self.get_derived_predicates(algebra, prologue)) and algebra or query
+        )
 
     def __init__(
         self,
         store,
         edb,
         derived_predicates=None,
+        derivedPredicates=None,
         idb=None,
         DEBUG=False,
         ns_bindings=None,
-        decision_procedure=BFP_METHOD,
+        nsBindings=None,
+        decision_procedure=_DECISION_PROCEDURE_MISSING,
+        decisionProcedure=None,
         template_map=None,
         identify_hybrid_predicates=False,
+        identifyHybridPredicates=None,
         hybrid_predicates=None,
     ):
+        if derived_predicates is None and derivedPredicates is not None:
+            derived_predicates = derivedPredicates
+        if ns_bindings is None and nsBindings is not None:
+            ns_bindings = nsBindings
+        if decision_procedure is _DECISION_PROCEDURE_MISSING:
+            decision_procedure = (
+                decisionProcedure if decisionProcedure is not None else BFP_METHOD
+            )
+        if decisionProcedure is not None:
+            _warn_decision_procedure_deprecated()
+        if identifyHybridPredicates is not None:
+            identify_hybrid_predicates = identifyHybridPredicates
         self.dataset = store
         if hasattr(store, "_db"):
             self._db = store._db
@@ -181,6 +232,7 @@ class TopDownSPARQLEntailingStore(Store):
         else:
             self.derived_predicates = derived_predicates
         self.DEBUG = DEBUG
+        self.decision_procedure = decision_procedure
         self.ns_bindings = ns_bindings if ns_bindings is not None else {}
         self.edb.template_map = (
             DEFAULT_BUILTIN_MAP if template_map is None else template_map
@@ -206,8 +258,6 @@ class TopDownSPARQLEntailingStore(Store):
             elif isinstance(self.derived_predicates, set):
                 self.derived_predicates.add(URIRef(hybrid_pred + "_derived"))
             else:
-                import warnings
-
                 warnings.warn(
                     "Collection of derived predicates is neither a list or a set.",
                     RuntimeWarning,
@@ -224,7 +274,9 @@ class TopDownSPARQLEntailingStore(Store):
             self.edb.rev_ns_map[uri] = key
             self.edb.ns_map[key] = uri
 
-    def invoke_decision_procedure(self, tp, fact_graph, bindings, debug, sip_collection):
+    def invoke_decision_procedure(
+        self, tp, fact_graph, bindings, debug, sip_collection
+    ):
         is_not_ground = first(filter(lambda i: isinstance(i, Variable), tp))
         rule_store, rule_graph, network = SetupRuleStore(makeNetwork=True)
         bfp = BackwardFixpointProcedure(
@@ -247,8 +299,10 @@ class TopDownSPARQLEntailingStore(Store):
                 if is_not_ground is not None
                 else "Query was ground"
             )
-            print("Inferred facts from adorned rules:\n",
-                  bfp.metaInterpNetwork.inferredFacts.serialize(format="turtle"))
+            print(
+                "Inferred facts from adorned rules:\n",
+                bfp.metaInterpNetwork.inferredFacts.serialize(format="turtle"),
+            )
         if is_not_ground is not None:
             for item in bfp.goalSolutions:
                 yield item, None
@@ -279,11 +333,12 @@ class TopDownSPARQLEntailingStore(Store):
                 query, rt = base_edb_query.evaluate()
                 # _vars = base_edb_query.return_vars
                 for item in rt:
-                    bindings.update(item)
-                for ans_dict in self.conjunctive_sip_strategy(
-                    goals_remaining, fact_graph, bindings
-                ):
-                    yield ans_dict
+                    next_bindings = dict(bindings)
+                    next_bindings.update(item)
+                    for ans_dict in self.conjunctive_sip_strategy(
+                        goals_remaining, fact_graph, next_bindings
+                    ):
+                        yield ans_dict
 
             else:
                 query_lit = BuildUnitermFromTuple(tp)
@@ -435,7 +490,7 @@ class TopDownSPARQLEntailingStore(Store):
                             select_bindings.append({})
         if is_ask:
             ask_result_obj = Result("ASK")
-            ask_result_obj.ask_answer = ask_result
+            ask_result_obj.askAnswer = ask_result
             return sparql_query_from_result(ask_result_obj)
         else:
             select_result = Result("SELECT")
@@ -513,9 +568,8 @@ class TopDownSPARQLEntailingStore(Store):
         Uses a SW sip-strategy implementation to solve the conjunctive goal
         and yield unified bindings
 
-        :Parameters:
-        - `patterns`: a list of 4-item tuples where any of the items can be
-           one of: Variable, URIRef, BNode, or Literal.
+        :param patterns: A list of 4-item tuples where any of the items can be
+            one of: Variable, URIRef, BNode, or Literal.
 
         Returns a generator over dictionaries of solutions to the list of
         triple patterns that are entailed by the regime.
@@ -610,6 +664,7 @@ class TopDownSPARQLEntailingStore(Store):
     # Optional Namespace methods
 
     def bind(self, prefix, namespace):
+        """Bind a namespace prefix for generated queries."""
         self.ns_bindings[prefix] = namespace
         # self.targetGraph.bind(prefix, namespace)
 

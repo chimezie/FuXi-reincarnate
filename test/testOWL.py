@@ -12,7 +12,7 @@ from fuxi.DLP.ConditionalAxioms import AdditionalRules
 from fuxi.Horn.HornRules import HornFromN3
 from fuxi.Horn.PositiveConditions import BuildUnitermFromTuple
 from fuxi.Rete.Magic import AdornLiteral, MagicSetTransformation
-from fuxi.Syntax.InfixOWL import nsBinds, AllClasses, Individual, Variable
+from fuxi.Syntax.InfixOWL import nsBinds, all_classes, Individual, Variable
 from fuxi.Rete.ReteVocabulary import RETE_NS
 from fuxi.Rete.RuleStore import SetupRuleStore
 from fuxi.Rete.Util import generateTokenSet
@@ -492,7 +492,7 @@ def test_owl(
         Individual.factoryGraph = factGraph
 
         if DEBUG:
-            for c in AllClasses(factGraph):
+            for c in all_classes(factGraph):
                 if not isinstance(c.identifier, BNode):
                     print(c.__repr__(True))
 

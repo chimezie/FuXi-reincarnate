@@ -20,7 +20,7 @@ from rdflib import BNode, Literal, Namespace, RDF, URIRef
 
 # from rdflib.collection import Collection
 from rdflib.graph import Graph
-from rdflib.namespace import NamespaceManager
+from rdflib.namespace import NamespaceManager, RDFS
 
 if TYPE_CHECKING:
     from typing import Iterable, Iterator, Mapping
@@ -128,6 +128,81 @@ class And(QNameManager, SetOperator, Condition):
         self.formulae = formulae and formulae or []
         QNameManager.__init__(self)
 
+    @property
+    def variables(self) -> "Iterator[Variable]":
+        """
+        Yield every RDF :class:`~rdflib.Variable` found in the ``.arg`` lists
+        of the :class:`Uniterm` instances that are direct terms of this
+        conjunction.
+
+        Only the top-level formulae are inspected; nested :class:`And`,
+        :class:`Or`, or :class:`Exists` sub-conditions are *not* recursed into
+        (see :attr:`has_class_membership` for a recursive traversal example).
+
+        >>> x = Variable('X')
+        >>> y = Variable('Y')
+        >>> lit1 = Uniterm(RDF.type, [x, RDFS.Class])
+        >>> lit2 = Uniterm(RDF.Property, [y, RDFS.Class])
+        >>> conj = And([lit1, lit2])
+        >>> sorted((v.n3() for v in conj.variables))
+        ['?X', '?Y']
+        >>> # Ground uniterms (no variables) yield nothing
+        >>> list(And([Uniterm(RDF.type, [RDFS.comment, RDF.Property])]).variables)
+        []
+        """
+        for term in self.formulae:
+            if isinstance(term, Uniterm):
+                for arg in term.arg:
+                    if isinstance(arg, Variable):
+                        yield arg
+
+    @property
+    def has_class_membership(self) -> bool:
+        """
+        Return ``True`` if any :class:`Uniterm` anywhere in this conjunction's
+        term tree has ``.op == RDF.type`` (a class-membership assertion of the
+        form ``rdf:type(individual, Class)``), ``False`` otherwise.
+
+        Such uniterms correspond to OWL 2 *class assertions* — described
+        objects — and are distinct from binary property uniterms whose ``.op``
+        is an arbitrary predicate URI.
+
+        The check descends recursively through every nested :class:`And`,
+        :class:`Or`, and :class:`Exists` encountered along the way.
+
+        >>> x = Variable('X')
+        >>> type_lit  = Uniterm(RDF.type,     [x, RDFS.Class])
+        >>> prop_lit  = Uniterm(RDF.Property, [x, RDFS.Class])
+        >>> And([type_lit]).has_class_membership
+        True
+        >>> And([prop_lit]).has_class_membership
+        False
+        >>> # rdf:type buried inside an Exists is still detected
+        >>> And([Exists(formula=And([type_lit]), declare=[x])]).has_class_membership
+        True
+        >>> # Or-branch containing an rdf:type uniterm is also detected
+        >>> And([Or([prop_lit, type_lit])]).has_class_membership
+        True
+        """
+
+        def _check(term: "Condition") -> bool:
+            # Base case: a leaf Uniterm — test the predicate symbol directly.
+            if isinstance(term, Uniterm):
+                return term.op == RDF.type
+
+            # Exists wraps exactly one formula; descend into it.
+            if isinstance(term, Exists):
+                return _check(term.formula)
+
+            # And / Or both expose sub-conditions via .formulae; short-circuit
+            # as soon as the first positive result is found.
+            if isinstance(term, (And, Or)):
+                return any(_check(f) for f in term.formulae)
+
+            return False
+
+        return any(_check(term) for term in self.formulae)
+
     def binds(self, var):
         """
         A variable, v, is bound in a conjunction formula, f = And(c1...cn), n ≥ 1,
@@ -179,7 +254,7 @@ class And(QNameManager, SetOperator, Condition):
         """
         >>> And([Uniterm(RDF.type,[RDFS.comment,RDF.Property]),
         ...      Uniterm(RDF.type,[OWL.Class,RDFS.Class])]).n3()
-        %(u)s'rdfs:comment a rdf:Property .\\n owl:Class a rdfs:Class'
+        'rdfs:comment a rdf:Property .\\n owl:Class a rdfs:Class'
 
         """
 
@@ -374,6 +449,27 @@ class Uniterm(QNameManager, Atomic):
             )
         )
 
+    @property
+    def variables(self) -> "Iterator[Variable]":
+        """
+        Yield every RDF :class:`~rdflib.Variable` found in this uniterm.
+
+        Variables are drawn from both the predicate symbol (``.op``) and the
+        argument list (``.arg``), so second-order uniterms are included.
+
+        >>> x = Variable('X')
+        >>> y = Variable('Y')
+        >>> [v.n3() for v in Uniterm(RDF.type, [x, RDFS.Class]).variables]
+        ['?X']
+        >>> [v.n3() for v in Uniterm(x, [y, RDFS.Class]).variables]
+        ['?X', '?Y']
+        >>> list(Uniterm(RDF.type, [RDFS.comment, RDF.Property]).variables)
+        []
+        """
+        for term in [self.op] + self.arg:
+            if isinstance(term, Variable):
+                yield term
+
     def binds(self, var):
         """
         A variable, v, is bound in an atomic formula, a, if and only if
@@ -429,8 +525,8 @@ class Uniterm(QNameManager, Atomic):
         Class attribute that returns all the terms of the literal as a lists
         >>> x = Variable('X')
         >>> lit = Uniterm(RDF.type,[RDFS.comment,x])
-        >>> lit.terms
-        [rdflib.term.URIRef(%(u)s'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'), rdflib.term.URIRef(%(u)s'http://www.w3.org/2000/01/rdf-schema#comment'), ?X]
+        >>> list(map(str, lit.terms))
+        ['http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2000/01/rdf-schema#comment', 'X']
         """
         return [self.op] + self.arg
 
@@ -529,7 +625,7 @@ class Uniterm(QNameManager, Atomic):
         Serialize as N3 (using available namespace managers)
 
         >>> Uniterm(RDF.type,[RDFS.comment,RDF.Property]).n3()
-        %(u)s'rdfs:comment a rdf:Property'
+        'rdfs:comment a rdf:Property'
 
         """
         return " ".join(

@@ -177,9 +177,19 @@ def MagicSetTransformation(
     defaultPredicates=None,
 ):
     """
-    Takes a goal and a ruleset and returns an iterator
-    over the rulest that corresponds to the magic set
-    transformation:
+    Apply the magic set transformation to a ruleset.
+
+    This rewrites rules so that bottom-up evaluation simulates a
+    goal-directed (top-down) query, reducing the search space.
+
+    :param factGraph: RDF graph providing base (EDB) predicates.
+    :param rules: Iterable of Horn rules (Ruleset).
+    :param GOALS: List of goal triple patterns used to seed adornment.
+    :param derivedPreds: Optional derived predicates (IDB) to guide SIP.
+    :param strictCheck: DDL strictness level for predicate classification.
+    :param noMagic: Predicates that should not be magic-transformed.
+    :param defaultPredicates: Optional default predicate partitions.
+    :return: Iterable of rewritten rules (adorned and magic rules).
     """
     noMagic = noMagic and noMagic or []
     magicPredicates = set()
@@ -893,11 +903,11 @@ EXCLUDED_DERIVED_PREDS = []
 
 def IdentifyDerivedPredicates(ddlMetaGraph, tBox, ruleset=None):
     """
-    See: http://code.google.com/p/fuxi/wiki/DataDescriptionLanguage#
+    See: tag:info@metacognition.info,2026:FuXiVocabulary#
     """
     dPreds = set()
     basePreds = set()
-    DDL = Namespace("http://code.google.com/p/fuxi/wiki/DataDescriptionLanguage#")
+    DDL = Namespace("tag:info@metacognition.info,2026:FuXiVocabulary#")
 
     if ruleset:
         for rule in ruleset:

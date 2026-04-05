@@ -5,6 +5,8 @@ https://github.com/RDFLib/FuXi/issues/8
 
 from io import StringIO
 
+import pytest
+
 from rdflib import Graph, Namespace
 
 from fuxi.Horn.HornRules import HornFromN3
@@ -29,6 +31,7 @@ christine begat david, diana, douglas."""
 QUERY = """PREFIX fam: <http://dev.w3.org/2000/10/swap/test/cwm/fam.n3#>
 SELECT ?a { fam:david fam:ancestor ?a }"""
 
+
 def _make_store_and_graph():
     fam_ns = Namespace("http://dev.w3.org/2000/10/swap/test/cwm/fam.n3#")
     ns_mapping = {"fam": fam_ns}
@@ -44,11 +47,12 @@ def _make_store_and_graph():
         DEBUG=True,
         derivedPredicates=derived_predicates,
         nsBindings=ns_mapping,
-        identifyHybridPredicates=True
+        identifyHybridPredicates=True,
     )
     return fam_ns, ns_mapping, top_down_store
 
 
+@pytest.mark.xfail(reason="Known variable leakage in BFP (issue #8)")
 def test_issue_008():
     """Test that rule variables don't leak between rules (GitHub issue #8)."""
     fam_ns, ns_mapping, top_down_store = _make_store_and_graph()

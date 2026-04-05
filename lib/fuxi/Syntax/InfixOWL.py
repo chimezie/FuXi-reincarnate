@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 # flake8: noqa
+from typing import Iterable, List
+
+
 def format_doctest_out(doc):
     return doc
 
@@ -30,15 +33,15 @@ using the Python classes defined in this module
 >>> a = Class(exNs.Opera, graph=g)
 
 Now we can assert rdfs:subClassOf and owl:equivalentClass relationships
-(in the underlying graph) with other classes using the 'subClassOf'
-and 'equivalentClass' descriptors which can be set to a list
+(in the underlying graph) with other classes using the 'sub_class_of'
+and 'equivalent_class' descriptors which can be set to a list
 of objects for the corresponding predicates.
 
->>> a.subClassOf = [exNs.MusicalWork]
+>>> a.sub_class_of = [exNs.MusicalWork]
 
 We can then access the rdfs:subClassOf relationships
 
->>> print(list(a.subClassOf))
+>>> print(list(a.sub_class_of))
 [Class: ex:MusicalWork ]
 
 This can also be used against already populated graphs:
@@ -46,7 +49,7 @@ This can also be used against already populated graphs:
 #>>> owlGraph = Graph().parse(OWL_NS)
 #>>> namespace_manager.bind('owl', OWL_NS, override=False)
 #>>> owlGraph.namespace_manager = namespace_manager
-#>>> list(Class(OWL_NS.Class, graph=owlGraph).subClassOf)
+#>>> list(Class(OWL_NS.Class, graph=owlGraph).sub_class_of)
 #[Class: rdfs:Class ]
 
 Operators are also available.  For instance we can add ex:Opera to the
@@ -56,7 +59,7 @@ extension of the ex:CreativeWork class via the '+=' operator
 Class: ex:Opera SubClassOf: ex:MusicalWork
 >>> b = Class(exNs.CreativeWork, graph=g)
 >>> b += a
->>> print(sorted(a.subClassOf, key=lambda c:c.identifier))
+>>> print(sorted(a.sub_class_of, key=lambda c:c.identifier))
 [Class: ex:CreativeWork , Class: ex:MusicalWork ]
 
 And we can then remove it from the extension as well
@@ -97,13 +100,13 @@ Enumerated classes can also be manipulated
 
 owl:Restrictions can also be instanciated:
 
->>> Restriction(exNs.hasParent, graph=g, allValuesFrom=exNs.Human)
+>>> Restriction(exNs.hasParent, graph=g, all_values_from=exNs.Human)
 ( ex:hasParent ONLY ex:Human )
 
 Restrictions can also be created using Manchester OWL syntax in
 'colloquial' Python
 
->>> exNs.hasParent |some| Class(exNs.Physician, graph=g)
+>>> Property(exNs.hasParent, graph=g) |some| Class(exNs.Physician, graph=g)
 ( ex:hasParent SOME ex:Physician )
 
 >>> Property(exNs.hasParent, graph=g) |max| Literal(1)
@@ -172,12 +175,46 @@ nsBinds = {
 }
 
 
-def generateQName(graph, uri):
-    prefix, uri, localName = graph.compute_qname(classOrIdentifier(uri))
-    return ":".join([prefix, localName])
+class GraphContext:
+    def __init__(
+        self,
+        graph,
+        namespace_bindings=None,
+        set_factory_graph=True,
+        declare_common_annotations=False,
+        common_annotation_sets=("rdfs", "skos", "iao"),
+    ):
+        self.graph = graph
+        self.namespace_bindings = namespace_bindings or {}
+        self.set_factory_graph = set_factory_graph
+        self.declare_common_annotations = declare_common_annotations
+        self.common_annotation_sets = common_annotation_sets
+        self._prev_factory_graph = None
+        self._prev_namespace_manager = None
+
+    def __enter__(self):
+        if self.set_factory_graph:
+            self._prev_factory_graph = Individual.factoryGraph
+            Individual.factoryGraph = self.graph
+        if self.namespace_bindings:
+            self._prev_namespace_manager = self.graph.namespace_manager
+            if self.graph.namespace_manager is None:
+                self.graph.namespace_manager = NamespaceManager(self.graph)
+            for prefix, uri in self.namespace_bindings.items():
+                self.graph.namespace_manager.bind(prefix, uri, override=False)
+        if self.declare_common_annotations:
+            declare_common_annotations(self.graph, include=self.common_annotation_sets)
+        return self.graph
+
+    def __exit__(self, exc_type, exc, tb):
+        if self.set_factory_graph:
+            Individual.factoryGraph = self._prev_factory_graph
+        if self._prev_namespace_manager is not None:
+            self.graph.namespace_manager = self._prev_namespace_manager
+        return False
 
 
-def classOrTerm(thing):
+def class_or_term(thing):
     if isinstance(thing, Class):
         return thing.identifier
     else:
@@ -185,7 +222,7 @@ def classOrTerm(thing):
         return thing
 
 
-def classOrIdentifier(thing):
+def class_or_identifier(thing):
     if isinstance(thing, (Property, Class)):
         return thing.identifier
     else:
@@ -195,7 +232,7 @@ def classOrIdentifier(thing):
         return thing
 
 
-def propertyOrIdentifier(thing):
+def property_or_identifier(thing):
     if isinstance(thing, Property):
         return thing.identifier
     else:
@@ -203,19 +240,36 @@ def propertyOrIdentifier(thing):
         return thing
 
 
-def manchesterSyntax(thing, store, boolean=None, transientList=False):
+_RESTRICTION_ARG_MAP = {
+    "allValuesFrom": "all_values_from",
+    "someValuesFrom": "some_values_from",
+    "hasValue": "has_value",
+    "maxCardinality": "max_cardinality",
+    "minCardinality": "min_cardinality",
+    "qualifiedCardinality": "qualified_cardinality",
+    "minQualifiedCardinality": "min_qualified_cardinality",
+    "maxQualifiedCardinality": "max_qualified_cardinality",
+    "cardinality": "cardinality",
+}
+
+
+def _restriction_arg_name(local_name):
+    return _RESTRICTION_ARG_MAP.get(local_name, local_name)
+
+
+def manchester_syntax(thing, store, boolean=None, transient_list=False):
     """
     Core serialization
     """
     assert thing is not None
     if boolean:
-        if transientList:
+        if transient_list:
             liveChildren = iter(thing)
-            children = [manchesterSyntax(child, store) for child in thing]
+            children = [manchester_syntax(child, store) for child in thing]
         else:
             liveChildren = iter(Collection(store, thing))
             children = [
-                manchesterSyntax(child, store) for child in Collection(store, thing)
+                manchester_syntax(child, store) for child in Collection(store, thing)
             ]
         if boolean == OWL_NS.intersectionOf:
             childList = []
@@ -234,12 +288,12 @@ def manchesterSyntax(thing, store, boolean=None, transientList=False):
                 if len(named) > 1:
                     prefix = "( " + " AND ".join(map(castToQName, named)) + " )"
                 else:
-                    prefix = manchesterSyntax(named[0], store)
+                    prefix = manchester_syntax(named[0], store)
                 if childList:
                     return (
                         prefix
                         + " THAT "
-                        + " AND ".join([manchesterSyntax(x, store) for x in childList])
+                        + " AND ".join([manchester_syntax(x, store) for x in childList])
                     )
                 else:
                     return prefix
@@ -259,14 +313,14 @@ def manchesterSyntax(thing, store, boolean=None, transientList=False):
         if label:
             propString = "'%s'" % label
         for onlyClass in store.objects(subject=thing, predicate=OWL_NS.allValuesFrom):
-            return "( %s ONLY %s )" % (propString, manchesterSyntax(onlyClass, store))
+            return "( %s ONLY %s )" % (propString, manchester_syntax(onlyClass, store))
         for val in store.objects(subject=thing, predicate=OWL_NS.hasValue):
             return "( %s VALUE %s )" % (
                 propString,
-                manchesterSyntax(val, store),
+                manchester_syntax(val, store),
             )
         for someClass in store.objects(subject=thing, predicate=OWL_NS.someValuesFrom):
-            return "( %s SOME %s )" % (propString, manchesterSyntax(someClass, store))
+            return "( %s SOME %s )" % (propString, manchester_syntax(someClass, store))
         cardLookup = {
             OWL_NS.maxCardinality: "MAX",
             OWL_NS.minCardinality: "MIN",
@@ -280,7 +334,7 @@ def manchesterSyntax(thing, store, boolean=None, transientList=False):
             )
     compl = list(store.objects(subject=thing, predicate=OWL_NS.complementOf))
     if compl:
-        return "( NOT %s )" % (manchesterSyntax(compl[0], store))
+        return "( NOT %s )" % (manchester_syntax(compl[0], store))
     else:
         for boolProp, col in store.query(
             "SELECT ?p ?bool WHERE { ?class a owl:Class; ?p ?bool . ?bool rdf:first ?foo }",
@@ -288,7 +342,7 @@ def manchesterSyntax(thing, store, boolean=None, transientList=False):
             initNs=nsBinds,
         ):
             if not isinstance(thing, URIRef):
-                return manchesterSyntax(col, store, boolean=boolProp)
+                return manchester_syntax(col, store, boolean=boolProp)
         try:
             prefix, uri, localName = store.compute_qname(thing)
             qname = ":".join([prefix, localName])
@@ -306,13 +360,13 @@ def manchesterSyntax(thing, store, boolean=None, transientList=False):
             return qname
 
 
-def GetIdentifiedClasses(graph):
+def get_identified_classes(graph):
     for c in graph.subjects(predicate=RDF.type, object=OWL_NS.Class):
         if isinstance(c, URIRef):
             yield Class(c)
 
 
-def termDeletionDecorator(prop):
+def term_deletion_decorator(prop):
     def someFunc(func):
         func.property = prop
         return func
@@ -356,19 +410,19 @@ class Individual(object):
             except:
                 pass
 
-    def clearInDegree(self):
+    def clear_in_degree(self):
         self.graph.remove((None, None, self.identifier))
 
-    def clearOutDegree(self):
+    def clear_out_degree(self):
         self.graph.remove((self.identifier, None, None))
 
     def delete(self):
-        self.clearInDegree()
-        self.clearOutDegree()
+        self.clear_in_degree()
+        self.clear_out_degree()
 
     def replace(self, other):
         for s, p, o in self.graph.triples((None, None, self.identifier)):
-            self.graph.add((s, p, classOrIdentifier(other)))
+            self.graph.add((s, p, class_or_identifier(other)))
         self.delete()
 
     def _get_type(self):
@@ -379,11 +433,11 @@ class Individual(object):
         if not kind:
             return
         if isinstance(kind, (Individual, Identifier)):
-            self.graph.add((self.identifier, RDF.type, classOrIdentifier(kind)))
+            self.graph.add((self.identifier, RDF.type, class_or_identifier(kind)))
         else:
             for c in kind:
                 assert isinstance(c, (Individual, Identifier))
-                self.graph.add((self.identifier, RDF.type, classOrIdentifier(c)))
+                self.graph.add((self.identifier, RDF.type, class_or_identifier(c)))
 
     @TermDeletionHelper(RDF.type)
     def _delete_type(self):
@@ -431,28 +485,43 @@ class Individual(object):
 
     identifier = property(_get_identifier, _set_identifier)
 
-    def _get_sameAs(self):
+    def _get_same_as(self):
         for _t in self.graph.objects(subject=self.identifier, predicate=OWL_NS.sameAs):
             yield _t
 
-    def _set_sameAs(self, term):
+    def _set_same_as(self, term):
         if not term:
             return
         if isinstance(term, (Individual, Identifier)):
-            self.graph.add((self.identifier, OWL_NS.sameAs, classOrIdentifier(term)))
+            self.graph.add((self.identifier, OWL_NS.sameAs, class_or_identifier(term)))
         else:
             for c in term:
                 assert isinstance(c, (Individual, Identifier))
-                self.graph.add((self.identifier, OWL_NS.sameAs, classOrIdentifier(c)))
+                self.graph.add((self.identifier, OWL_NS.sameAs, class_or_identifier(c)))
 
     @TermDeletionHelper(OWL_NS.sameAs)
-    def _delete_sameAs(self):
+    def _del_same_as(self):
         pass
 
-    sameAs = property(_get_sameAs, _set_sameAs, _delete_sameAs)
+    same_as = property(_get_same_as, _set_same_as, _del_same_as)
 
 
 ACE_NS = Namespace("http://attempto.ifi.uzh.ch/ace_lexicon#")
+IAO_NS = Namespace("http://purl.obolibrary.org/obo/IAO_")
+SKOS_NS = Namespace("http://www.w3.org/2004/02/skos/core#")
+
+
+def declare_common_annotations(graph, include=("rdfs", "skos", "iao")):
+    include_set = {item.lower() for item in include or ()}
+    predicates = []
+    if "rdfs" in include_set:
+        predicates.extend([RDFS.label, RDFS.comment])
+    if "skos" in include_set:
+        predicates.extend([SKOS_NS.prefLabel, SKOS_NS.altLabel, SKOS_NS.definition])
+    if "iao" in include_set:
+        predicates.append(IAO_NS["0000115"])
+    for pred in predicates:
+        graph.add((pred, RDF.type, OWL_NS.AnnotationProperty))
 
 
 class AnnotatibleTerms(Individual):
@@ -460,50 +529,155 @@ class AnnotatibleTerms(Individual):
     Terms in an OWL ontology with rdfs:label and rdfs:comment
     """
 
-    def __init__(self, identifier, graph=None, nameAnnotation=None, nameIsLabel=False):
+    def __init__(
+        self,
+        identifier: Identifier,
+        graph: Graph = None,
+        name_annotation: bool = None,
+        name_is_label: bool = False,
+        label: Literal = None,
+    ):
         super(AnnotatibleTerms, self).__init__(identifier, graph)
-        if nameAnnotation:
-            self.setupACEAnnotations()
+        if label is not None:
+            self.label = label
+        if name_annotation:
+            self.setup_ace_annotations()
             self.PN_sgProp.extent = [
-                (self.identifier, self.handleAnnotation(nameAnnotation))
+                (self.identifier, self.handle_annotation(name_annotation))
             ]
-            if nameIsLabel:
-                self.label = [nameAnnotation]
+            if name_is_label:
+                self.label = name_annotation
 
-    def handleAnnotation(self, val):
+    def handle_annotation(self, val):
         return val if isinstance(val, Literal) else Literal(val)
 
-    def setupACEAnnotations(self):
+    def coerce_annotation_value(self, value):
+        if isinstance(value, Individual):
+            return class_or_identifier(value)
+        if isinstance(value, (Literal, BNode, URIRef)):
+            return value
+        return Literal(value)
+
+    def get_annotations(self, predicate):
+        pred = class_or_identifier(predicate)
+        return list(self.graph.objects(subject=self.identifier, predicate=pred))
+
+    def add_annotation(self, predicate, value):
+        if predicate is None or value is None:
+            return
+        pred = class_or_identifier(predicate)
+        if isinstance(value, (list, tuple, set)):
+            for item in value:
+                self.graph.add(
+                    (self.identifier, pred, self.coerce_annotation_value(item))
+                )
+        else:
+            self.graph.add((self.identifier, pred, self.coerce_annotation_value(value)))
+
+    def add_label(self, value, lang=None):
+        if value is None:
+            return
+        literal = Literal(value, lang=lang) if lang else Literal(value)
+        pred = RDFS.label
+        if (self.identifier, pred, literal) in self.graph:
+            return
+        self.add_annotation(pred, literal)
+
+    def set_annotation(self, predicate, values):
+        if predicate is None:
+            return
+        pred = class_or_identifier(predicate)
+        self.graph.remove((self.identifier, pred, None))
+        if values is None:
+            return
+        if isinstance(values, (list, tuple, set)):
+            for item in values:
+                self.graph.add(
+                    (self.identifier, pred, self.coerce_annotation_value(item))
+                )
+        else:
+            self.graph.add(
+                (self.identifier, pred, self.coerce_annotation_value(values))
+            )
+
+    def set_label(self, value, lang=None):
+        if value is None:
+            return
+        pred = RDFS.label
+        if lang is None:
+            self.graph.remove((self.identifier, pred, None))
+        else:
+            for obj in list(self.graph.objects(self.identifier, pred)):
+                if isinstance(obj, Literal) and obj.language == lang:
+                    self.graph.remove((self.identifier, pred, obj))
+        literal = Literal(value, lang=lang) if lang else Literal(value)
+        self.graph.add((self.identifier, pred, literal))
+
+    def add_definition(self, value, predicate=IAO_NS["0000115"], lang=None):
+        if value is None:
+            return
+        literal = Literal(value, lang=lang) if lang else Literal(value)
+        pred = class_or_identifier(predicate)
+        if (self.identifier, pred, literal) in self.graph:
+            return
+        self.add_annotation(pred, literal)
+
+    def set_definition(self, value, predicate=IAO_NS["0000115"], lang=None):
+        if value is None:
+            return
+        pred = class_or_identifier(predicate)
+        if lang is None:
+            self.graph.remove((self.identifier, pred, None))
+        else:
+            for obj in list(self.graph.objects(self.identifier, pred)):
+                if isinstance(obj, Literal) and obj.language == lang:
+                    self.graph.remove((self.identifier, pred, obj))
+        literal = Literal(value, lang=lang) if lang else Literal(value)
+        self.graph.add((self.identifier, pred, literal))
+
+    def declare_annotation_property(self, predicate: "Property | Identifier"):
+        return Property(
+            class_or_identifier(predicate),
+            base_type=OWL_NS.AnnotationProperty,
+            graph=self.graph,
+        )
+
+    def declare_annotation_properties(
+        self, predicates: Iterable["Property | Identifier"]
+    ) -> Iterable["Property"]:
+        return [self.declare_annotation_property(pred) for pred in predicates]
+
+    def setup_ace_annotations(self):
         self.graph.bind("ace", ACE_NS, override=False)
 
         # PN_sg singular form of a proper name ()
         self.PN_sgProp = Property(
-            ACE_NS.PN_sg, baseType=OWL_NS.AnnotationProperty, graph=self.graph
+            ACE_NS.PN_sg, base_type=OWL_NS.AnnotationProperty, graph=self.graph
         )
 
         # CN_sg singular form of a common noun
         self.CN_sgProp = Property(
-            ACE_NS.CN_sg, baseType=OWL_NS.AnnotationProperty, graph=self.graph
+            ACE_NS.CN_sg, base_type=OWL_NS.AnnotationProperty, graph=self.graph
         )
 
         # CN_pl plural form of a common noun
         self.CN_plProp = Property(
-            ACE_NS.CN_pl, baseType=OWL_NS.AnnotationProperty, graph=self.graph
+            ACE_NS.CN_pl, base_type=OWL_NS.AnnotationProperty, graph=self.graph
         )
 
         # singular form of a transitive verb
         self.TV_sgProp = Property(
-            ACE_NS.TV_sg, baseType=OWL_NS.AnnotationProperty, graph=self.graph
+            ACE_NS.TV_sg, base_type=OWL_NS.AnnotationProperty, graph=self.graph
         )
 
         # plural form of a transitive verb
         self.TV_plProp = Property(
-            ACE_NS.TV_pl, baseType=OWL_NS.AnnotationProperty, graph=self.graph
+            ACE_NS.TV_pl, base_type=OWL_NS.AnnotationProperty, graph=self.graph
         )
 
         # past participle form a transitive verb
         self.TV_vbgProp = Property(
-            ACE_NS.TV_vbg, baseType=OWL_NS.AnnotationProperty, graph=self.graph
+            ACE_NS.TV_vbg, base_type=OWL_NS.AnnotationProperty, graph=self.graph
         )
 
     def _get_comment(self):
@@ -527,34 +701,37 @@ class AnnotatibleTerms(Individual):
 
     comment = property(_get_comment, _set_comment, _del_comment)
 
-    def _get_seeAlso(self):
+    def _get_see_also(self):
         for sA in self.graph.objects(subject=self.identifier, predicate=RDFS.seeAlso):
             yield sA
 
-    def _set_seeAlso(self, seeAlsos):
-        if not seeAlsos:
+    def _set_see_also(self, see_alsos):
+        if not see_alsos:
             return
-        for s in seeAlsos:
-            self.graph.add((self.identifier, RDFS.seeAlso, s))
+        for item in see_alsos:
+            self.graph.add((self.identifier, RDFS.seeAlso, item))
 
     @TermDeletionHelper(RDFS.seeAlso)
-    def _del_seeAlso(self):
+    def _del_see_also(self):
         pass
 
-    seeAlso = property(_get_seeAlso, _set_seeAlso, _del_seeAlso)
+    see_also = property(_get_see_also, _set_see_also, _del_see_also)
 
     def _get_label(self):
         for label in self.graph.objects(subject=self.identifier, predicate=RDFS.label):
             yield label
 
     def _set_label(self, label):
-        if not label:
+        if label is None:
             return
-        if isinstance(label, Identifier):
-            self.graph.add((self.identifier, RDFS.label, label))
+        if isinstance(label, (list, tuple, set)):
+            items = label
         else:
-            for l in label:
-                self.graph.add((self.identifier, RDFS.label, l))
+            items = [label]
+        for item in items:
+            self.graph.add(
+                (self.identifier, RDFS.label, self.coerce_annotation_value(item))
+            )
 
     @TermDeletionHelper(RDFS.label)
     def _delete_label(self):
@@ -583,7 +760,7 @@ class Ontology(AnnotatibleTerms):
         if (self.identifier, RDF.type, OWL_NS.Ontology) not in self.graph:
             self.graph.add((self.identifier, RDF.type, OWL_NS.Ontology))
 
-    def setVersion(self, version):
+    def set_version(self, version):
         self.graph.set((self.identifier, OWL_NS.versionInfo, version))
 
     def _get_imports(self):
@@ -605,7 +782,7 @@ class Ontology(AnnotatibleTerms):
     imports = property(_get_imports, _set_imports, _del_imports)
 
 
-def AllClasses(graph):
+def all_classes(graph):
     prevClasses = set()
     for c in graph.subjects(predicate=RDF.type, object=OWL_NS.Class):
         if c not in prevClasses:
@@ -613,7 +790,7 @@ def AllClasses(graph):
             yield Class(c)
 
 
-def AllProperties(graph):
+def all_properties(graph):
     prevProps = set()
     for s, p, o in graph.triples_choices(
         (
@@ -641,12 +818,15 @@ def AllProperties(graph):
             bType = OWL_NS.DatatypeProperty
         if s not in prevProps:
             prevProps.add(s)
-            yield Property(s, graph=graph, baseType=bType)
+            yield Property(s, graph=graph, base_type=bType)
 
 
 class ClassNamespaceFactory(Namespace):
     def term(self, name):
         return Class(URIRef(self + name))
+
+    def prop(self, name, graph=None, base_type=OWL_NS.ObjectProperty):
+        return Property(URIRef(self + name), graph=graph, base_type=base_type)
 
     def __getitem__(self, key, default=None):
         return self.term(key)
@@ -676,53 +856,53 @@ CLASS_RELATIONS = set(OWL_NS.resourceProperties).difference(
 )
 
 
-def ComponentTerms(cls):
+def component_terms(cls):
     """
     Takes a Class instance and returns a generator over the classes that
     are involved in its definition, ignoring unamed classes
     """
     if OWL_NS.Restriction in cls.type:
         try:
-            cls = CastClass(cls, Individual.factoryGraph)
+            cls = cast_class(cls, Individual.factoryGraph)
             for s, p, innerClsId in cls.factoryGraph.triples_choices(
                 (cls.identifier, [OWL_NS.allValuesFrom, OWL_NS.someValuesFrom], None)
             ):
-                innerCls = Class(innerClsId, skipOWLClassMembership=True)
+                innerCls = Class(innerClsId, skip_owl_class_membership=True)
                 if isinstance(innerClsId, BNode):
-                    for _c in ComponentTerms(innerCls):
+                    for _c in component_terms(innerCls):
                         yield _c
                 else:
                     yield innerCls
         except:
             pass
     else:
-        cls = CastClass(cls, Individual.factoryGraph)
+        cls = cast_class(cls, Individual.factoryGraph)
         if isinstance(cls, BooleanClass):
             for _cls in cls:
-                _cls = Class(_cls, skipOWLClassMembership=True)
+                _cls = Class(_cls, skip_owl_class_membership=True)
                 if isinstance(_cls.identifier, BNode):
-                    for _c in ComponentTerms(_cls):
+                    for _c in component_terms(_cls):
                         yield _c
                 else:
                     yield _cls
         else:
-            for innerCls in cls.subClassOf:
+            for innerCls in cls.sub_class_of:
                 if isinstance(innerCls.identifier, BNode):
-                    for _c in ComponentTerms(innerCls):
+                    for _c in component_terms(innerCls):
                         yield _c
                 else:
                     yield innerCls
             for s, p, o in cls.factoryGraph.triples_choices(
-                (classOrIdentifier(cls), CLASS_RELATIONS, None)
+                (class_or_identifier(cls), CLASS_RELATIONS, None)
             ):
                 if isinstance(o, BNode):
-                    for _c in ComponentTerms(CastClass(o, Individual.factoryGraph)):
+                    for _c in component_terms(cast_class(o, Individual.factoryGraph)):
                         yield _c
                 else:
                     yield innerCls
 
 
-def DeepClassClear(classToPrune):
+def deep_class_clear(class_to_prune):
     """
     Recursively clear the given class, continuing
     where any related class is an anonymous class
@@ -739,20 +919,22 @@ def DeepClassClear(classToPrune):
     >>> classD = Class(EX.D)
     >>> classE = Class(EX.E)
     >>> classF = Class(EX.F)
-    >>> anonClass = EX.someProp|some|classD
+    >>> anonClass = Property(EX.someProp, graph=g) | some | classD
     >>> classF += anonClass
-    >>> list(anonClass.subClassOf)
+    >>> list(anonClass.sub_class_of)
     [Class: ex:F ]
     >>> classA = classE | classF | anonClass
     >>> classB += classA
-    >>> classA.equivalentClass = [Class()]
-    >>> classB.subClassOf = [EX.someProp|some|classC]
+    >>> classA.equivalent_class = [Class()]
+    >>> classB.sub_class_of = [
+    ...     Restriction(Property(EX.someProp, graph=g), graph=g, some_values_from=classC)
+    ... ]
     >>> classA
     ( ex:E OR ex:F OR ( ex:someProp SOME ex:D ) )
-    >>> DeepClassClear(classA)
+    >>> deep_class_clear(classA)
     >>> classA
     (  )
-    >>> list(anonClass.subClassOf)
+    >>> list(anonClass.sub_class_of)
     []
     >>> classB
     Class: ex:B SubClassOf: ( ex:someProp SOME ex:C )
@@ -760,7 +942,7 @@ def DeepClassClear(classToPrune):
     >>> otherClass = classD | anonClass
     >>> otherClass
     ( ex:D OR ( ex:someProp SOME ex:D ) )
-    >>> DeepClassClear(otherClass)
+    >>> deep_class_clear(otherClass)
     >>> otherClass
     (  )
     >>> otherClass.delete()
@@ -768,27 +950,31 @@ def DeepClassClear(classToPrune):
     []
     """
 
-    def deepClearIfBNode(_class):
-        if isinstance(classOrIdentifier(_class), BNode):
-            DeepClassClear(_class)
+    def deep_clear_if_b_node(_class):
+        if isinstance(class_or_identifier(_class), BNode):
+            deep_class_clear(_class)
 
-    classToPrune = CastClass(classToPrune, Individual.factoryGraph)
-    for c in classToPrune.subClassOf:
-        deepClearIfBNode(c)
-    classToPrune.graph.remove((classToPrune.identifier, RDFS.subClassOf, None))
-    for c in classToPrune.equivalentClass:
-        deepClearIfBNode(c)
-    classToPrune.graph.remove((classToPrune.identifier, OWL_NS.equivalentClass, None))
-    inverseClass = classToPrune.complementOf
+    class_to_prune = cast_class(class_to_prune, Individual.factoryGraph)
+    for c in class_to_prune.sub_class_of:
+        deep_clear_if_b_node(c)
+    class_to_prune.graph.remove((class_to_prune.identifier, RDFS.subClassOf, None))
+    for c in class_to_prune.equivalent_class:
+        deep_clear_if_b_node(c)
+    class_to_prune.graph.remove(
+        (class_to_prune.identifier, OWL_NS.equivalentClass, None)
+    )
+    inverseClass = class_to_prune.complement_of
     if inverseClass:
-        classToPrune.graph.remove((classToPrune.identifier, OWL_NS.complementOf, None))
-        deepClearIfBNode(inverseClass)
-    if isinstance(classToPrune, BooleanClass):
-        for c in classToPrune:
-            deepClearIfBNode(c)
-        classToPrune.clear()
-        classToPrune.graph.remove(
-            (classToPrune.identifier, classToPrune._operator, None)
+        class_to_prune.graph.remove(
+            (class_to_prune.identifier, OWL_NS.complementOf, None)
+        )
+        deep_clear_if_b_node(inverseClass)
+    if isinstance(class_to_prune, BooleanClass):
+        for c in class_to_prune:
+            deep_clear_if_b_node(c)
+        class_to_prune.clear()
+        class_to_prune.graph.remove(
+            (class_to_prune.identifier, class_to_prune._operator, None)
         )
 
 
@@ -800,38 +986,47 @@ class MalformedClass(Exception):
         return self.msg
 
 
-def CastClass(c, graph=None):
+def cast_class(c, graph=None):
     graph = graph is None and c.factoryGraph or graph
-    for kind in graph.objects(subject=classOrIdentifier(c), predicate=RDF.type):
+    for kind in graph.objects(subject=class_or_identifier(c), predicate=RDF.type):
         if kind == OWL_NS.Restriction:
-            kwArgs = {"identifier": classOrIdentifier(c), "graph": graph}
-            for s, p, o in graph.triples((classOrIdentifier(c), None, None)):
+            kwArgs = {"identifier": class_or_identifier(c), "graph": graph}
+            for s, p, o in graph.triples((class_or_identifier(c), None, None)):
                 if p != RDF.type:
                     if p == OWL_NS.onProperty:
-                        kwArgs["onProperty"] = o
+                        kwArgs["on_property"] = o
+                    elif p == OWL_NS.onClass:
+                        kwArgs["on_class"] = o
+                    elif p == OWL_NS.onDataRange:
+                        kwArgs["on_data_range"] = o
                     else:
                         if p not in Restriction.restrictionKinds:
                             continue
-                        kwArgs[str(p.split(OWL_NS)[-1])] = o
-            if not set(
-                [str(i.split(OWL_NS)[-1]) for i in Restriction.restrictionKinds]
-            ).intersection(kwArgs):
+                        restriction_key = str(p.split(OWL_NS)[-1])
+                        kwArgs[_restriction_arg_name(restriction_key)] = o
+            restriction_keys = {
+                _restriction_arg_name(str(i.split(OWL_NS)[-1]))
+                for i in Restriction.restrictionKinds
+            }
+            if not restriction_keys.intersection(kwArgs):
                 raise MalformedClass("Malformed owl:Restriction")
             return Restriction(**kwArgs)
         else:
             for s, p, o in graph.triples_choices(
                 (
-                    classOrIdentifier(c),
+                    class_or_identifier(c),
                     [OWL_NS.intersectionOf, OWL_NS.unionOf, OWL_NS.oneOf],
                     None,
                 )
             ):
                 if p == OWL_NS.oneOf:
-                    return EnumeratedClass(classOrIdentifier(c), graph=graph)
+                    return EnumeratedClass(class_or_identifier(c), graph=graph)
                 else:
-                    return BooleanClass(classOrIdentifier(c), operator=p, graph=graph)
+                    return BooleanClass(class_or_identifier(c), operator=p, graph=graph)
             # assert (classOrIdentifier(c), RDF.type, OWL_NS.Class) in graph
-            return Class(classOrIdentifier(c), graph=graph, skipOWLClassMembership=True)
+            return Class(
+                class_or_identifier(c), graph=graph, skip_owl_class_membership=True
+            )
 
 
 class Class(AnnotatibleTerms):
@@ -864,67 +1059,70 @@ class Class(AnnotatibleTerms):
     """
 
     def _serialize(self, graph):
-        for cl in self.subClassOf:
-            CastClass(cl, self.graph).serialize(graph)
-        for cl in self.equivalentClass:
-            CastClass(cl, self.graph).serialize(graph)
-        for cl in self.disjointWith:
-            CastClass(cl, self.graph).serialize(graph)
-        if self.complementOf:
-            CastClass(self.complementOf, self.graph).serialize(graph)
+        for cl in self.sub_class_of:
+            cast_class(cl, self.graph).serialize(graph)
+        for cl in self.equivalent_class:
+            cast_class(cl, self.graph).serialize(graph)
+        for cl in self.disjoint_with:
+            cast_class(cl, self.graph).serialize(graph)
+        if self.complement_of:
+            cast_class(self.complement_of, self.graph).serialize(graph)
 
     def serialize(self, graph):
         for fact in self.graph.triples((self.identifier, None, None)):
             graph.add(fact)
         self._serialize(graph)
 
-    def setupNounAnnotations(self, nounAnnotations):
-        if isinstance(nounAnnotations, tuple):
-            CN_sgProp, CN_plProp = nounAnnotations
+    def setup_noun_annotations(self, noun_annotations):
+        if isinstance(noun_annotations, tuple):
+            CN_sgProp, CN_plProp = noun_annotations
         else:
-            CN_sgProp = nounAnnotations
-            CN_plProp = nounAnnotations
+            CN_sgProp = noun_annotations
+            CN_plProp = noun_annotations
 
         if CN_sgProp:
             self.CN_sgProp.extent = [
-                (self.identifier, self.handleAnnotation(CN_sgProp))
+                (self.identifier, self.handle_annotation(CN_sgProp))
             ]
         if CN_plProp:
             self.CN_plProp.extent = [
-                (self.identifier, self.handleAnnotation(CN_plProp))
+                (self.identifier, self.handle_annotation(CN_plProp))
             ]
 
     def __init__(
         self,
         identifier=None,
-        subClassOf=None,
-        equivalentClass=None,
-        disjointWith=None,
-        complementOf=None,
+        sub_class_of=None,
+        equivalent_class=None,
+        disjoint_with=None,
+        complement_of=None,
         graph=None,
-        skipOWLClassMembership=False,
+        skip_owl_class_membership=False,
         comment=None,
-        nounAnnotations=None,
-        nameAnnotation=None,
-        nameIsLabel=False,
+        noun_annotations=None,
+        name_annotation=None,
+        name_is_label=False,
+        label: Literal = None,
     ):
-        super(Class, self).__init__(identifier, graph, nameAnnotation, nameIsLabel)
+        super(Class, self).__init__(
+            identifier, graph, name_annotation, name_is_label, label
+        )
 
-        if nounAnnotations:
-            self.setupNounAnnotations(nounAnnotations)
+        if noun_annotations:
+            self.setup_noun_annotations(noun_annotations)
 
         if (
-            not skipOWLClassMembership
+            not skip_owl_class_membership
             and (self.identifier, RDF.type, OWL_NS.Class) not in self.graph
             and (self.identifier, RDF.type, OWL_NS.Restriction) not in self.graph
         ):
             self.graph.add((self.identifier, RDF.type, OWL_NS.Class))
 
-        self.subClassOf = subClassOf and subClassOf or []
-        self.equivalentClass = equivalentClass and equivalentClass or []
-        self.disjointWith = disjointWith and disjointWith or []
-        if complementOf:
-            self.complementOf = complementOf
+        self.sub_class_of = sub_class_of and sub_class_of or []
+        self.equivalent_class = equivalent_class and equivalent_class or []
+        self.disjoint_with = disjoint_with and disjoint_with or []
+        if complement_of:
+            self.complement_of = complement_of
         self.comment = comment and comment or []
 
     def _get_extent(self, graph=None):
@@ -937,7 +1135,7 @@ class Class(AnnotatibleTerms):
         if not other:
             return
         for m in other:
-            self.graph.add((classOrIdentifier(m), RDF.type, self.identifier))
+            self.graph.add((class_or_identifier(m), RDF.type, self.identifier))
 
     @TermDeletionHelper(RDF.type)
     def _del_type(self):
@@ -951,13 +1149,13 @@ class Class(AnnotatibleTerms):
 
     annotation = property(_get_annotation, lambda x: x)
 
-    def _get_extentQuery(self):
+    def _get_extent_query(self):
         return (Variable("CLASS"), RDF.type, self.identifier)
 
-    def _set_extentQuery(self, other):
+    def _set_extent_query(self, other):
         pass
 
-    extentQuery = property(_get_extentQuery, _set_extentQuery)
+    extent_query = property(_get_extent_query, _set_extent_query)
 
     def __hash__(self):
         """
@@ -966,7 +1164,7 @@ class Class(AnnotatibleTerms):
         >>> len(set([b, c]))
         1
         """
-        return hash(self.identifier)
+        return hash(se1lf.identifier)
 
     def __eq__(self, other):
         assert isinstance(other, Class), repr(other)
@@ -974,19 +1172,21 @@ class Class(AnnotatibleTerms):
 
     def __iadd__(self, other):
         assert isinstance(other, Class)
-        other.subClassOf = [self]
+        other.sub_class_of = [self]
         return self
 
     def __isub__(self, other):
         assert isinstance(other, Class)
-        self.graph.remove((classOrIdentifier(other), RDFS.subClassOf, self.identifier))
+        self.graph.remove(
+            (class_or_identifier(other), RDFS.subClassOf, self.identifier)
+        )
         return self
 
     def __invert__(self):
         """
         Shorthand for Manchester syntax's not operator
         """
-        return Class(complementOf=self)
+        return Class(complement_of=self)
 
     def __or__(self, other):
         """
@@ -1026,65 +1226,67 @@ class Class(AnnotatibleTerms):
             operator=OWL_NS.intersectionOf, members=[self, other], graph=self.graph
         )
 
-    def _get_subClassOf(self):
+    def _get_sub_class_of(self):
         for anc in self.graph.objects(
             subject=self.identifier, predicate=RDFS.subClassOf
         ):
-            yield Class(anc, graph=self.graph, skipOWLClassMembership=True)
+            yield Class(anc, graph=self.graph, skip_owl_class_membership=True)
 
-    def _set_subClassOf(self, other):
+    def _set_sub_class_of(self, other):
         if not other:
             return
         for sc in other:
-            self.graph.add((self.identifier, RDFS.subClassOf, classOrIdentifier(sc)))
+            self.graph.add((self.identifier, RDFS.subClassOf, class_or_identifier(sc)))
 
     @TermDeletionHelper(RDFS.subClassOf)
-    def _del_subClassOf(self):
+    def _del_sub_class_of(self):
         pass
 
-    subClassOf = property(_get_subClassOf, _set_subClassOf, _del_subClassOf)
+    sub_class_of = property(_get_sub_class_of, _set_sub_class_of, _del_sub_class_of)
 
-    def _get_equivalentClass(self):
+    def _get_equivalent_class(self):
         for ec in self.graph.objects(
             subject=self.identifier, predicate=OWL_NS.equivalentClass
         ):
             yield Class(ec, graph=self.graph)
 
-    def _set_equivalentClass(self, other):
+    def _set_equivalent_class(self, other):
         if not other:
             return
         for sc in other:
             self.graph.add(
-                (self.identifier, OWL_NS.equivalentClass, classOrIdentifier(sc))
+                (self.identifier, OWL_NS.equivalentClass, class_or_identifier(sc))
             )
 
     @TermDeletionHelper(OWL_NS.equivalentClass)
-    def _del_equivalentClass(self):
+    def _del_equivalent_class(self):
         pass
 
-    equivalentClass = property(
-        _get_equivalentClass, _set_equivalentClass, _del_equivalentClass
+    equivalent_class = property(
+        _get_equivalent_class, _set_equivalent_class, _del_equivalent_class
     )
 
-    def _get_disjointWith(self):
+    def _get_disjoint_with(self):
         for dc in self.graph.objects(
             subject=self.identifier, predicate=OWL_NS.disjointWith
         ):
             yield Class(dc, graph=self.graph)
 
-    def _set_disjointWith(self, other):
+    def _set_disjoint_with(self, other):
         if not other:
             return
         for c in other:
-            self.graph.add((self.identifier, OWL_NS.disjointWith, classOrIdentifier(c)))
+            self.graph.add(
+                (self.identifier, OWL_NS.disjointWith, class_or_identifier(c))
+            )
 
     @TermDeletionHelper(OWL_NS.disjointWith)
-    def _del_disjointWith(self):
+    def _del_disjoint_with(self):
         pass
 
-    disjointWith = property(_get_disjointWith, _set_disjointWith, _del_disjointWith)
+    disjoint_with = property(_get_disjoint_with, _set_disjoint_with, _del_disjoint_with)
 
-    def _get_complementOf(self):
+    def _get_complement_of(self):
         comp = list(
             self.graph.objects(subject=self.identifier, predicate=OWL_NS.complementOf)
         )
@@ -1095,16 +1297,18 @@ class Class(AnnotatibleTerms):
         else:
             raise Exception(len(comp))
 
-    def _set_complementOf(self, other):
+    def _set_complement_of(self, other):
         if not other:
             return
-        self.graph.add((self.identifier, OWL_NS.complementOf, classOrIdentifier(other)))
+        self.graph.add(
+            (self.identifier, OWL_NS.complementOf, class_or_identifier(other))
+        )
 
     @TermDeletionHelper(OWL_NS.complementOf)
-    def _del_complementOf(self):
+    def _del_complement_of(self):
         pass
 
-    complementOf = property(_get_complementOf, _set_complementOf, _del_complementOf)
+    complement_of = property(_get_complement_of, _set_complement_of, _del_complement_of)
 
     def _get_parents(self):
         """
@@ -1134,7 +1338,7 @@ class Class(AnnotatibleTerms):
         [Class: ex:Parent , Class: ex:Male ]
 
         """
-        for parent in itertools.chain(self.subClassOf, self.equivalentClass):
+        for parent in itertools.chain(self.sub_class_of, self.equivalent_class):
             yield parent
 
         link = first(self.factoryGraph.subjects(RDF.first, self.identifier))
@@ -1146,32 +1350,32 @@ class Class(AnnotatibleTerms):
                 collectionHead = link
             for disjCls in self.factoryGraph.subjects(OWL_NS.unionOf, collectionHead):
                 if isinstance(disjCls, URIRef):
-                    yield Class(disjCls, skipOWLClassMembership=True)
+                    yield Class(disjCls, skip_owl_class_membership=True)
         for rdfList in self.factoryGraph.objects(
             self.identifier, OWL_NS.intersectionOf
         ):
             for member in OWLRDFListProxy([rdfList], graph=self.factoryGraph):
                 if isinstance(member, URIRef):
-                    yield Class(member, skipOWLClassMembership=True)
+                    yield Class(member, skip_owl_class_membership=True)
 
     parents = property(_get_parents)
 
-    def isPrimitive(self):
+    def is_primitive(self):
         if (self.identifier, RDF.type, OWL_NS.Restriction) in self.graph:
             return False
-        # sc = list(self.subClassOf)
-        ec = list(self.equivalentClass)
+        # sc = list(self.sub_class_of)
+        ec = list(self.equivalent_class)
         for boolClass, p, rdfList in self.graph.triples_choices(
             (self.identifier, [OWL_NS.intersectionOf, OWL_NS.unionOf], None)
         ):
-            ec.append(manchesterSyntax(rdfList, self.graph, boolean=p))
+            ec.append(manchester_syntax(rdfList, self.graph, boolean=p))
         for e in ec:
             return False
-        if self.complementOf:
+        if self.complement_of:
             return False
         return True
 
-    def subSumpteeIds(self):
+    def sub_sumptee_ids(self):
         for s in self.graph.subjects(predicate=RDFS.subClassOf, object=self.identifier):
             yield s
 
@@ -1184,14 +1388,14 @@ class Class(AnnotatibleTerms):
         Returns the Manchester Syntax equivalent for this class
         """
         exprs = []
-        sc = list(self.subClassOf)
-        ec = list(self.equivalentClass)
+        sc = list(self.sub_class_of)
+        ec = list(self.equivalent_class)
         for boolClass, p, rdfList in self.graph.triples_choices(
             (self.identifier, [OWL_NS.intersectionOf, OWL_NS.unionOf], None)
         ):
-            ec.append(manchesterSyntax(rdfList, self.graph, boolean=p))
-        dc = list(self.disjointWith)
-        c = self.complementOf
+            ec.append(manchester_syntax(rdfList, self.graph, boolean=p))
+        dc = list(self.disjoint_with)
+        c = self.complement_of
         if c:
             dc.append(c)
         klassKind = ""
@@ -1205,12 +1409,12 @@ class Class(AnnotatibleTerms):
             necStatements = [
                 isinstance(s, Class)
                 and isinstance(self.identifier, BNode)
-                and repr(CastClass(s, self.graph))
+                and repr(cast_class(s, self.graph))
                 or
                 # repr(BooleanClass(classOrIdentifier(s),
                 #                  operator=None,
                 #                  graph=self.graph)) or
-                manchesterSyntax(classOrIdentifier(s), self.graph)
+                manchester_syntax(class_or_identifier(s), self.graph)
                 for s in sc
             ]
             if necStatements:
@@ -1224,7 +1428,7 @@ class Class(AnnotatibleTerms):
             nec_SuffStatements = [
                 isinstance(s, str)
                 and s
-                or manchesterSyntax(classOrIdentifier(s), self.graph)
+                or manchester_syntax(class_or_identifier(s), self.graph)
                 for s in ec
             ]
             if nec_SuffStatements:
@@ -1239,7 +1443,7 @@ class Class(AnnotatibleTerms):
             exprs.append(
                 "DisjointWith %s\n"
                 % "\n                 ".join(
-                    [manchesterSyntax(classOrIdentifier(s), self.graph) for s in dc]
+                    [manchester_syntax(class_or_identifier(s), self.graph) for s in dc]
                 )
             )
             if full:
@@ -1275,10 +1479,10 @@ class OWLRDFListProxy(object):
             self._rdfList = Collection(self.graph, rdfList[0])
             for member in members:
                 if member not in self._rdfList:
-                    self._rdfList.append(classOrIdentifier(member))
+                    self._rdfList.append(class_or_identifier(member))
         else:
             self._rdfList = Collection(
-                self.graph, BNode(), [classOrIdentifier(m) for m in members]
+                self.graph, BNode(), [class_or_identifier(m) for m in members]
             )
             self.graph.add((self.identifier, self._operator, self._rdfList.uri))
 
@@ -1305,13 +1509,13 @@ class OWLRDFListProxy(object):
         return len(self._rdfList)
 
     def index(self, item):
-        return self._rdfList.index(classOrIdentifier(item))
+        return self._rdfList.index(class_or_identifier(item))
 
     def __getitem__(self, key):
         return self._rdfList[key]
 
     def __setitem__(self, key, value):
-        self._rdfList[key] = classOrIdentifier(value)
+        self._rdfList[key] = class_or_identifier(value)
 
     def __delitem__(self, key):
         del self._rdfList[key]
@@ -1325,7 +1529,7 @@ class OWLRDFListProxy(object):
 
     def __contains__(self, item):
         for i in self._rdfList:
-            if i == classOrIdentifier(item):
+            if i == class_or_identifier(item):
                 return 1
         return 0
 
@@ -1333,7 +1537,7 @@ class OWLRDFListProxy(object):
         self._rdfList.append(item)
 
     def __iadd__(self, other):
-        self._rdfList.append(classOrIdentifier(other))
+        self._rdfList.append(class_or_identifier(other))
         return self
 
 
@@ -1361,13 +1565,13 @@ class EnumeratedClass(OWLRDFListProxy, Class):
     { ex:chime ex:uche ex:ejike }
     >>> col = Collection(g, first(g.objects(predicate=OWL_NS.oneOf, subject=ogbujiBros.identifier)))
     >>> [g.qname(item) for item in col]
-    [%(u)s'ex:chime', %(u)s'ex:uche', %(u)s'ex:ejike']
+    ['ex:chime', 'ex:uche', 'ex:ejike']
     """
     __doc__ = format_doctest_out(doc)
 
     _operator = OWL_NS.oneOf
 
-    def isPrimitive(self):
+    def is_primitive(self):
         return False
 
     def __init__(self, identifier=None, members=None, graph=None):
@@ -1382,13 +1586,13 @@ class EnumeratedClass(OWLRDFListProxy, Class):
         """
         Returns the Manchester Syntax equivalent for this class
         """
-        return manchesterSyntax(self._rdfList.uri, self.graph, boolean=self._operator)
+        return manchester_syntax(self._rdfList.uri, self.graph, boolean=self._operator)
 
     def serialize(self, graph):
         clonedList = Collection(graph, BNode())
         for cl in self._rdfList:
             clonedList.append(cl)
-            CastClass(cl, self.graph).serialize(graph)
+            cast_class(cl, self.graph).serialize(graph)
 
         graph.add((self.identifier, self._operator, clonedList.uri))
         for s, p, o in self.graph.triples((self.identifier, None, None)):
@@ -1433,7 +1637,10 @@ class BooleanClassExtentHelper:
 
 class Callable:
     def __init__(self, anycallable):
-        self.__call__ = anycallable
+        self._callable = anycallable
+
+    def __call__(self, *args, **kwargs):
+        return self._callable(*args, **kwargs)
 
 
 class BooleanClass(OWLRDFListProxy, Class):
@@ -1492,7 +1699,7 @@ class BooleanClass(OWLRDFListProxy, Class):
         clonedList = Collection(graph, BNode())
         for cl in self._rdfList:
             clonedList.append(cl)
-            CastClass(cl, self.graph).serialize(graph)
+            cast_class(cl, self.graph).serialize(graph)
 
         graph.add((self.identifier, self._operator, clonedList.uri))
 
@@ -1501,10 +1708,10 @@ class BooleanClass(OWLRDFListProxy, Class):
                 graph.add((s, p, o))
         self._serialize(graph)
 
-    def isPrimitive(self):
+    def is_primitive(self):
         return False
 
-    def changeOperator(self, newOperator):
+    def change_operator(self, newOperator):
         """
         Converts a unionOf / intersectionOf class expression into one
         that instead uses the given operator
@@ -1521,15 +1728,16 @@ class BooleanClass(OWLRDFListProxy, Class):
         >>> testClass = BooleanClass(members=[fire, water])
         >>> testClass
         ( ex:Fire AND ex:Water )
-        >>> testClass.changeOperator(OWL_NS.unionOf)
+        >>> testClass.change_operator(OWL_NS.unionOf)
         >>> testClass
         ( ex:Fire OR ex:Water )
-        >>> try: testClass.changeOperator(OWL_NS.unionOf)
+        >>> try: testClass.change_operator(OWL_NS.unionOf)
         ... except Exception as e: print(e)
         The new operator is already being used.
 
         """
-        assert newOperator != self._operator, "The new operator is already being used."
+        if newOperator == self._operator:
+            raise AssertionError("The new operator is already being used.")
         self.graph.remove((self.identifier, self._operator, self._rdfList.uri))
         self.graph.add((self.identifier, newOperator, self._rdfList.uri))
         self._operator = newOperator
@@ -1538,18 +1746,18 @@ class BooleanClass(OWLRDFListProxy, Class):
         """
         Returns the Manchester Syntax equivalent for this class
         """
-        return manchesterSyntax(self._rdfList.uri, self.graph, boolean=self._operator)
+        return manchester_syntax(self._rdfList.uri, self.graph, boolean=self._operator)
 
     def __or__(self, other):
         """
         Adds other to the list and returns self
         """
         assert self._operator == OWL_NS.unionOf
-        self._rdfList.append(classOrIdentifier(other))
+        self._rdfList.append(class_or_identifier(other))
         return self
 
 
-def AllDifferent(members):
+def all_different(members):
     """
     DisjointClasses(' description description { description } ')'
 
@@ -1559,11 +1767,13 @@ def AllDifferent(members):
 
 class Restriction(Class):
     """
-    restriction ::= 'restriction(' datavaluedPropertyID dataRestrictionComponent
-                                 { dataRestrictionComponent } ')'
-                  | 'restriction(' individualvaluedPropertyID
-                      individualRestrictionComponent
-                      { individualRestrictionComponent } ')'
+    Grammar::
+
+        restriction ::= 'restriction(' datavaluedPropertyID dataRestrictionComponent
+                                     { dataRestrictionComponent } ')'
+                      | 'restriction(' individualvaluedPropertyID
+                          individualRestrictionComponent
+                          { individualRestrictionComponent } ')'
     """
 
     restrictionKinds = [
@@ -1572,39 +1782,55 @@ class Restriction(Class):
         OWL_NS.hasValue,
         OWL_NS.maxCardinality,
         OWL_NS.minCardinality,
+        OWL_NS.qualifiedCardinality,
+        OWL_NS.minQualifiedCardinality,
+        OWL_NS.maxQualifiedCardinality,
     ]
 
     def __init__(
         self,
-        onProperty,
-        graph=Graph(),
-        allValuesFrom=None,
-        someValuesFrom=None,
-        value=None,
+        on_property,
+        graph=None,
+        all_values_from=None,
+        some_values_from=None,
+        has_value=None,
         cardinality=None,
-        maxCardinality=None,
-        minCardinality=None,
+        max_cardinality=None,
+        min_cardinality=None,
+        qualified_cardinality=None,
+        min_qualified_cardinality=None,
+        max_qualified_cardinality=None,
+        on_class=None,
+        on_data_range=None,
         identifier=None,
     ):
         super(Restriction, self).__init__(
-            identifier, graph=graph, skipOWLClassMembership=True
+            identifier, graph=graph, skip_owl_class_membership=True
         )
+        graph = self.graph
         if (
             self.identifier,
             OWL_NS.onProperty,
-            propertyOrIdentifier(onProperty),
+            property_or_identifier(on_property),
         ) not in graph:
             graph.add(
-                (self.identifier, OWL_NS.onProperty, propertyOrIdentifier(onProperty))
+                (
+                    self.identifier,
+                    OWL_NS.onProperty,
+                    property_or_identifier(on_property),
+                )
             )
-        self.onProperty = onProperty
+        self.on_property = on_property
         restrTypes = [
-            (allValuesFrom, OWL_NS.allValuesFrom),
-            (someValuesFrom, OWL_NS.someValuesFrom),
-            (value, OWL_NS.hasValue),
+            (all_values_from, OWL_NS.allValuesFrom),
+            (some_values_from, OWL_NS.someValuesFrom),
+            (has_value, OWL_NS.hasValue),
             (cardinality, OWL_NS.cardinality),
-            (maxCardinality, OWL_NS.maxCardinality),
-            (minCardinality, OWL_NS.minCardinality),
+            (max_cardinality, OWL_NS.maxCardinality),
+            (min_cardinality, OWL_NS.minCardinality),
+            (qualified_cardinality, OWL_NS.qualifiedCardinality),
+            (min_qualified_cardinality, OWL_NS.minQualifiedCardinality),
+            (max_qualified_cardinality, OWL_NS.maxQualifiedCardinality),
         ]
         validRestrProps = [(i, oTerm) for (i, oTerm) in restrTypes if i]
         assert len(validRestrProps)
@@ -1613,7 +1839,11 @@ class Restriction(Class):
         if isinstance(restrictionRange, Identifier):
             self.restrictionRange = restrictionRange
         elif isinstance(restrictionRange, Class):
-            self.restrictionRange = classOrIdentifier(restrictionRange)
+            self.restrictionRange = class_or_identifier(restrictionRange)
+        elif isinstance(restrictionRange, (Literal, BNode, URIRef)):
+            self.restrictionRange = restrictionRange
+        elif restrictionRange is not None:
+            self.restrictionRange = Literal(restrictionRange)
         else:
             self.restrictionRange = first(
                 self.graph.objects(self.identifier, restrictionType)
@@ -1624,6 +1854,35 @@ class Restriction(Class):
         if (self.identifier, RDF.type, OWL_NS.Restriction) not in self.graph:
             self.graph.add((self.identifier, RDF.type, OWL_NS.Restriction))
             self.graph.remove((self.identifier, RDF.type, OWL_NS.Class))
+        if restrictionType in {
+            OWL_NS.qualifiedCardinality,
+            OWL_NS.minQualifiedCardinality,
+            OWL_NS.maxQualifiedCardinality,
+        }:
+            if on_class is not None:
+                on_class_identifier = class_or_identifier(on_class)
+                if (
+                    self.identifier,
+                    OWL_NS.onClass,
+                    on_class_identifier,
+                ) not in self.graph:
+                    self.graph.add(
+                        (self.identifier, OWL_NS.onClass, on_class_identifier)
+                    )
+            elif on_data_range is not None:
+                on_data_identifier = class_or_identifier(on_data_range)
+                if (
+                    self.identifier,
+                    OWL_NS.onDataRange,
+                    on_data_identifier,
+                ) not in self.graph:
+                    self.graph.add(
+                        (self.identifier, OWL_NS.onDataRange, on_data_identifier)
+                    )
+            else:
+                raise AssertionError(
+                    "Qualified cardinality requires on_class or on_data_range"
+                )
 
     @format_doctest_out
     def serialize(self, graph):
@@ -1636,27 +1895,27 @@ class Restriction(Class):
         >>> namespace_manager = NamespaceManager(g2)
         >>> namespace_manager.bind('ex', EX, override=False)
         >>> Individual.factoryGraph = g1
-        >>> prop = Property(EX.someProp, baseType=OWL_NS.DatatypeProperty)
-        >>> restr1 = (Property(EX.someProp, baseType=OWL_NS.DatatypeProperty))|some|(Class(EX.Foo))
+        >>> prop = Property(EX.someProp, base_type=OWL_NS.DatatypeProperty)
+        >>> restr1 = (Property(EX.someProp, base_type=OWL_NS.DatatypeProperty))|some|(Class(EX.Foo))
         >>> restr1
         ( ex:someProp SOME ex:Foo )
         >>> restr1.serialize(g2)
         >>> Individual.factoryGraph = g2
-        >>> list(Property(EX.someProp, baseType=None).type)
-        [rdflib.term.URIRef(%(u)s'http://www.w3.org/2002/07/owl#DatatypeProperty')]
+        >>> list(Property(EX.someProp, base_type=None).type)
+        [rdflib.term.URIRef('http://www.w3.org/2002/07/owl#DatatypeProperty')]
         """
 
-        Property(self.onProperty, graph=self.graph, baseType=None).serialize(graph)
+        Property(self.on_property, graph=self.graph, base_type=None).serialize(graph)
         for s, p, o in self.graph.triples((self.identifier, None, None)):
             graph.add((s, p, o))
             if p in [OWL_NS.allValuesFrom, OWL_NS.someValuesFrom]:
-                CastClass(o, self.graph).serialize(graph)
+                cast_class(o, self.graph).serialize(graph)
 
-    def isPrimitive(self):
+    def is_primitive(self):
         return False
 
     def __hash__(self):
-        return hash((self.onProperty, self.restrictionRange))
+        return hash((self.on_property, self.restrictionRange))
 
     def __eq__(self, other):
         """
@@ -1666,97 +1925,110 @@ class Restriction(Class):
         assert isinstance(other, Class), repr(other) + repr(type(other))
         if isinstance(other, Restriction):
             return (
-                other.onProperty == self.onProperty
+                other.on_property == self.on_property
                 and other.restrictionRange == self.restrictionRange
             )
         else:
             return False
 
-    def _get_onProperty(self):
+    def _restriction_object(self, other):
+        if isinstance(other, Class):
+            return class_or_identifier(other)
+        if isinstance(other, Identifier):
+            return other
+        raise AssertionError("Restriction value must be a Class or Identifier")
+
+    def _get_on_property(self):
         return list(
             self.graph.objects(subject=self.identifier, predicate=OWL_NS.onProperty)
         )[0]
 
-    def _set_onProperty(self, prop):
-        triple = (self.identifier, OWL_NS.onProperty, propertyOrIdentifier(prop))
+    def _set_on_property(self, prop):
         if not prop:
             return
-        elif triple in self.graph:
+        triple = (self.identifier, OWL_NS.onProperty, property_or_identifier(prop))
+        if triple in self.graph:
             return
-        else:
-            self.graph.set(triple)
+        self.graph.set(triple)
 
     @TermDeletionHelper(OWL_NS.onProperty)
-    def _del_onProperty(self):
+    def _del_on_property(self):
         pass
 
-    onProperty = property(_get_onProperty, _set_onProperty, _del_onProperty)
+    on_property = property(_get_on_property, _set_on_property, _del_on_property)
 
-    def _get_allValuesFrom(self):
+    def _get_all_values_from(self):
         for i in self.graph.objects(
             subject=self.identifier, predicate=OWL_NS.allValuesFrom
         ):
             return Class(i, graph=self.graph)
         return None
 
-    def _set_allValuesFrom(self, other):
-        triple = (self.identifier, OWL_NS.allValuesFrom, classOrIdentifier(other))
+    def _set_all_values_from(self, other):
         if not other:
             return
-        elif triple in self.graph:
+        triple = (
+            self.identifier,
+            OWL_NS.allValuesFrom,
+            self._restriction_object(other),
+        )
+        if triple in self.graph:
             return
-        else:
-            self.graph.set(triple)
+        self.graph.set(triple)
 
     @TermDeletionHelper(OWL_NS.allValuesFrom)
-    def _del_allValuesFrom(self):
+    def _del_all_values_from(self):
         pass
 
-    allValuesFrom = property(_get_allValuesFrom, _set_allValuesFrom, _del_allValuesFrom)
+    all_values_from = property(
+        _get_all_values_from, _set_all_values_from, _del_all_values_from
+    )
 
-    def _get_someValuesFrom(self):
+    def _get_some_values_from(self):
         for i in self.graph.objects(
             subject=self.identifier, predicate=OWL_NS.someValuesFrom
         ):
             return Class(i, graph=self.graph)
         return None
 
-    def _set_someValuesFrom(self, other):
-        triple = (self.identifier, OWL_NS.someValuesFrom, classOrIdentifier(other))
+    def _set_some_values_from(self, other):
         if not other:
             return
-        elif triple in self.graph:
+        triple = (
+            self.identifier,
+            OWL_NS.someValuesFrom,
+            self._restriction_object(other),
+        )
+        if triple in self.graph:
             return
-        else:
-            self.graph.set(triple)
+        self.graph.set(triple)
 
     @TermDeletionHelper(OWL_NS.someValuesFrom)
-    def _del_someValuesFrom(self):
+    def _del_some_values_from(self):
         pass
 
-    someValuesFrom = property(
-        _get_someValuesFrom, _set_someValuesFrom, _del_someValuesFrom
+    some_values_from = property(
+        _get_some_values_from, _set_some_values_from, _del_some_values_from
     )
 
-    def _get_hasValue(self):
+    def _get_has_value(self):
         for i in self.graph.objects(subject=self.identifier, predicate=OWL_NS.hasValue):
             return Class(i, graph=self.graph)
         return None
 
-    def _set_hasValue(self, other):
-        triple = (self.identifier, OWL_NS.hasValue, classOrIdentifier(other))
+    def _set_has_value(self, other):
         if not other:
             return
-        elif triple in self.graph:
+        triple = (self.identifier, OWL_NS.hasValue, self._restriction_object(other))
+        if triple in self.graph:
             return
-        else:
-            self.graph.set(triple)
+        self.graph.set(triple)
 
     @TermDeletionHelper(OWL_NS.hasValue)
-    def _del_hasValue(self):
+    def _del_has_value(self):
         pass
 
-    hasValue = property(_get_hasValue, _set_hasValue, _del_hasValue)
+    has_value = property(_get_has_value, _set_has_value, _del_has_value)
 
     def _get_cardinality(self):
         for i in self.graph.objects(
@@ -1766,13 +2038,12 @@ class Restriction(Class):
         return None
 
     def _set_cardinality(self, other):
-        triple = (self.identifier, OWL_NS.cardinality, classOrIdentifier(other))
         if not other:
             return
-        elif triple in self.graph:
+        triple = (self.identifier, OWL_NS.cardinality, self._restriction_object(other))
+        if triple in self.graph:
             return
-        else:
-            self.graph.set(triple)
+        self.graph.set(triple)
 
     @TermDeletionHelper(OWL_NS.cardinality)
     def _del_cardinality(self):
@@ -1780,55 +2051,61 @@ class Restriction(Class):
 
     cardinality = property(_get_cardinality, _set_cardinality, _del_cardinality)
 
-    def _get_maxCardinality(self):
+    def _get_max_cardinality(self):
         for i in self.graph.objects(
             subject=self.identifier, predicate=OWL_NS.maxCardinality
         ):
             return Class(i, graph=self.graph)
         return None
 
-    def _set_maxCardinality(self, other):
-        triple = (self.identifier, OWL_NS.maxCardinality, classOrIdentifier(other))
+    def _set_max_cardinality(self, other):
         if not other:
             return
-        elif triple in self.graph:
+        triple = (
+            self.identifier,
+            OWL_NS.maxCardinality,
+            self._restriction_object(other),
+        )
+        if triple in self.graph:
             return
-        else:
-            self.graph.set(triple)
+        self.graph.set(triple)
 
     @TermDeletionHelper(OWL_NS.maxCardinality)
-    def _del_maxCardinality(self):
+    def _del_max_cardinality(self):
         pass
 
-    maxCardinality = property(
-        _get_maxCardinality, _set_maxCardinality, _del_maxCardinality
+    max_cardinality = property(
+        _get_max_cardinality, _set_max_cardinality, _del_max_cardinality
     )
 
-    def _get_minCardinality(self):
+    def _get_min_cardinality(self):
         for i in self.graph.objects(
             subject=self.identifier, predicate=OWL_NS.minCardinality
         ):
             return Class(i, graph=self.graph)
         return None
 
-    def _set_minCardinality(self, other):
-        triple = (self.identifier, OWL_NS.minCardinality, classOrIdentifier(other))
+    def _set_min_cardinality(self, other):
         if not other:
             return
-        elif triple in self.graph:
+        triple = (
+            self.identifier,
+            OWL_NS.minCardinality,
+            self._restriction_object(other),
+        )
+        if triple in self.graph:
             return
-        else:
-            self.graph.set(triple)
+        self.graph.set(triple)
 
     @TermDeletionHelper(OWL_NS.minCardinality)
-    def _del_minCardinality(self):
+    def _del_min_cardinality(self):
         pass
 
-    minCardinality = property(
-        _get_minCardinality, _set_minCardinality, _del_minCardinality
+    min_cardinality = property(
+        _get_min_cardinality, _set_min_cardinality, _del_min_cardinality
     )
 
-    def restrictionKind(self):
+    def restriction_kind(self):
         for p in self.graph.triple_choices(
             (self.identifier, self.restrictionKinds, None)
         ):
@@ -1839,27 +2116,29 @@ class Restriction(Class):
         """
         Returns the Manchester Syntax equivalent for this restriction
         """
-        return manchesterSyntax(self.identifier, self.graph)
+        return manchester_syntax(self.identifier, self.graph)
 
 
 # === Infix Operators ===
 
 some = Infix(
-    lambda prop, _class: Restriction(prop, graph=_class.graph, someValuesFrom=_class)
+    lambda prop, _class: Restriction(prop, graph=_class.graph, some_values_from=_class)
 )
 only = Infix(
-    lambda prop, _class: Restriction(prop, graph=_class.graph, allValuesFrom=_class)
+    lambda prop, _class: Restriction(prop, graph=_class.graph, all_values_from=_class)
 )
 max = Infix(
-    lambda prop, _class: Restriction(prop, graph=prop.graph, maxCardinality=_class)
+    lambda prop, _class: Restriction(prop, graph=prop.graph, max_cardinality=_class)
 )
 min = Infix(
-    lambda prop, _class: Restriction(prop, graph=prop.graph, minCardinality=_class)
+    lambda prop, _class: Restriction(prop, graph=prop.graph, min_cardinality=_class)
 )
 exactly = Infix(
     lambda prop, _class: Restriction(prop, graph=prop.graph, cardinality=_class)
 )
-value = Infix(lambda prop, _class: Restriction(prop, graph=prop.graph, value=_class))
+value = Infix(
+    lambda prop, _class: Restriction(prop, graph=prop.graph, has_value=_class)
+)
 
 PropertyAbstractSyntax = """
 %s( %s { %s }
@@ -1870,65 +2149,71 @@ PropertyAbstractSyntax = """
 
 class Property(AnnotatibleTerms):
     """
-    axiom ::= 'DatatypeProperty(' datavaluedPropertyID ['Deprecated'] { annotation }
-                { 'super(' datavaluedPropertyID ')'} ['Functional']
-                { 'domain(' description ')' } { 'range(' dataRange ')' } ')'
-            | 'ObjectProperty(' individualvaluedPropertyID ['Deprecated'] { annotation }
-                { 'super(' individualvaluedPropertyID ')' }
-                [ 'inverseOf(' individualvaluedPropertyID ')' ] [ 'Symmetric' ]
-                [ 'Functional' | 'InverseFunctional' | 'Functional' 'InverseFunctional' |
-                  'Transitive' ]
-                { 'domain(' description ')' } { 'range(' description ')' } ')
+    Grammar::
+
+        axiom ::= 'DatatypeProperty(' datavaluedPropertyID ['Deprecated'] { annotation }
+                    { 'super(' datavaluedPropertyID ')'} ['Functional']
+                    { 'domain(' description ')' } { 'range(' dataRange ')' } ')'
+                | 'ObjectProperty(' individualvaluedPropertyID ['Deprecated'] { annotation }
+                    { 'super(' individualvaluedPropertyID ')' }
+                    [ 'inverseOf(' individualvaluedPropertyID ')' ] [ 'Symmetric' ]
+                    [ 'Functional' | 'InverseFunctional' | 'Functional' 'InverseFunctional' |
+                      'Transitive' ]
+                    { 'domain(' description ')' } { 'range(' description ')' } ')'
     """
 
-    def setupVerbAnnotations(self, verbAnnotations):
-        if isinstance(verbAnnotations, tuple):
-            TV_sgProp, TV_plProp, TV_vbg = verbAnnotations
+    def setup_verb_annotations(self, verb_annotations):
+        if isinstance(verb_annotations, tuple):
+            TV_sgProp, TV_plProp, TV_vbg = verb_annotations
         else:
-            TV_sgProp = verbAnnotations
-            TV_plProp = verbAnnotations
-            TV_vbg = verbAnnotations
+            TV_sgProp = verb_annotations
+            TV_plProp = verb_annotations
+            TV_vbg = verb_annotations
         if TV_sgProp:
             self.TV_sgProp.extent = [
-                (self.identifier, self.handleAnnotation(TV_sgProp))
+                (self.identifier, self.handle_annotation(TV_sgProp))
             ]
         if TV_plProp:
             self.TV_plProp.extent = [
-                (self.identifier, self.handleAnnotation(TV_plProp))
+                (self.identifier, self.handle_annotation(TV_plProp))
             ]
         if TV_vbg:
-            self.TV_vbgProp.extent = [(self.identifier, self.handleAnnotation(TV_vbg))]
+            self.TV_vbgProp.extent = [(self.identifier, self.handle_annotation(TV_vbg))]
 
     def __init__(
         self,
         identifier=None,
         graph=None,
-        baseType=OWL_NS.ObjectProperty,
-        subPropertyOf=None,
+        base_type=OWL_NS.ObjectProperty,
+        sub_property_of=None,
         domain=None,
         range=None,
-        inverseOf=None,
-        otherType=None,
-        equivalentProperty=None,
+        inverse_of=None,
+        other_type=None,
+        equivalent_property=None,
         comment=None,
-        verbAnnotations=None,
-        nameAnnotation=None,
-        nameIsLabel=False,
+        verb_annotations=None,
+        name_annotation=None,
+        name_is_label=False,
+        label: Literal = None,
     ):
-        super(Property, self).__init__(identifier, graph, nameAnnotation, nameIsLabel)
-        if verbAnnotations:
-            self.setupVerbAnnotations(verbAnnotations)
+        super(Property, self).__init__(
+            identifier, graph, name_annotation, name_is_label, label
+        )
+        if verb_annotations:
+            self.setup_verb_annotations(verb_annotations)
 
         assert not isinstance(self.identifier, BNode)
-        if baseType is None:
+        if base_type is None:
             # None give, determine via introspection
             self._baseType = first(Individual(self.identifier, graph=self.graph).type)
         else:
-            if (self.identifier, RDF.type, baseType) not in self.graph:
-                self.graph.add((self.identifier, RDF.type, baseType))
-            self._baseType = baseType
-        self.subPropertyOf = subPropertyOf
-        self.inverseOf = inverseOf
+            if (self.identifier, RDF.type, base_type) not in self.graph:
+                self.graph.add((self.identifier, RDF.type, base_type))
+            self._baseType = base_type
+        self.sub_property_of = sub_property_of and sub_property_of or []
+        if inverse_of:
+            self.inverse_of = inverse_of
         self.domain = domain
         self.range = range
         self.comment = comment and comment or []
@@ -1936,10 +2221,10 @@ class Property(AnnotatibleTerms):
     def serialize(self, graph):
         for fact in self.graph.triples((self.identifier, None, None)):
             graph.add(fact)
-        for p in itertools.chain(self.subPropertyOf, self.inverseOf):
+        for p in itertools.chain(self.sub_property_of, self.inverse_of):
             p.serialize(graph)
         for c in itertools.chain(self.domain, self.range):
-            CastClass(c, self.graph).serialize(graph)
+            cast_class(c, self.graph).serialize(graph)
 
     def _get_extent(self, graph=None):
         for triple in (graph is None and self.graph or graph).triples(
@@ -1962,12 +2247,12 @@ class Property(AnnotatibleTerms):
                 "ObjectProperty( %s annotation(%s)"
                 % (self.qname, first(self.comment) and first(self.comment) or "")
             )
-            if first(self.inverseOf):
-                twoLinkInverse = first(first(self.inverseOf).inverseOf)
+            if first(self.inverse_of):
+                twoLinkInverse = first(first(self.inverse_of).inverse_of)
                 if twoLinkInverse and twoLinkInverse.identifier == self.identifier:
-                    inverseRepr = first(self.inverseOf).qname
+                    inverseRepr = first(self.inverse_of).qname
                 else:
-                    inverseRepr = repr(first(self.inverseOf))
+                    inverseRepr = repr(first(self.inverse_of))
                 rt.append(
                     "  inverseOf( %s )%s"
                     % (
@@ -1998,7 +2283,7 @@ class Property(AnnotatibleTerms):
                 rt.append("   Functional")
 
         def canonicalName(term, g):
-            normalizedName = classOrIdentifier(term)
+            normalizedName = class_or_identifier(term)
             if isinstance(normalizedName, BNode):
                 return term
             elif normalizedName.startswith(_XSD_NS):
@@ -2016,7 +2301,7 @@ class Property(AnnotatibleTerms):
             " ".join(
                 [
                     "   super( %s )" % canonicalName(superP, self.graph)
-                    for superP in self.subPropertyOf
+                    for superP in self.sub_property_of
                 ]
             )
         )
@@ -2040,40 +2325,101 @@ class Property(AnnotatibleTerms):
         rt += "\n)"
         return str(rt)
 
-    def _get_subPropertyOf(self):
+    def some(self, cls_or_id):
+        return Restriction(self, graph=self.graph, some_values_from=cls_or_id)
+
+    def only(self, cls_or_id):
+        return Restriction(self, graph=self.graph, all_values_from=cls_or_id)
+
+    def value(self, term):
+        return Restriction(self, graph=self.graph, has_value=term)
+
+    def min(self, cardinality_value):
+        return Restriction(self, graph=self.graph, min_cardinality=cardinality_value)
+
+    def max(self, cardinality_value):
+        return Restriction(self, graph=self.graph, max_cardinality=cardinality_value)
+
+    def exactly(self, cardinality_value):
+        return Restriction(self, graph=self.graph, cardinality=cardinality_value)
+
+    def min_cardinality(self, value, on_class=None, on_data_range=None):
+        if on_class is not None or on_data_range is not None:
+            return Restriction(
+                self,
+                graph=self.graph,
+                min_qualified_cardinality=value,
+                on_class=on_class,
+                on_data_range=on_data_range,
+            )
+        return Restriction(self, graph=self.graph, min_cardinality=value)
+
+    def max_cardinality(self, value, on_class=None, on_data_range=None):
+        if on_class is not None or on_data_range is not None:
+            return Restriction(
+                self,
+                graph=self.graph,
+                max_qualified_cardinality=value,
+                on_class=on_class,
+                on_data_range=on_data_range,
+            )
+        return Restriction(self, graph=self.graph, max_cardinality=value)
+
+    def qualified_cardinality(self, value, on_class=None, on_data_range=None):
+        if on_class is None and on_data_range is None:
+            return Restriction(self, graph=self.graph, cardinality=value)
+        return Restriction(
+            self,
+            graph=self.graph,
+            qualified_cardinality=value,
+            on_class=on_class,
+            on_data_range=on_data_range,
+        )
+
+    def _get_sub_property_of(self):
         for anc in self.graph.objects(
             subject=self.identifier, predicate=RDFS.subPropertyOf
         ):
-            yield Property(anc, graph=self.graph, baseType=None)
+            yield Property(anc, graph=self.graph, base_type=None)
 
-    def _set_subPropertyOf(self, other):
+    def _set_sub_property_of(self, other):
         if not other:
             return
         for sP in other:
-            self.graph.add((self.identifier, RDFS.subPropertyOf, classOrIdentifier(sP)))
+            self.graph.add(
+                (self.identifier, RDFS.subPropertyOf, class_or_identifier(sP))
+            )
 
     @TermDeletionHelper(RDFS.subPropertyOf)
-    def _del_subPropertyOf(self):
+    def _del_sub_property_of(self):
         pass
 
-    subPropertyOf = property(_get_subPropertyOf, _set_subPropertyOf, _del_subPropertyOf)
+    sub_property_of = property(
+        _get_sub_property_of, _set_sub_property_of, _del_sub_property_of
+    )
 
-    def _get_inverseOf(self):
+    def _get_inverse_of(self):
         for anc in self.graph.objects(
             subject=self.identifier, predicate=OWL_NS.inverseOf
         ):
-            yield Property(anc, graph=self.graph, baseType=None)
+            yield Property(anc, graph=self.graph, base_type=None)
 
-    def _set_inverseOf(self, other):
+    def _set_inverse_of(self, other):
         if not other:
             return
-        self.graph.add((self.identifier, OWL_NS.inverseOf, classOrIdentifier(other)))
+        if isinstance(other, (list, tuple, set)):
+            for item in other:
+                self.graph.add(
+                    (self.identifier, OWL_NS.inverseOf, class_or_identifier(item))
+                )
+            return
+        self.graph.add((self.identifier, OWL_NS.inverseOf, class_or_identifier(other)))
 
     @TermDeletionHelper(OWL_NS.inverseOf)
-    def _del_inverseOf(self):
+    def _del_inverse_of(self):
         pass
 
-    inverseOf = property(_get_inverseOf, _set_inverseOf, _del_inverseOf)
+    inverse_of = property(_get_inverse_of, _set_inverse_of, _del_inverse_of)
 
     def _get_domain(self):
         for dom in self.graph.objects(subject=self.identifier, predicate=RDFS.domain):
@@ -2083,10 +2429,10 @@ class Property(AnnotatibleTerms):
         if not other:
             return
         if isinstance(other, (Individual, Identifier)):
-            self.graph.add((self.identifier, RDFS.domain, classOrIdentifier(other)))
+            self.graph.add((self.identifier, RDFS.domain, class_or_identifier(other)))
         else:
             for dom in other:
-                self.graph.add((self.identifier, RDFS.domain, classOrIdentifier(dom)))
+                self.graph.add((self.identifier, RDFS.domain, class_or_identifier(dom)))
 
     @TermDeletionHelper(RDFS.domain)
     def _del_domain(self):
@@ -2102,10 +2448,12 @@ class Property(AnnotatibleTerms):
         if not ranges:
             return
         if isinstance(ranges, (Individual, Identifier)):
-            self.graph.add((self.identifier, RDFS.range, classOrIdentifier(ranges)))
+            self.graph.add((self.identifier, RDFS.range, class_or_identifier(ranges)))
         else:
             for range in ranges:
-                self.graph.add((self.identifier, RDFS.range, classOrIdentifier(range)))
+                self.graph.add(
+                    (self.identifier, RDFS.range, class_or_identifier(range))
+                )
 
     @TermDeletionHelper(RDFS.range)
     def _del_range(self):
@@ -2116,11 +2464,287 @@ class Property(AnnotatibleTerms):
     def replace(self, other):
         # extension = []
         for s, p, o in self.extent:
-            self.graph.add((s, propertyOrIdentifier(other), o))
+            self.graph.add((s, property_or_identifier(other), o))
         self.graph.remove((None, self.identifier, None))
 
+    @property
+    def cardinality(self):
+        return CardinalityBuilder(self)
 
-def CommonNSBindings(graph, additionalNS={}):
+    def annotate_class(self, owl_class, value: Literal):
+        pred = class_or_identifier(self)
+        class_identifier = owl_class.identifier
+        self.graph.remove((class_identifier, pred, None))
+        self.graph.add(
+            (class_identifier, pred, owl_class.coerce_annotation_value(value))
+        )
+
+
+class AnnotationProperty(Property):
+    def __init__(
+        self,
+        identifier=None,
+        graph=None,
+        sub_property_of=None,
+        domain=None,
+        range=None,
+        inverse_of=None,
+        other_type=None,
+        equivalent_property=None,
+        comment=None,
+        verb_annotations=None,
+        name_annotation=None,
+        name_is_label=False,
+        label: Literal = None,
+    ):
+        super(AnnotationProperty, self).__init__(
+            identifier,
+            graph=graph,
+            base_type=OWL_NS.AnnotationProperty,
+            domain=domain,
+            range=range,
+            inverse_of=inverse_of,
+            other_type=other_type,
+            equivalent_property=equivalent_property,
+            comment=comment,
+            verb_annotations=verb_annotations,
+            name_is_label=name_is_label,
+            label=label,
+        )
+
+    def annotate_class(self, owl_class, value: Literal):
+        pred = class_or_identifier(self)
+        class_identifier = owl_class.identifier
+
+
+class CardinalityBuilder:
+    def __init__(self, prop, on_class=None, on_data_range=None):
+        self.prop = prop
+        self.on_class = on_class
+        self.on_data_range = on_data_range
+
+    def __call__(self, on_class=None, on_data_range=None):
+        return CardinalityBuilder(
+            self.prop, on_class=on_class, on_data_range=on_data_range
+        )
+
+    def _literal(self, value):
+        return value if isinstance(value, Literal) else Literal(value)
+
+    def __ge__(self, value):
+        if self.on_class is not None or self.on_data_range is not None:
+            return Restriction(
+                self.prop,
+                graph=self.prop.graph,
+                min_qualified_cardinality=self._literal(value),
+                on_class=self.on_class,
+                on_data_range=self.on_data_range,
+            )
+        return Restriction(
+            self.prop, graph=self.prop.graph, min_cardinality=self._literal(value)
+        )
+
+    def __le__(self, value):
+        if self.on_class is not None or self.on_data_range is not None:
+            return Restriction(
+                self.prop,
+                graph=self.prop.graph,
+                max_qualified_cardinality=self._literal(value),
+                on_class=self.on_class,
+                on_data_range=self.on_data_range,
+            )
+        return Restriction(
+            self.prop, graph=self.prop.graph, max_cardinality=self._literal(value)
+        )
+
+    def __eq__(self, value):
+        if self.on_class is not None or self.on_data_range is not None:
+            return Restriction(
+                self.prop,
+                graph=self.prop.graph,
+                qualified_cardinality=self._literal(value),
+                on_class=self.on_class,
+                on_data_range=self.on_data_range,
+            )
+        return Restriction(
+            self.prop, graph=self.prop.graph, cardinality=self._literal(value)
+        )
+
+
+def _namespace_prop(self, name, graph=None, base_type=OWL_NS.ObjectProperty):
+    return Property(URIRef(self + name), graph=graph, base_type=base_type)
+
+
+if not hasattr(Namespace, "prop"):
+    Namespace.prop = _namespace_prop
+
+
+def _require_owlapy():
+    from owlapy.iri import IRI
+    from owlapy.class_expression import (
+        OWLClass,
+        OWLDataAllValuesFrom,
+        OWLDataExactCardinality,
+        OWLDataHasValue,
+        OWLDataMaxCardinality,
+        OWLDataMinCardinality,
+        OWLDataSomeValuesFrom,
+        OWLObjectAllValuesFrom,
+        OWLObjectComplementOf,
+        OWLObjectExactCardinality,
+        OWLObjectHasValue,
+        OWLObjectIntersectionOf,
+        OWLObjectMaxCardinality,
+        OWLObjectMinCardinality,
+        OWLObjectOneOf,
+        OWLObjectSomeValuesFrom,
+        OWLObjectUnionOf,
+    )
+    from owlapy.owl_property import OWLDataProperty, OWLObjectProperty
+    from owlapy.owl_individual import OWLNamedIndividual
+    from owlapy.owl_literal import OWLLiteral
+
+    return {
+        "IRI": IRI,
+        "OWLClass": OWLClass,
+        "OWLDataAllValuesFrom": OWLDataAllValuesFrom,
+        "OWLDataExactCardinality": OWLDataExactCardinality,
+        "OWLDataHasValue": OWLDataHasValue,
+        "OWLDataMaxCardinality": OWLDataMaxCardinality,
+        "OWLDataMinCardinality": OWLDataMinCardinality,
+        "OWLDataProperty": OWLDataProperty,
+        "OWLDataSomeValuesFrom": OWLDataSomeValuesFrom,
+        "OWLLiteral": OWLLiteral,
+        "OWLObjectAllValuesFrom": OWLObjectAllValuesFrom,
+        "OWLObjectComplementOf": OWLObjectComplementOf,
+        "OWLObjectExactCardinality": OWLObjectExactCardinality,
+        "OWLObjectHasValue": OWLObjectHasValue,
+        "OWLObjectIntersectionOf": OWLObjectIntersectionOf,
+        "OWLObjectMaxCardinality": OWLObjectMaxCardinality,
+        "OWLObjectMinCardinality": OWLObjectMinCardinality,
+        "OWLObjectOneOf": OWLObjectOneOf,
+        "OWLObjectProperty": OWLObjectProperty,
+        "OWLObjectSomeValuesFrom": OWLObjectSomeValuesFrom,
+        "OWLObjectUnionOf": OWLObjectUnionOf,
+        "OWLNamedIndividual": OWLNamedIndividual,
+    }
+
+
+def _owlapy_iri(term):
+    owlapy = _require_owlapy()
+    if isinstance(term, BNode):
+        raise ValueError("BNode identifiers are not supported for owlapy adapters")
+    iri = class_or_identifier(term) if isinstance(term, (Class, Property)) else term
+    return owlapy["IRI"].create(str(iri))
+
+
+def to_owlapy_class(cls):
+    owlapy = _require_owlapy()
+    identifier = class_or_identifier(cls) if isinstance(cls, Class) else cls
+    return owlapy["OWLClass"](_owlapy_iri(identifier))
+
+
+def to_owlapy_individual(individual):
+    owlapy = _require_owlapy()
+    if isinstance(individual, Individual):
+        identifier = individual.identifier
+    else:
+        identifier = class_or_identifier(individual)
+    return owlapy["OWLNamedIndividual"](_owlapy_iri(identifier))
+
+
+def to_owlapy_property(prop):
+    owlapy = _require_owlapy()
+    if isinstance(prop, Property):
+        if OWL_NS.DatatypeProperty in prop.type:
+            return owlapy["OWLDataProperty"](_owlapy_iri(prop.identifier))
+        return owlapy["OWLObjectProperty"](_owlapy_iri(prop.identifier))
+    return owlapy["OWLObjectProperty"](_owlapy_iri(prop))
+
+
+def _owlapy_literal(literal):
+    owlapy = _require_owlapy()
+    if not isinstance(literal, Literal):
+        return None
+    return owlapy["OWLLiteral"](str(literal))
+
+
+def to_owlapy_expression(expr):
+    owlapy = _require_owlapy()
+    if isinstance(expr, Restriction):
+        prop = Property(expr.on_property, graph=expr.graph, base_type=None)
+        restriction_range = expr.restrictionRange
+        if isinstance(restriction_range, Class):
+            filler = to_owlapy_expression(restriction_range)
+        elif isinstance(restriction_range, (URIRef, BNode)):
+            filler = to_owlapy_expression(Class(restriction_range, graph=expr.graph))
+        else:
+            filler = _owlapy_literal(restriction_range)
+
+        if OWL_NS.DatatypeProperty in prop.type:
+            if expr.restrictionType == OWL_NS.someValuesFrom:
+                return owlapy["OWLDataSomeValuesFrom"](to_owlapy_property(prop), filler)
+            if expr.restrictionType == OWL_NS.allValuesFrom:
+                return owlapy["OWLDataAllValuesFrom"](to_owlapy_property(prop), filler)
+            if expr.restrictionType == OWL_NS.hasValue:
+                return owlapy["OWLDataHasValue"](to_owlapy_property(prop), filler)
+            if expr.restrictionType == OWL_NS.minCardinality:
+                return owlapy["OWLDataMinCardinality"](
+                    to_owlapy_property(prop), int(restriction_range)
+                )
+            if expr.restrictionType == OWL_NS.maxCardinality:
+                return owlapy["OWLDataMaxCardinality"](
+                    to_owlapy_property(prop), int(restriction_range)
+                )
+            if expr.restrictionType == OWL_NS.cardinality:
+                return owlapy["OWLDataExactCardinality"](
+                    to_owlapy_property(prop), int(restriction_range)
+                )
+            raise NotImplementedError("Unsupported data restriction type")
+
+        if expr.restrictionType == OWL_NS.someValuesFrom:
+            return owlapy["OWLObjectSomeValuesFrom"](to_owlapy_property(prop), filler)
+        if expr.restrictionType == OWL_NS.allValuesFrom:
+            return owlapy["OWLObjectAllValuesFrom"](to_owlapy_property(prop), filler)
+        if expr.restrictionType == OWL_NS.hasValue:
+            return owlapy["OWLObjectHasValue"](to_owlapy_property(prop), filler)
+        if expr.restrictionType == OWL_NS.minCardinality:
+            return owlapy["OWLObjectMinCardinality"](
+                to_owlapy_property(prop), int(restriction_range)
+            )
+        if expr.restrictionType == OWL_NS.maxCardinality:
+            return owlapy["OWLObjectMaxCardinality"](
+                to_owlapy_property(prop), int(restriction_range)
+            )
+        if expr.restrictionType == OWL_NS.cardinality:
+            return owlapy["OWLObjectExactCardinality"](
+                to_owlapy_property(prop), int(restriction_range)
+            )
+        raise NotImplementedError("Unsupported restriction type")
+
+    if isinstance(expr, EnumeratedClass):
+        individuals = [to_owlapy_individual(Individual(i)) for i in expr]
+        return owlapy["OWLObjectOneOf"](individuals)
+
+    if isinstance(expr, BooleanClass):
+        members = [to_owlapy_expression(Class(m, graph=expr.graph)) for m in expr]
+        if expr._operator == OWL_NS.unionOf:
+            return owlapy["OWLObjectUnionOf"](members)
+        if expr._operator == OWL_NS.intersectionOf:
+            return owlapy["OWLObjectIntersectionOf"](members)
+        raise NotImplementedError("Unsupported boolean operator")
+
+    if isinstance(expr, Class):
+        if expr.complement_of:
+            return owlapy["OWLObjectComplementOf"](
+                to_owlapy_expression(expr.complement_of)
+            )
+        return to_owlapy_class(expr)
+
+    return to_owlapy_class(expr)
+
+
+def common_ns_bindings(graph, additionalNS={}):
     """
     Takes a graph and binds the common namespaces (rdf, rdfs, & owl)
     """

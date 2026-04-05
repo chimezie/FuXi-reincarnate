@@ -43,8 +43,15 @@ def format_doctest_out(obj: Any) -> Any:
 
 def NetworkFromN3(n3Source, additionalBuiltins=None):
     """
-    Takes an N3 / RDF conjunctive graph and returns a ReteNetwork built from
-    the rules in the N3 graph
+    Build a ReteNetwork from an N3 / RDF conjunctive graph.
+
+    This parses rules from the given graph (or dataset), installs any
+    additional builtins, and compiles the rules into a RETE-UL network.
+
+    :param n3Source: A conjunctive graph or dataset containing N3 rules.
+    :param additionalBuiltins: Optional mapping of builtin predicates to
+        Python callables.
+    :return: A :class:`~fuxi.Rete.Network.ReteNetwork` instance.
     """
     from fuxi.Rete.RuleStore import SetupRuleStore
 
@@ -71,10 +78,18 @@ def HornFromDL(
     complSkip: list | None = None,
 ):
     """
-    Takes an OWL RDF graph, an indication of what level of ruleset safety
-    (see: http://code.google.com/p/fuxi/wiki/FuXiUserManual#Rule_Safety) to apply,
-    and a list of derived predicates and returns a Ruleset instance comprised of
-    the rules extracted from the OWL RDF graph (using a variation of the OWL 2 RL transformation)
+    Convert an OWL/RDF graph into a Ruleset of Horn clauses.
+
+    The OWL graph is translated using a variation of the OWL 2 RL
+    transformation. Use ``derivedPreds`` to restrict the rule set to a
+    known set of derived predicates and ``safety`` to control rule safety.
+
+    :param owlGraph: OWL/RDF graph to translate.
+    :param safety: Rule safety level (see DATALOG_SAFETY_* constants).
+    :param derivedPreds: Optional list of derived predicates (IDB).
+    :param complSkip: Optional list of predicates to skip during
+        complement expansion.
+    :return: Iterable of Horn rules (Ruleset).
     """
     from fuxi.Rete.RuleStore import SetupRuleStore
 
@@ -91,8 +106,12 @@ def HornFromDL(
 
 def HornFromN3(n3Source, additionalBuiltins=None):
     """
-    Takes the path or URL of a N3 document, and a mapping from predicates
-    to functions that implement any builtins found in the N3 document
+    Load a Ruleset from an N3 document or dataset.
+
+    :param n3Source: Path, URL, or RDF dataset/graph with N3 rules.
+    :param additionalBuiltins: Optional mapping of builtin predicates to
+        Python callables.
+    :return: A :class:`Ruleset` instance.
     """
     from fuxi.Rete.RuleStore import SetupRuleStore, N3RuleStore
 

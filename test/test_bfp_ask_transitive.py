@@ -22,7 +22,10 @@ from pyparsing.results import ParseResults
 
 QUERY_STRING = "ASK { test:Ghent test:path test:Amsterdam }"
 
-def _normalize_sparql_parse(parsed_query: Union[Tuple, ParseResults], ns_binds: Dict[str, str]):
+
+def _normalize_sparql_parse(
+    parsed_query: Union[Tuple, ParseResults], ns_binds: Dict[str, str]
+):
     if isinstance(parsed_query, tuple) and len(parsed_query) == 2:
         raise NotImplementedError(f"Not sure how to handle this yet: {parsed_query}")
         prologue, query = parsed_query
@@ -48,7 +51,9 @@ def test_bfp_ask_transitive_property_returns_true():
     _rule_store, _rule_graph, network = SetupRuleStore(makeNetwork=True)
 
     nsBinds = {"iw": "http://inferenceweb.stanford.edu/2004/07/iw.owl#"}
-    for pref, nsUri in {'test': 'http://www.w3.org/2002/03owlt/TransitiveProperty/premises001#'}.items():
+    for pref, nsUri in {
+        "test": "http://www.w3.org/2002/03owlt/TransitiveProperty/premises001#"
+    }.items():
         nsBinds[pref] = nsUri
 
     namespace_manager = NamespaceManager(Graph())
@@ -69,7 +74,7 @@ def test_bfp_ask_transitive_property_returns_true():
     rule_set = Ruleset()
     rule_set.nsMapping = nsBinds
 
-    #Setup DLP
+    # Setup DLP
     NormalFormReduction(fact_graph)
     dlp = network.setupDescriptionLogicProgramming(
         fact_graph,
@@ -83,12 +88,10 @@ def test_bfp_ask_transitive_property_returns_true():
     goals = []
     parsed_query = ParseSPARQL(QUERY_STRING)
     prologue, query = _normalize_sparql_parse(parsed_query, nsBinds)
-    extract_triples_from_query(query, nsBinds, goals)
+    _service_url, _ = extract_triples_from_query(query, nsBinds, goals)
 
     defaultDerivedPreds = set()
-    defaultDerivedPreds.update(
-        set([p == RDF.type and o or p for s, p, o in goals])
-    )
+    defaultDerivedPreds.update(set([p == RDF.type and o or p for s, p, o in goals]))
 
     base_ns = "http://www.w3.org/2002/03owlt/TransitiveProperty/premises001#"
     path_predicate = URIRef(f"{base_ns}path")
@@ -104,7 +107,7 @@ def test_bfp_ask_transitive_property_returns_true():
         DEBUG=True,
         derivedPredicates=defaultDerivedPreds,
         nsBindings=network.nsMap,
-        identifyHybridPredicates=True
+        identifyHybridPredicates=True,
     )
     target_graph = Graph(top_down_store)
     for pref, nsUri in list(network.nsMap.items()):
@@ -120,6 +123,7 @@ def test_bfp_ask_transitive_property_returns_true():
         print(query.asSPARQL())
 
     assert result.askAnswer is True
+
 
 if __name__ == "__main__":
     test_bfp_ask_transitive_property_returns_true()

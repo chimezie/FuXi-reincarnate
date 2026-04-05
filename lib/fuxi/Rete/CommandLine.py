@@ -15,8 +15,9 @@ from fuxi.Rete.Proof import PML, GMP_NS
 from fuxi.Rete.RuleStore import SetupRuleStore
 from fuxi.Rete.Util import generateTokenSet
 from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
-from fuxi.Syntax.InfixOWL import AllClasses
-from fuxi.Syntax.InfixOWL import AllProperties
+from fuxi.SPARQL.service import SPARQLServiceGraph
+from fuxi.Syntax.InfixOWL import all_classes
+from fuxi.Syntax.InfixOWL import all_properties
 from fuxi.Syntax.InfixOWL import Class
 from fuxi.Syntax.InfixOWL import Individual
 from fuxi.Syntax.InfixOWL import OWL_NS
@@ -73,7 +74,7 @@ def _normalize_sparql_parse(parsed_query, ns_binds):
         prologue.namespace_manager = NamespaceManager(Graph())
     for prefix, ns_inst in list(ns_binds.items()):
         prologue.namespace_manager.bind(prefix, ns_inst)
-    query_comp = query.query if hasattr(query, "query") else query
+    query_comp = query.query if hasattr(query, "query") and query.query else query
     return prologue, query_comp
 
 
@@ -398,6 +399,9 @@ def main():
     )
     (options, facts) = op.parse_args()
 
+    if options.sparqlEndpoint and len(facts) != 1:
+        op.error("--sparqlEndpoint expects exactly one endpoint URI argument")
+
     nsBinds = {"iw": "http://inferenceweb.stanford.edu/2004/07/iw.owl#"}
     for nsBind in options.ns:
         pref, nsUri = nsBind.split("=")
@@ -405,7 +409,7 @@ def main():
 
     namespace_manager = NamespaceManager(Graph())
     if options.sparqlEndpoint:
-        factGraph = Graph(plugin.get("SPARQLStore", Store)(facts[0]))
+        factGraph = SPARQLServiceGraph(options.sparqlEndpoint)
         options.hybrid = False
     else:
         factGraph = Graph()
@@ -430,6 +434,8 @@ def main():
 
     for prefix, uri in list(nsBinds.items()):
         namespace_manager.bind(prefix, uri, override=False)
+        if options.sparqlEndpoint:
+            factGraph.store.bind(prefix, uri)
     closureDeltaGraph = Graph()
     closureDeltaGraph.namespace_manager = namespace_manager
     factGraph.namespace_manager = namespace_manager
@@ -521,13 +527,13 @@ def main():
                 pref, uri = p.split(":")
                 print(Property(URIRef(mapping[pref] + uri)))
         else:
-            for p in AllProperties(cGraph):
+            for p in all_properties(cGraph):
                 print(p.identifier, first(p.label))
                 print(repr(p))
-            for c in AllClasses(cGraph):
+            for c in all_classes(cGraph):
                 if options.normalize:
-                    if c.isPrimitive():
-                        primAnc = [sc for sc in c.subClassOf if sc.isPrimitive()]
+                    if c.is_primitive():
+                        primAnc = [sc for sc in c.sub_class_of if sc.is_primitive()]
                         if len(primAnc) > 1:
                             warnings.warn(
                                 "Branches of primitive skeleton taxonomy"
@@ -536,11 +542,11 @@ def main():
                                 UserWarning,
                                 1,
                             )
-                        children = [desc for desc in c.subSumpteeIds()]
+                        children = [desc for desc in c.sub_sumptee_ids()]
                         for child in children:
                             for otherChild in [o for o in children if o is not child]:
                                 if otherChild not in [
-                                    c.identifier for c in Class(child).disjointWith
+                                    c.identifier for c in Class(child).disjoint_with
                                 ]:  # and \
                                     warnings.warn(
                                         "Primitive children (of %s) " % (c.qname)
@@ -629,9 +635,9 @@ def main():
                 # print("Magic seed fact (used in bottom-up evaluation)", goalSeed)
                 magicSeeds.append(goalSeed.toRDFTuple())
             # if noMagic:
-                # print("Predicates whose magic sets will not be calculated")
-                # for p in noMagic:
-                #     print("\t", factGraph.qname(p))
+            # print("Predicates whose magic sets will not be calculated")
+            # for p in noMagic:
+            #     print("\t", factGraph.qname(p))
             for rule in MagicSetTransformation(
                 factGraph,
                 ruleSet,

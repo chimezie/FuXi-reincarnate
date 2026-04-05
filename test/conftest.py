@@ -14,6 +14,11 @@ def pytest_addoption(parser):
         help="Whether or not to run a profile",
     )
     parser.addoption(
+        "--owl2-test-manifest",
+        default="https://www.w3.org/2009/11/owl-test/approved/all.rdf",
+        help="The location of the manifest to use for OWL2 testing",
+    )
+    parser.addoption(
         "--singleTest",
         default="",
         help="The identifier for the test to run",
@@ -29,6 +34,12 @@ def pytest_addoption(parser):
         default="bfp",
         choices=["gms", "sld", "bfp"],
         help="Which reasoning strategy to use in solving the OWL test cases",
+    )
+    parser.addoption(
+        "--owl-debug",
+        action="store_true",
+        default=False,
+        help="Enable verbose OWL entailment debugging",
     )
 
 

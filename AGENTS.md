@@ -1,16 +1,11 @@
 # FuXi + RDFLib Agent Guide
 
-This repo contains two major Python codebases:
-- **FuXi** in this directory - a Logic reasoning system for the semantic web (forward & backward chaining)
-- **RDFLib** in @../rdflib/ - Core RDF library (vendored copy included)
-
-FuXi (pronounced foo-shee) is a bi-directional (forward or bottom up methods and backward or top-down reasoning methods) 
-logical reasoning system for the Semantic Web and Python. FuXi was originally meant as a Python swiss army knife for 
-all things semantic web related. It works as a companion to RDFLib, a Python library for working with RDF.
+FuXi (pronounced foo-shee) is a FuXi is a highly efficient, Python-based, bi-directional semantic web logical reasoning system. 
+It works as a companion to RDFLib, a Python library for working with RDF.
 
 It is being re-written for modern Python 3.9+ and changes are being made to the Fuxi-reincarnate-chimezie git repository.
 
-The details of its original design are in @ARCHITECTURE.md.
+The details of its original design are in ARCHITECTURE.md.
 
 ---
 
@@ -152,13 +147,13 @@ Use pytest for all new tests.
 
 | Module | Purpose | Key Classes/Constants |
 |--------|---------|----------------------|
-| `FuXi.Horn` | Logic programming, RIF-BLD abstraction | Rule classes, safety constants |
-| `FuXi.Rete` | RETE-UL network for forward chaining | ReteNetwork, Alpha/Beta nodes |
-| `FuXi.DLP` | Description Logic Programs (OWL→rules) | DLProgram, translation utilities |
-| `FuXi.LP` | Backwards Fixpoint Procedure (BFP) | Query answering engine |
-| `FuXi.SPARQL` | Backward-chaining SPARQL store | Entailment registry |
+| `fuxi.Horn` | Logic programming, RIF-BLD abstraction | Rule classes, safety constants |
+| `fuxi.Rete` | RETE-UL network for forward chaining | ReteNetwork, Alpha/Beta nodes |
+| `fuxi.DLP` | Description Logic Programs (OWL→rules) | DLProgram, translation utilities |
+| `fuxi.LP` | Backwards Fixpoint Procedure (BFP) | Query answering engine |
+| `fuxi.SPARQL` | Backward-chaining SPARQL store | Entailment registry |
 
-### Rule Safety Levels (`FuXi.Horn`)
+### Rule Safety Levels (`fuxi.Horn`)
 ```python
 DATALOG_SAFETY_NONE   # No safety checks (fastest, unsafe rules allowed)
 DATALOG_SAFETY_STRICT # Strict variable binding requirements

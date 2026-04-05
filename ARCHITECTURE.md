@@ -4,16 +4,18 @@ FuXi (pronounced foo-shee) is a bi-directional (forward or bottom up methods and
 logical reasoning system for the Semantic Web and Python. FuXi was originally meant as a Python swiss army knife for 
 all things semantic web related. It works as a companion to RDFLib, a Python library for working with RDF.
 
+Note on package naming: the Python package path is `fuxi` (lowercase). Legacy docs and examples used `FuXi`.
+
 ## The Primary Modules ##
 An overview of the top-level modules in FuXi serves as an introduction to the general features of FuXi. The FuXi libraries are divided as follows:
 
-- FuXi.Horn
-- FuXi.Syntax
-- FuXi.DLP
-- FuXi.LP
-- FuXi.Rete
-- FuXi.SPARQL
-- FuXi.Horn
+- fuxi.Horn
+- fuxi.Syntax
+- fuxi.DLP
+- fuxi.LP
+- fuxi.Rete
+- fuxi.SPARQL
+- fuxi.Horn
 The Horn module was originally meant as a reference implementation of the W3C's [Rule Interchange Format Basic Logic Dialect](https://www.w3.org/TR/rif-bld/) 
  but eventually evolved into a Pythonic API for managing an abstract Logic Programming syntax. This module is heavily 
  used by both the DLP and Rete modules for (respectively) creating the rulesets converted from OWL RDF expressions and 
@@ -22,13 +24,13 @@ The Horn module was originally meant as a reference implementation of the W3C's 
 The Horn module includes Python classes for each of the major components of the RIF BLD abstract syntax 
 (EBNF Grammar for the Presentation Syntax of RIF-BLD):
 
-- FuXi.Horn.HornRules.Ruleset
-- FuXi.Horn.HornRules.Rule
-- FuXi.Horn.HornRules.Clause
-- FuXi.Horn.PositiveConditions.Condition
-- FuXi.Horn.PositiveConditions.And
-- FuXi.Horn.PositiveConditions.Or
-- FuXi.Horn.PositiveConditions.Uniterm
+- fuxi.Horn.HornRules.Ruleset
+- fuxi.Horn.HornRules.Rule
+- fuxi.Horn.HornRules.Clause
+- fuxi.Horn.PositiveConditions.Condition
+- fuxi.Horn.PositiveConditions.And
+- fuxi.Horn.PositiveConditions.Or
+- fuxi.Horn.PositiveConditions.Uniterm
 ... etc ..
 
 ## Serialization ##
@@ -42,10 +44,10 @@ The Horn module simplifies the process of serializing appropriate QNames (or cur
 
 ## Parsing RIF Core ##
 The Horn module also provides APIs for parsing rules from either the XML serialization or RIF in RDF syntaxes for RIF Core. 
-In particular, the RIFCoreParser class in the FuXi.Horn.RIFCore module provides this capability:
+In particular, the RIFCoreParser class in the fuxi.Horn.RIFCore module provides this capability:
 
 ```python
-from FuXi.Horn.RIFCore import RIFCoreParser
+from fuxi.Horn.RIFCore import RIFCoreParser
 from pprint import pprint 
 rif_document = 'http://www.w3.org/2005/rules/test/repository/tc/Frames/Frames-premise.rif' 
 rif_parser = RIFCoreParser(location=rif_document,debug=True)
@@ -57,7 +59,7 @@ produces:
 RIF document URL provided http://www.w3.org/2005/rules/test/repository/tc/Frames/Frames-premise.rif Extracted rules from RIF XML format rs = rif_parser.getRuleset() pprint(rs) [Forall ?Customer ( ns1:discount(?Customer 10) :- ns1:status(?Customer "gold"^^http://www.w3.org/2001/XMLSchema#string) ), Forall ?Customer ( ns1:discount(?Customer 5) :- ns1:status(?Customer "silver"^^http://www.w3.org/2001/XMLSchema#string) )] ```
 ```
 
-a list of FuXi.Horn.HornRules.Rule instances
+a list of fuxi.Horn.HornRules.Rule instances
 
 ## Rule Safety ##
 
@@ -66,20 +68,29 @@ Every rule has a `isSafe` method that returns a boolean indicating whether or no
 safety for the purpose of ensuring (for example) that the use of the RETE-UL network to forward-propagate a ruleset will 
 terminate and not run forever.
 
-The FuXi.Horn module has three top-level flags used in the command-line, the HornFromDL method described below, and the 
+The fuxi.Horn module has three top-level flags used in the command-line, the HornFromDL method described below, and the 
 setupDescriptionLogicProgramming method on networks:
 
-- FuXi.Horn.DATALOG_SAFETY_NONE
-- FuXi.Horn.DATALOG_SAFETY_STRICT
-- FuXi.Horn.DATALOG_SAFETY_LOOSE
+- fuxi.Horn.DATALOG_SAFETY_NONE
+- fuxi.Horn.DATALOG_SAFETY_STRICT
+- fuxi.Horn.DATALOG_SAFETY_LOOSE
 
 The first will not do any safety checking, the second will through a SyntaxError exception if any unsafe rules are 
 extracted from description logic formulae, and the third will simply skip any unsafe rules (ensuring any returned ruleset is safe)
 
-## FuXi.Syntax ## 
-The FuXi.Syntax module incorporates the InfixOwl library (see the linked Wiki for more information).
+## fuxi.Syntax ## 
+The fuxi.Syntax module incorporates the InfixOwl library (see the linked Wiki for more information).
 
-## FuXi.Rete ## 
+InfixOWL is used to build OWL class expressions and annotation-rich graphs that
+feed both DLP rule extraction and SPARQL interlocution workflows. For example,
+`test/test_remote_sparql_interlocution.py` constructs a patient-record ontology
+with `Class`, `Property`, and `AnnotationProperty` (including OWL_DSL role
+restriction phrasing annotations like `OWL_DSL_000001`). Those same graphs can
+be loaded into owlready2 worlds for CNL rendering and reasoning (as demonstrated
+in OWL_DSL's introspective rendering tests), because the serialized RDF uses
+standard OWL constructs and annotations.
+
+## fuxi.Rete ## 
 At the heart of the python-dlp framework is an implementation of most of the RETE-UL algorithms outlined in the PhD thesis (1995) of Robert Doorenbos:
 
 Production Matching for Large Learning Systems.
@@ -88,11 +99,11 @@ Robert's thesis (@CMU-CS-95-113.pdf) describes a modification of the original Re
 syntax (referred to as Working Memory Elements) to 3-item tuples (which corresponds quite nicely with the RDF abstract syntax). 
 The thesis also describes methods for using hash tables to improve efficiency of alpha nodes and beta nodes.
 
-Instances of the FuXi.Rete.ReteNetwork class are RETE-UL networks. So, to programmatically build a RETE-UL network, a developer would write: ```
+Instances of the fuxi.Rete.ReteNetwork class are RETE-UL networks. So, to programmatically build a RETE-UL network, a developer would write: ```
 
 ```python
 from rdflib.Graph import Graph
-from FuXi.Rete.RuleStore import SetupRuleStore
+from fuxi.Rete.RuleStore import SetupRuleStore
 rule_store, rule_graph, network = SetupRuleStore(makeNetwork=True,additionalBuiltins=...) 
 ```
 
@@ -119,23 +130,21 @@ original rules for the network. A network can also be explicitly built from a ru
 method for ReteNetwork instances. So, the HornFromN3 method can be used with SetupRuleStore to build a decision network 
 from a N3 document more concisely:
 
-## FuXi.Rete.Magic ##
+## fuxi.Rete.Magic ##
 This module is where the Sideways Information Passing reasoning capabilities are implemented. 
 
 ### FuXi Sideways Information Passing ###
 
-FuXi has full support for Sideways Information Passing, a general optimization technique originally based on one of the 
-more important algorithms in database theory called the Generalized Magic Set (GMS) transformation. Originally, the GMS 
-transformation is used to efficiently evaluate a query against a (possibly recursive) datalog program and database. It 
-is the theoretical basis of relational algebra implementations which include (possibly recursive) views.
+FuXi has full support for Sideways Information Passing, a general optimization technique originally based on some 
+important algorithms in database theory called the Generalized Magic Set (GMS) transformation. Originally, the GMS 
+transformation is used to efficiently evaluate a query against a (possibly recursive) datalog program and database.
 
 The mathematics of this is discussed in @EfficientSPARQL-in-use-generic.pdf
 
 #### Base and Derived Predicates #### 
 An important distinction needed for FuXi's SIP capabilities is between derived predicates and base predicates, the 
-former comprises the Intensional Database (IDB) and the latter the Extensional Database (EDB). Derived predicates are those 
-that (as the name suggests) are derived via rules and base predicates are (in the traditional sense) the stated facts 
-(also known as the database).
+former comprises the Intensional Database (IDB) and the latter the Extensional Database (EDB). Derived predicates 
+are derived by rules and base predicates are the stated facts (also known as _the database_).
 
 #### Backward Chaining / Top Down Evaluation #### 
 FuXi comes with two top-down (backward chaining) algorithms for SPARQL RIF-Core and OWL 2 RL entailment. The first is a 
@@ -146,35 +155,22 @@ a top-down procedure for answering the original question such that it can be eva
 forward-chaining / bottom-up algorithm.
 
 Both of these methods can be used to answer queries that involve derived predicates whose semantics are defined either 
-in a set of OWL2 RL axioms or RIF Core formulas. These answers are computed via a series of coordinated SPARQL queries 
-dispatched against the user-specified RDF graph (which can be connected to a large, remote SQL backend).
+in a set of OWL2 RL axioms or RIF Core formulas. Answers are computed via a series of coordinated SPARQL queries 
+dispatched against the user-specified RDF graph (which can be connected to a large, remote knowledge graph store).
 
-#### Reason for Deprecation #### 
-The FuXi.Rete.TopDown module is essentially a refutation (proof)-based implementation of a top-down strategy. Adding 
+The fuxi.Rete.TopDown module was essentially a refutation (proof)-based implementation of a top-down strategy. Adding 
 tabling / memoization to this strategy became quite complicated and the BFP is meant to address (and replace) this complexity:
 
-> One conclusion that can be drawn fromthe BFP is that it does not make sense to hierarchically structure queries according to their generation. In contrast it makes sense to rely on a static rewriting such as the Alexander or Magic Set rewriting and process the resulting rules with a semi-naive bottom-up rule engine. -- Foundations of Rule-Based Query Answering
+> One conclusion that can be drawn from the BFP is that it does not make sense to hierarchically structure queries 
+> according to their generation. In contrast it makes sense to rely on a static rewriting such as 
+> the Alexander or Magic Set rewriting and process the resulting rules with a semi-naive bottom-up rule engine. 
+>                                                          -- Foundations of Rule-Based Query Answering
+
 > BFP collects generated queries and proven facts in (n-ary) relations [...] In contrast SLD-Resolution relies on 
 > hierarchical data structure that relate proven facts and generated queries to the queries they come from. 
 >                                   -- Backwards Fixpoint Procedure
 
-It provides a core method 
-shown below:
-
-```python
-def MagicSetTransformation( factGraph, rules, GOALS, derivedPreds=None, strictCheck = ..., noMagic=[], defaultPredicates=None)
-```
-
-that takes as input:
-
-- A list of derived predicates (if an empty list is provided this indicates the user wants the method to determine the 
-list of derived predicates by inspecting the factGraph and update the given list in place): derivedPreds
-- The fact graph that we want to ask the query against (used to find derived predicates if an empty list is given): factGraph
-- A list of 3-item tuples each representing a SPARQL Basic Graph Pattern: GOALS
-- A set of safe RIF-Core rules: rules
-- Additional parameters described below
-
-It re-writes the rules into a more optimal form. The rules are modified so that they only search the proof space 
+Rules are re-written into a more optimal form. The rules are modified so that they only search the proof space 
 relevant for the query posed by the user. For most classes of problems, when the re-written rules are evaluated will be 
 evaluated just as efficiently via forward-chaining as it would via backwards chaining 
 (using a Prolog-like mechanism, for instance). So, the RETE-UL network can be used to evaluate queries 
@@ -184,51 +180,6 @@ The method returns a generator over the re-written rules and updates the given f
 via the .adornedProgram attribute. An adorned program is a ruleset where the literals have been adorned with information 
 about how variable bindings make their way from a goal through the series of rules that are applicable and is used to 
 create the re-written ruleset and also used by the backward chainer (see below).
-
-The MagicSetTransformation method requires some input about which predicates are derived 
-(it assumes the others are base predicates). For more information on this distinction, see Base and Derived Predicates. 
-In addition, the method also takes a flag that takes 1 of 4 values (the strictCheck argument) determining how strictly 
-to adhere to a clean separation between the two:
-
-FuXi.Rete.Magic.DDL_STRICTNESS_LOOSE
-FuXi.Rete.Magic.DDL_STRICTNESS_HARSH
-FuXi.Rete.Magic.DDL_STRICTNESS_FALLBACK_BASE
-FuXi.Rete.Magic.DDL_STRICTNESS_FALLBACK_DERIVED
-
-Finally, it also takes a defaultPredicates argument that is a two item tuple where the first item is a list of 
-default base predicates and the second is a list of default derived predicates. These are meant to be used with the 
-last two strictness flags.
-
-When the first flag is used, this indicates that the rule-rewriting state should not check to ensure that predicates 
-are not both base and derived. The second flag indicates that an exception will be raised if any predicate is found to 
-be both. The third and forth with cause a clashing predicate to be labeled as either a base or derived predicate 
-respectively (i.e., the default fallback if there is a clash). This rule will be overridden by the user-provided 
-list of default base and derived predicates. So, for example, if the user indicates the third flag (fallback to base) 
-but a clashing predicate is in the provided list of derived predicates, it will be marked as a derived predicate.
-
-### IdentifyDerivedPredicates ### 
-A helper function which takes a DDL graph, an OWL graph (the TBox), and a ruleset and returns the set of derived predicates. See the signature of the method.
-
-### FuXi.SPARQL ###
-The implementation for a BackwardsChainingStore. A backwards chaining store can be setup this way:
-
-```python
-from FuXi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore 
-topDownStore=TopDownSPARQLEntailingStore( factGraph.store, factGraph, set(dPreds), rules, nsBindings=nsMap, DEBUG=DEBUG) 
-targetGraph = Graph(topDownStore) 
-topDownStore.targetGraph = targetGraph
-```
-
-Where factGraph is an rdflib graph instance, dPreds is a set of URIs each of which is the name of a derived predicate 
-in the IDB, rules is a set of clauses that comprise the IDB, and nsBindings is a namespace mapping. At this point, a 
-SPARQL query can be dispatched to targetGraph (via targetGraph.query('... SPARQL ...') using derived predicates and the 
-sip strategy will be used to solve the (high-level) query through a series of query re-writing which produce base 
-queries (i.e., queries only involving base predicates) to evaluate against factGraph and combine such answers in order 
-to answer the original query.
-
-In this way, a (possibly large) SQL-based RDFLib backend can be queried using derived predicates defined by a domain 
-theory expressed as any combination of RIF Core, N3, and/or OWL2-RL such that additional answers that follow from the 
-domain theory will be provided to the query.
 
 #### SPARQL Interlocution Overview
 
@@ -259,8 +210,8 @@ Why this matters for extension:
 - You can plug in large/remote RDF stores because only relevant subqueries execute.
 - The approach is sound and complete with respect to naive rule materialization, but much cheaper in practice.
 
-### FuXi.Rete.TopDown ### 
-The FuXi.Rete.TopDown module has since been deprecated by the Backwards Fixpoint Procedure (BFP). See backward chaining
+### fuxi.Rete.TopDown ### 
+The fuxi.Rete.TopDown module has since been deprecated by the Backwards Fixpoint Procedure (BFP). See backward chaining
 
 #### SPARQL FILTER Templates and Top Down Builtins ####
 Building a ruleset with a set of defined builtin implementations (as Python functions) will provide the means to use 
@@ -283,7 +234,7 @@ factGraph.templateMap = dict([(pred,template) for pred,_ignore,template in
 Where builtinTemplateGraph is a graph of the templates. A SPARQL FILTER template builtin (N3) graph can be specified to 
 the FuXi command-line via the --builtinTemplates options:
 
-### FuXi.DLP ###
+### fuxi.DLP ###
 
 This module is a Description Horn Logic implementation as defined by Grosof, B. et.al. 
 ("Description Logic Programs: Combining Logic Programs with Description Logic"  @p117-grosof.pdf) in section 4.4. 
@@ -304,8 +255,8 @@ OWL editor and generate a corresponding ruleset.
 
 To invoke the DLP implementation, a developer would do the following:
 
-```python from FuXi.Rete.Util import generateTokenSet 
-from FuXi.DLP.DLNormalization import NormalFormReduction
+```python from fuxi.Rete.Util import generateTokenSet 
+from fuxi.DLP.DLNormalization import NormalFormReduction
 
 NormalFormReduction(tBoxGraph)
 network.setupDescriptionLogicProgramming(tBoxGraph)
@@ -345,7 +296,7 @@ network.feedFactsToAdd(generateTokenSet(someRDFGraph2)) ..etc..```
 Or, consider the use of HornFromDL to do something similar, but more directly:
 
 ```python
-from FuXi.Horn.HornRules import HornFromDL 
+from fuxi.Horn.HornRules import HornFromDL 
 from rdflib.Graph import Graph 
 from rdflib.util import first 
 first([r for r in HornFromDL(Graph().parse('http://www.lehigh.edu/%7Ezhp2/2004/0401/univ-bench.owl')) if not r.isSafe()]) ```
@@ -361,13 +312,13 @@ We can look at the OWL formulae associated with the TeachingAssistant class to s
 an unsafe rule:
 
 ```console
-$ FuXi --class=:TeachingAssistant --output=man-owl
+$ fuxi --class=:TeachingAssistant --output=man-owl
 http://www.lehigh.edu/%7Ezhp2/2004/0401/univ-bench.owl 
 ... snip ... 
 Class: :TeachingAssistant ## A Defined Class (university teaching assistant) ## EquivalentTo: :Person that ( :teachingAssistantOf some :Course )```
 ```
 
-### FuXi.LP ### 
+### fuxi.LP ### 
 A backwards fixpoint procedure (BFP) implementation in Python.
 
 A sound and complete query answering method for recursive databases based on meta-interpretation called 
@@ -396,4 +347,3 @@ The Beta Nodes are changed in the following way:
 Take a BetaNode (and a BFP rule) that joins values from an evaluate condition with other conditions and replace 
 the alpha node (and memory) used to represent the condition with a pass-thru beta with no parent nodes but whose 
 right memory will be used to add bindings instantiated from evaluate assertions in the BFP algorithm.
-

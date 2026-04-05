@@ -1,32 +1,72 @@
-FuXi is a Python-based, bi-directional logical reasoning system for the semantic web.
+FuXi is a highly efficient, Python-based, semantic web logical reasoning system. It is
+being re-written for modern Python 3.9+ and adapted for use with transformer-based AI systems and their frameworks.
 
-It is being re-written for modern Python 3.9+ and changes are being made to the Fuxi-reincarnate-chimezie git repository.
-
-At the heart of the python-dlp framework is an implementation of most of the RETE-UL algorithms outlined in the PhD thesis (1995) of Robert Doorenbos:
+Robert Doorenbos (1995) wrote about:
 
 > Production Matching for Large Learning Systems.
 
-Robert's thesis describes a modification of the original Rete algorithm that (amongst other things) limits the fact 
-syntax (referred to as Working Memory Elements) to 3-item tuples (which corresponds quite nicely with the RDF abstract syntax). 
-The thesis also describes methods for using hash tables to improve efficiency of alpha nodes and beta nodes.
+His thesis includes algorithms, most of which are implemented, describing a modification of the original Rete algorithm, 
+limiting its fact syntax to 3-item tuples which corresponds quite nicely with the RDF abstract syntax. 
+It also describes methods for using hash tables to improve the efficiency of alpha nodes and beta nodes.
 
-Instances of the FuXi.Rete.ReteNetwork class are RETE-UL networks.
+Instances of the fuxi.Rete.ReteNetwork class are RETE-UL networks.  These are used with a complement of
+various rule and query evaluation and re-writing strategies to facilitate efficient, goal-directed reasoning and querying
+over RDF datasets.
 
-FuXi has full support for Sideways Information Passing, a general optimization technique originally based on one of the 
-more important algorithms in database theory called the Generalized Magic Set (GMS) transformation. Originally, the GMS 
-transformation is used to efficiently evaluate a query against a (possibly recursive) datalog program and database. It 
-is the theoretical basis of relational algebra implementations which include (possibly recursive) views.
+Fuxi has a SPARQL SERVICE mediation API: a `SPARQLServiceGraph` class in the **fuxi.SPARQL.service** module
+with support for evaluating SPARQL "SERVICE" queries against scalable, efficient, remote SPARQL services such as:
+- [Virtuoso](https://virtuoso.openlinksw.com/)
+- [Qlever](https://github.com/ad-freiburg/qlever)
+- etc.
 
-## Package Name
+## Architecture Overview
 
-The canonical import name is `fuxi` (lowercase):
+Major components and how they interact (with emphasis on InfixOWL and SPARQL interlocution):
 
-```python
-import fuxi
-from fuxi.Rete.Network import ReteNetwork
+```mermaid
+flowchart LR
+    RDF["RDF/OWL Graphs"]
+    Infix["fuxi.Syntax\n(InfixOWL)"]
+    DLP["fuxi.DLP\n(OWL -> Rules)"]
+    Horn["fuxi.Horn\n(Rule Model)"]
+    Rete["fuxi.Rete\n(Forward Chaining)"]
+    LP["fuxi.LP\n(BFP / Backward Chaining)"]
+    SPARQL["fuxi.SPARQL\n(Interlocution)"]
+    Stores["Local/Remote RDF Stores"]
+
+    RDF --> Infix
+    Infix --> DLP
+    DLP --> Horn
+    Horn --> Rete
+    LP --> Rete
+    LP --> SPARQL
+    SPARQL <--> Stores
 ```
 
-The legacy `FuXi` import path is still supported for backward compatibility but is deprecated and will emit a warning.
+## RETE Network Flows
+
+Alpha/Beta network, working memory, and token propagation:
+
+```mermaid
+flowchart LR
+    Facts["Input Facts (WMEs)"] --> Alpha["Alpha Nodes\n(pattern match)"]
+    Alpha -->|tokens| Beta["Beta Nodes\n(joins)"]
+    Beta -->|partial match tokens| Terminal["Terminal Nodes\n(rule fired)"]
+    Terminal -->|assert inferred triples| WM["Working Memory / Inferred Graph"]
+    WM -->|new facts| Alpha
+```
+
+SIP adornment and magic set rewriting flow:
+
+```mermaid
+flowchart LR
+    Goal["Goal Triple Patterns"] --> Adorn["Adornment\n(bound/free analysis)"]
+    Adorn --> Magic["Magic Predicates\n(seed facts)"]
+    Magic --> Rewrite["Rewrite Rules\n(adorned rules + magic rules)"]
+    Rewrite --> SIP["SIP Graph\n(binding propagation)"]
+    SIP --> Eval["Bottom-up Evaluation\n(RETE over EDB)"]
+    Eval --> Answers["Derived Answers"]
+```
 
 ## Development Setup
 
@@ -39,6 +79,274 @@ uv venv
 source .venv/bin/activate
 uv pip install -e .
 ```
+
+Run tests with uv:
+
+```bash
+uv run pytest test
+```
+
+## InfixOWL
+
+InfixOWL provides a Pythonic DSL for building OWL class expressions and
+ontologies using RDFLib graphs. It is useful for programmatically constructing
+OWL classes, properties, and restrictions, then serializing them to RDF.
+
+Basic example:
+
+```python
+from rdflib import Graph, Namespace
+from fuxi.Syntax.InfixOWL import Class, Property, Restriction
+
+ex = Namespace("http://example.org/")
+g = Graph()
+
+Person = Class(ex.Person, graph=g)
+Parent = Class(ex.Parent, graph=g)
+hasChild = Property(ex.hasChild, graph=g)
+
+Parent.equivalent_class = [
+    Person & Restriction(hasChild, some_values_from=Person)
+]
+
+print(g.serialize(format="turtle"))
+```
+
+More examples:
+
+```python
+from rdflib import Literal, XSD
+
+# Boolean class expressions
+Person & Student
+Person | Student
+~Person
+
+# Infix restriction operators
+has_part | some | Organ
+has_part | only | Organ
+has_part | value | ex.Heart
+has_part | min | Literal(1)
+has_part | max | Literal(3)
+has_part | exactly | Literal(2)
+
+# Method helpers (equivalent to infix operators)
+has_part.some(Organ)
+has_part.only(Organ)
+has_part.value(ex.Heart)
+has_part.min(Literal(1))
+has_part.max(Literal(3))
+has_part.exactly(Literal(2))
+
+# Cardinality comparisons without operator overrides
+has_part.cardinality >= 1
+has_part.cardinality <= 3
+has_part.cardinality == 2
+
+# Qualified cardinality comparisons
+has_part.cardinality(Organ) >= 2
+has_part.cardinality(Organ) <= 3
+has_part.cardinality(Organ) == 1
+
+# Qualified cardinality for data property ranges
+age.cardinality(XSD.integer) >= 1
+age.cardinality(XSD.integer) <= 3
+age.cardinality(XSD.integer) == 1
+
+# Qualified cardinality helpers
+has_part.min_cardinality(2, Organ)
+has_part.max_cardinality(3, Organ)
+age.min_cardinality(1, XSD.integer)
+age.max_cardinality(3, XSD.integer)
+
+# Combine expressions
+Organ & has_part.some(Organ) & (has_part.cardinality >= 1)
+```
+
+Convenience helpers:
+
+```python
+from rdflib import Graph, Namespace
+from fuxi.Syntax.InfixOWL import Class, GraphContext
+
+ex = Namespace("http://example.org/")
+g = Graph()
+
+with GraphContext(g, {"ex": ex}):
+    has_child = ex.prop("hasChild")
+    person = Class(ex.Person)
+    parent = Class(ex.Parent)
+    parent.equivalent_class = [person & has_child.some(person)]
+```
+
+### InfixOWL API conventions (Python 3+)
+
+InfixOWL has been modernized to follow Python 3 naming conventions and idioms.
+The API now uses snake_case exclusively for public properties and methods.
+
+Impact on the API:
+- CamelCase accessors have been removed. For example: `subClassOf` -> `sub_class_of`,
+  `equivalentClass` -> `equivalent_class`, `onProperty` -> `on_property`.
+- Restriction keyword arguments are snake_case only (e.g., `some_values_from`,
+  `all_values_from`, `has_value`, `min_cardinality`).
+- Migration note: camelCase accessors (e.g., `seeAlso`, `subClassOf`) were removed; use
+  snake_case equivalents.
+- `label` accepts `str` or `Literal`; strings are coerced to `Literal`.
+
+Syntactic sugar improvements:
+- `GraphContext` sets `Individual.factoryGraph` and optional namespace bindings.
+- `Namespace.prop(name)` creates a `Property` under the namespace.
+- `Property` helpers build restrictions directly: `some`, `only`, `value`,
+  `min`, `max`, `exactly`.
+- `Property.cardinality` enables Pythonic comparisons:
+  `prop.cardinality >= 1`, `prop.cardinality <= 2`, `prop.cardinality == 1`.
+- Qualified cardinality uses `prop.cardinality(Class) >= 1` (OWL 2
+  `minQualifiedCardinality`).
+- owlapy adapters are available for interop.
+
+### OWL engineering and management
+
+FuXi's __**InfixOWL**__ can be used with Python design patterns to compose and annotate OWL ontologies, using
+OWL_DSL annotations, covered later, for example, to render their logical definitions in a human-readable
+format.
+
+```python
+from rdflib import Graph, Literal, Namespace
+from fuxi.Syntax.InfixOWL import GraphContext, Class, Property, AnnotationProperty
+
+HEALTH = Namespace("[..]]")
+PTREC = Namespace("[..]")
+DNODE = Namespace("[..]")
+OWL_DSL = Namespace("https://github.com/chimezie/OWL_DSL/tree/main/ontology_configurations/")
+OBO_NS = Namespace("http://purl.obolibrary.org/obo/")
+
+singular_phrase = OWL_DSL.OWL_DSL_000001
+plural_phrase = OWL_DSL.OWL_DSL_000002
+
+g = Graph()
+
+with GraphContext(g, {"health": HEALTH, "ptrec": PTREC}):
+        has_part = Property(OBO_NS.BFO_0000051, label="has part")
+        ice = Class(OBO.IAO_0000030, label="information content entity")
+        contains = Property(DNODE.contains, label="contains", domain=[ice], range=[ice],
+                            subproperty_of=[has_part]) #has part
+        contains.declare_annotation_property(singular_phrase)
+        contains.declare_annotation_property(plural_phrase)
+        definition = contains.declare_annotation_property(OWL_DSL.IAO_0000115)
+        
+        contains.set_annotation(singular_phrase, "contains {} (part of a patient record)")
+        contains.set_annotation(plural_phrase, "contains {} (parts of a patient record)")
+
+        contains.set_annotation(definition, 
+                                "A relation that stands between elements of an electronic record system")
+        definition.set_annotation(definition, 
+                                  "The official definition, explaining the meaning of a class or property")
+        has_part.set_annotation(definition,
+                                "a core relation that holds between a whole and its part")
+        
+        history_and_physical_event = Class(PTREC.Event_evaluation_history_and_physical, label="History and physical event")
+        history_and_physical_event.sub_class_of [Class(PTREC.Event, label="Medical Record Event")]         
+        
+        h_and_p_with_htn_dx = Class(HEALTH.H_and_P_with_htn_dx, label="Historical Htx Dx from H/P event")
+        h_and_p_with_htn_dx.set_annotation(OWL_DSL.IAO_0000115, 
+                                           "An H/P event (within a patient record) that has a Dx of hypertension as a part")
+        
+        h_and_p_with_htn_dx.equivalent_class = [history_and_physical_event & contains.some(
+          Class(PTREC.dx_pulmonary_hypertension_primary, label="Pulmonary hypertension primary DX") | 
+          Class(PTREC.dx_vascular_systemic_hypertension, label="Vascular hypertension primary DX"))]
+```
+
+And this is how the equivalent can be done with owlready2, a more declarative approach:
+
+```python
+from owlready2 import Thing, ObjectProperty, AnnotationProperty, World
+
+world = World()
+onto = world.get_ontology("[..]")
+owl_dsl_ns = onto.get_namespace(OWL_DSL)
+PTREC_NS = ontology.get_namespace([..])
+DNODE_NS = ontology.get_namespace([..])
+OBO_NS = ontology.get_namespace("http://purl.obolibrary.org/obo/")
+with onto:
+    with owl_dsl_ns: #OWL_DSL OWL CNL template annotation vocabulary
+        class OWL_DSL_000001(AnnotationProperty): pass
+    
+    with OBO_NS: #IAO and BFO/RO namespace use
+        class IAO_0000115(AnnotationProperty): 
+          label = ["definition"]
+        class IAO_0000030(Thing): 
+          label = ["information content entity"]
+        class BFO_0000051(ObjectProperty):
+          label = ["has part"]           
+          OWL_DSL_000001 = ["has {} as a part"]
+            
+    with DNODE_NS:
+      class contains(BFO_0000051):
+        domain = [IAO_0000030]
+        range = [IAO_0000030]
+        label = ["contains"]      
+        OWL_DSL_000001 = ["contains {} (part of a patient record)"]
+        IAO_0000115 = ["A relation that stands between elements of an electronic record system"]
+            
+    with PTREC_NS:
+      class Event_evaluation_history_and_physical(Thing):
+          label = ["History and physical event"]
+      class MedicalDiagnosis_vascular_systemic_hypertension(Thing):
+        label = ["Vascular systemic hypertension"]
+      class MedicalDiagnosis_pulmonary_hypertension_primary(Thing):
+        label = ["Pulmonary hypertension primary DX"]
+            
+    class H_and_P_with_htn_dx(Event_evaluation_history_and_physical):
+        label = ["Htx Dx from H/P event"]
+        equivalent_to = [Event_evaluation_history_and_physical & 
+                         contains.some(MedicalDiagnosis_vascular_systemic_hypertension |
+                                       MedicalDiagnosis_pulmonary_hypertension_primary)]
+```
+
+Notes:
+- `OWL_DSL_000001/000002/000003` are annotation properties used by OWL_DSL to
+  render role restriction phrasing (singular, plural, question forms).
+- InfixOWL graphs serialize to RDF and can be loaded into owlready2 worlds for
+  rendering or reasoning, matching the patterns used in OWL_DSL's test suite.
+
+### Syntax comparison
+
+The table below maps common OWL 2 Functional Syntax elements to their
+corresponding InfixOWL and owlapy usage.
+
+| OWL 2 Functional Syntax | Manchester OWL | InfixOWL (Python DSL) | owlapy (OWLAPI) | owlready2 |
+| --- | --- | --- | --- | --- |
+| `Class(:Person)` | `Class: Person` | `Person = Class(ex.Person, graph=g)` | `person = OWLClass("http://example.org/Person")` | `with onto: class Person(Thing): pass` |
+| `ObjectIntersectionOf(:A :B)` | `A and B` | `A & B` | `OWLObjectIntersectionOf([a, b])` | `A & B` |
+| `ObjectUnionOf(:A :B)` | `A or B` | `A \| B` | `OWLObjectUnionOf([a, b])` | `A \| B` |
+| `ObjectComplementOf(:A)` | `not A` | `~A` | `OWLObjectComplementOf(a)` | `~A` |
+| `ObjectSomeValuesFrom(:p :C)` | `p some C` | `Restriction(p, some_values_from=C)` or `p.some(C)` | `OWLObjectSomeValuesFrom(p, c)` | `p.some(C)` |
+| `ObjectAllValuesFrom(:p :C)` | `p only C` | `Restriction(p, all_values_from=C)` or `p.only(C)` | `OWLObjectAllValuesFrom(p, c)` | `p.only(C)` |
+| `ObjectHasValue(:p :i)` | `p value i` | `Restriction(p, has_value=i)` or `p.value(i)` | `OWLObjectHasValue(p, i)` | `p.value(i)` |
+| `ObjectMinCardinality(1 :p :C)` | `p min 1 C` | `Restriction(p, min_cardinality=Literal(1))`, `p.min(Literal(1))`, or `p.cardinality >= 1` | `OWLObjectMinCardinality(p, 1, c)` | `p.min(1, C)` |
+| `ObjectMaxCardinality(1 :p :C)` | `p max 1 C` | `Restriction(p, max_cardinality=Literal(1))`, `p.max(Literal(1))`, or `p.cardinality <= 1` | `OWLObjectMaxCardinality(p, 1, c)` | `p.max(1, C)` |
+| `ObjectMinQualifiedCardinality(1 :p :C)` | `p min 1 C` | `p.cardinality(C) >= 1` or `p.min_cardinality(1, C)` | `OWLObjectMinCardinality(p, 1, c)` | `p.min(1, C)` |
+| `ObjectMaxQualifiedCardinality(1 :p :C)` | `p max 1 C` | `p.cardinality(C) <= 1` or `p.max_cardinality(1, C)` | `OWLObjectMaxCardinality(p, 1, c)` | `p.max(1, C)` |
+| `ObjectExactQualifiedCardinality(1 :p :C)` | `p exactly 1 C` | `p.cardinality(C) == 1` or `p.qualified_cardinality(1, C)` | `OWLObjectExactCardinality(p, 1, c)` | `p.exactly(1, C)` |
+| `ObjectExactCardinality(1 :p :C)` | `p exactly 1 C` | `Restriction(p, cardinality=Literal(1))` or `p.exactly(Literal(1))` | `OWLObjectExactCardinality(p, 1, c)` | `p.exactly(1, C)` |
+| `ObjectOneOf(:a :b)` | `{ a , b }` | `EnumeratedClass(members=[ex.a, ex.b])` | `OWLObjectOneOf([a, b])` | `OneOf([a, b])` |
+| `SubClassOf(:A :B)` | `Class: A SubClassOf: B` | `A.sub_class_of = [B]` or `A += B` | `OWLAxiom` with `OWLSubClassOfAxiom(a, b)` | `A.is_a.append(B)` |
+| `EquivalentClasses(:A :B)` | `Class: A EquivalentTo: B` | `A.equivalent_class = [B]` | `OWLAxiom` with `OWLEquivalentClassesAxiom([a, b])` | `A.equivalent_to.append(B)` |
+| `DataSomeValuesFrom(:age xsd:integer)` | `age some xsd:integer` | `Restriction(age, some_values_from=XSD.integer)` | `OWLDataSomeValuesFrom(age, XSD.integer)` | `age.some(int)` |
+| `DataAllValuesFrom(:age xsd:integer)` | `age only xsd:integer` | `Restriction(age, all_values_from=XSD.integer)` | `OWLDataAllValuesFrom(age, XSD.integer)` | `age.only(int)` |
+| `DataHasValue(:age "42"^^xsd:integer)` | `age value 42` | `Restriction(age, has_value=Literal(42))` | `OWLDataHasValue(age, Literal(42))` | `age.value(42)` |
+| `DataMinCardinality(1 :age xsd:integer)` | `age min 1 xsd:integer` | `Restriction(age, min_cardinality=Literal(1))` | `OWLDataMinCardinality(age, 1, XSD.integer)` | `age.min(1, int)` |
+| `DataMaxCardinality(1 :age xsd:integer)` | `age max 1 xsd:integer` | `Restriction(age, max_cardinality=Literal(1))` | `OWLDataMaxCardinality(age, 1, XSD.integer)` | `age.max(1, int)` |
+| `DataExactCardinality(1 :age xsd:integer)` | `age exactly 1 xsd:integer` | `Restriction(age, cardinality=Literal(1))` | `OWLDataExactCardinality(age, 1, XSD.integer)` | `age.exactly(1, int)` |
+| `DataMinQualifiedCardinality(1 :age xsd:integer)` | `age min 1 xsd:integer` | `age.cardinality(XSD.integer) >= 1` or `age.min_cardinality(1, XSD.integer)` | `OWLDataMinCardinality(age, 1, XSD.integer)` | `age.min(1, int)` |
+| `DataMaxQualifiedCardinality(1 :age xsd:integer)` | `age max 1 xsd:integer` | `age.cardinality(XSD.integer) <= 1` or `age.max_cardinality(1, XSD.integer)` | `OWLDataMaxCardinality(age, 1, XSD.integer)` | `age.max(1, int)` |
+| `DataExactQualifiedCardinality(1 :age xsd:integer)` | `age exactly 1 xsd:integer` | `age.cardinality(XSD.integer) == 1` or `age.qualified_cardinality(1, XSD.integer)` | `OWLDataExactCardinality(age, 1, XSD.integer)` | `age.exactly(1, int)` |
+
+### InfixOWL and other OWL Python libraries / APIs
+
+OWL_DSL can render a Controlled Natural Language (CNL) sentence for an OWL class using Owlready2's API.
+Labels and annotation for classes and properties in an OWL ontology can be set directly via the 
+InfixOWL API to facilitate using OWL_DSL to fully render the logical semantics of their formal definitions.
 
 ## Command Line Usage
 
@@ -147,12 +455,88 @@ Options:
                         The format of the OWL RDF/XML graph specified via
                         --ontology.  The default is xml
   --builtinTemplates=N3_DOC_PATH_OR_URI
-                        The path to an N3 document associating SPARQL FILTER
-                        templates to rule builtins
+                         The path to an N3 document associating SPARQL FILTER
+                         templates to rule builtins
   --negation            Extract negative rules?
   --normalForm          Whether or not to reduce DL axioms & LP rules to a
-                        normal form
+                         normal form
 ```
+
+## SPARQL 1.1 entailment regimes and a Data Description Language (DDL)
+
+FuXi uses DDL to declare which predicates are derived (IDB) vs base (EDB), which
+in turn controls top-down query mediation and Magic Set rewriting.
+
+See `DataDescriptionLanguage.md` for the full vocabulary and examples.
+
+Short usage snippet (top-down mediation):
+
+`owl_entailment_regime_graph` is a framework for SPARQL 1.1
+[entailment regimes](https://www.w3.org/TR/sparql11-entailment/), using the
+SPARQL interlocution strategy described in `ARCHITECTURE.md` to mediate query
+answers against rules without full materialization and evaluating them against 
+independent and even remote RDF Datasets.
+
+```python
+from io import StringIO
+
+from rdflib import Graph, Namespace, RDF
+
+from fuxi.Horn.HornRules import HornFromN3
+from fuxi.SPARQL.utilities import owl_entailment_regime_graph
+
+ex = Namespace("http://example.org/")
+fact_graph = Graph().parse("path/to/facts.ttl", format="turtle")
+ns_map = {"ex": ex}
+rules_n3 = """
+@prefix ex: <http://example.org/> .
+{ ?s ex:parentOf ?o } => { ?s ex:relatedTo ?o } .
+"""
+extra_rulesets = [HornFromN3(StringIO(rules_n3))]
+goals = [
+    (ex.alice, RDF.type, ex.Person),
+    (ex.alice, ex.parentOf, ex.bob),
+]
+
+entail_graph, _closure_delta = owl_entailment_regime_graph(
+    fact_graph,
+    ns_map,
+    extra_rulesets=extra_rulesets,
+    goals=goals,
+)
+
+result = entail_graph.query(
+    "SELECT ?s ?o WHERE { ?s ex:relatedTo ?o }"
+)
+```
+
+When goals include `RDF.type`, the object (e.g., `ex.Person`) is treated as the
+derived predicate for goal-directed resolution.
+
+If `fact_graph` has OWL 2 axioms that are axiomatizeable by a ruleset,
+then the semantics of the ruleset will be used for OWL entailment of axioms as well.
+
+CLI example (DDL + SPARQL endpoint):
+
+```console
+$ fuxi \
+  --why="SELECT ?label { ?drug a drugbank:InfluenzaDrug; rdfs:label ?label }" \
+  --method=bfp \
+  --strictness=defaultDerived \
+  --ddlGraph=examples/drugBankDDL.n3 \
+  --ontology=test/SPARQL/drugBankOnt.n3 \
+  --ontologyFormat=n3 \
+  --sparqlEndpoint \
+  --dlp http://www4.wiwiss.fu-berlin.de/drugbank/sparql
+```
+
+## SPARQL Graph Wrapper
+
+Fuxi includes a query-only graph wrapper for a remote SPARQL service (**fuxi.SPARQL.service**).  It  mediates SPARQL 
+query evaluation by extracting the basic graph pattern (BGP) from a query, compiling it into an ``EDBQuery``, and 
+issuing a service query against the configured SPARQL endpoint. It is designed to plug into FuXi's 
+SPARQL entailment machinery so you can implement SPARQL 1.1 entailment regimes over remote services independent of 
+any reasoning capabilities of the service.
 
 ## Testing
 
@@ -161,6 +545,11 @@ Run the full pytest suite:
 ```bash
 uv run --active pytest
 ```
+
+Fuxi comes with harnesses to run the various OWL tests suites:
+
+- `pytest test/testOWL.py` - ["OWL 1"](http://www.w3.org/2002/03owlt/approved.zip) - harness for the original OWL test cases
+- `pytest test/testOWL2.py` - ["OWL 2"](http://www.w3.org/2009/01/pr-owl2-test-cases-20100301/) - similar harness for OWL 2 test cases (conformance conditions)
 
 Run the OWL test suite (each APPROVED test is an individual pytest case):
 
@@ -188,181 +577,51 @@ Filtering OWL tests with `-k`:
 
 ## Details ##
 
-Most of the content here was moved from the (outdated) [Google Code repository](https://code.google.com/archive/p/fuxi/)
-but see this wiki [this wiki](https://github.com/chimezie/FuXi-reincarnate/blob/fuxi-reincarnate/ARCHITECTURE.md) for more architectural details. 
+See [this wiki](https://github.com/chimezie/FuXi-reincarnate/blob/fuxi-reincarnate/ARCHITECTURE.md) for more architectural details. 
 
-#### Base and Derived Predicates #### 
-An important distinction needed for FuXi's SIP capabilities is between derived predicates and base predicates, the 
-former comprises the Intensional Database (IDB) and the latter the Extensional Database (EDB). Derived predicates are those 
-that (as the name suggests) are derived via rules and base predicates are (in the traditional sense) the stated facts 
-(also known as the database).
+### fuxi.DLP ###
 
-#### Backward Chaining / Top Down Evaluation #### 
-FuXi comes with two top-down (backward chaining) algorithms for SPARQL RIF-Core and OWL 2 RL entailment. The first is a 
-native Prolog-like Python implementation that can take a triple (as a goal) and generate a series of SPARQL queries 
-against the given factGraph, combining the results as answers to the goal. This has been deprecated by an extension of the 
-Backwards Fixpoint Procedure, a 'meta-interpretation' method that creates a program or ruleset that captures (or encodes) 
-a top-down procedure for answering the original question such that it can be evaluated via a 
-forward-chaining / bottom-up algorithm.
-
-Both of these methods can be used to answer queries that involve derived predicates whose semantics are defined either 
-in a set of OWL2 RL axioms or RIF Core formulas. These answers are computed via a series of coordinated SPARQL queries 
-dispatched against the user-specified RDF graph (which can be connected to a large, remote SQL backend).
-
-#### Reason for Deprecation #### 
-The FuXi.Rete.TopDown module is essentially a refutation (proof)-based implementation of a top-down strategy. Adding 
-tabling / memoization to this strategy became quite complicated and the BFP is meant to address (and replace) this complexity:
-
-> One conclusion that can be drawn from the BFP is that it does not make sense to hierarchically structure queries 
-> according to their generation. In contrast it makes sense to rely on a static rewriting such as the Alexander or 
-> Magic Set rewriting and process the resulting rules with a semi-naive bottom-up rule engine. 
->     -- Foundations of Rule-Based Query Answering
-> BFP collects generated queries and proven facts in (n-ary) relations [...] In contrast SLD-Resolution relies on 
-> hierarchical data structure that relate proven facts and generated queries to the queries they come from. 
->     -- Backwards Fixpoint Procedure
-
-It provides a core method:
-
-```python
-def MagicSetTransformation( factGraph, rules, GOALS, derivedPreds=None, strictCheck = ..., noMagic=[], defaultPredicates=None):
-```
-
-that takes as input:
-
-- A list of derived predicates (if an empty list is provided this indicates the user wants the method to determine the 
-list of derived predicates by inspecting the factGraph and update the given list in place): derivedPreds
-- The fact graph that we want to ask the query against (used to find derived predicates if an empty list is given): factGraph
-- A list of 3-item tuples each representing a SPARQL Basic Graph Pattern: GOALS
-- A set of safe RIF-Core rules: rules
-- Additional parameters described below
-
-It re-writes the rules into a more optimal form. The rules are modified so that they only search the proof space 
-relevant for the query posed by the user. For most classes of problems, when the re-written rules are evaluated will be 
-evaluated just as efficiently via forward-chaining as it would via backwards chaining 
-(using a Prolog-like mechanism, for instance). So, the RETE-UL network can be used to evaluate queries 
-(expressed as SPARQL BGPs) via forward-propagation or using the backward chaining capabilities
-
-The method returns a generator over the re-written rules and updates the given factGraph, adding to the adorned program 
-via the .adornedProgram attribute. An adorned program is a ruleset where the literals have been adorned with information 
-about how variable bindings make their way from a goal through the series of rules that are applicable and is used to 
-create the re-written ruleset and also used by the backward chainer (see below).
-
-The MagicSetTransformation method requires some input about which predicates are derived 
-(it assumes the others are base predicates). For more information on this distinction, see Base and Derived Predicates. 
-In addition, the method also takes a flag that takes 1 of 4 values (the strictCheck argument) determining how strictly 
-to adhere to a clean separation between the two.
-
-
-Finally, it also takes a defaultPredicates argument that is a two item tuple where the first item is a list of 
-default base predicates and the second is a list of default derived predicates. These are meant to be used with the 
-last two strictness flags.
-
-When the first flag is used, this indicates that the rule-rewriting state should not check to ensure that predicates 
-are not both base and derived. The second flag indicates that an exception will be raised if any predicate is found to 
-be both. The third and forth with cause a clashing predicate to be labeled as either a base or derived predicate 
-respectively (i.e., the default fallback if there is a clash). This rule will be overridden by the user-provided 
-list of default base and derived predicates. So, for example, if the user indicates the third flag (fallback to base) 
-but a clashing predicate is in the provided list of derived predicates, it will be marked as a derived predicate.
-
-### IdentifyDerivedPredicates ### 
-A helper function which takes a DDL graph, an OWL graph (the TBox), and a ruleset and returns the set of derived predicates. See the signature of the method.
-
-#### SPARQL FILTER Templates and Top Down Builtins ####
-Building a ruleset with a set of defined builtin implementations (as Python functions) will provide the means to use 
-builtins for forward chained inference via the RETE-UL network. However, as mentioned here the backward chaining inference 
-engine can be used to as a kind of semantic query mediator to solve a SPARQL triple pattern (that uses derived predicates) 
-by dispatching and combining answers from a series of intermediate SPARQL queries. Any builtins in the body (or antecedent) 
-of a rule can be sent along with these queries using an RDF-based templating system that specifies how to convert a 
-builtin function into a SPARQL FILTER expression.
-
-The factGraph given to the SipStrategy method can have attached to it, a mapping from predicates to SPARQL FILTER 
-expressions which are Python string templates that will be substituted with the parameters of the builtin as it is used 
-to solve the original query. Given a graph such as the example in the overview, we can create and attach the mapping 
-this way:
-
-```python
-factGraph.templateMap = dict([(pred,template) for pred,_ignore,template in 
-                              builtinTemplateGraph.triples( (None, TEMPLATES.filterTemplate, None))])
-```
-
-Where builtinTemplateGraph is a graph of the templates. A SPARQL FILTER template builtin (N3) graph can be specified to 
-the FuXi command-line via the --builtinTemplates options:
-
-### FuXi.DLP ###
-
-This module is a Description Horn Logic implementation as defined by Grosof, B. et.al. 
+The **fuxi.DLP** module is a definition of Description Horn Logic as described by Grosof, B. et.al. 
 ("Description Logic Programs: Combining Logic Programs with Description Logic"  @p117-grosof.pdf) in section 4.4. 
-As such, it implements recursive mapping functions "T", "Th" and "Tb" which result in "custom" (dynamic) rulesets.
+It implements recursive mapping functions "T", "Th" and "Tb" which result in "custom" (dynamic) rulesets.
 
-For the non logic-inclined, this essentially allows OWL ontologies (or a subset of OWL ontologies) to be automatically 
-converted to a set of rules that exactly capture the semantics of the OWL document. This mechanism is fundamental to 
-the larger framework that FuXi is a part of (python-dlp). The premise is two-fold.
+This essentially allows OWL ontologies (or a subset of OWL ontologies) to be automatically converted to a set of rules 
+that exactly capture the semantics of the OWL document.
 
-First (and most importantly), the ruleset(s) generated from an OWL ontology will be much more tailored to the specific 
-constraints of the ontology than a general-purpose ruleset would. As such, the inference mechanism will be several orders 
-of magnitude more efficient.
-
-Secondly, tools that are used for authoring OWL ontologies are significantly more mature than those used for authoring 
-[Notation 3](https://www.w3.org/DesignIssues/Notation3.html)) rulesets (or any other comparable semantic web rule language). 
-Using the DLP mechanism, a domain expert can model the semantics of a particular domain using any off-the-shelf 
-OWL editor and generate a corresponding ruleset.
-
-To invoke the DLP implementation, a developer would do the following:
-
-```python from FuXi.Rete.Util import generateTokenSet 
-from FuXi.DLP.DLNormalization import NormalFormReduction
-
-NormalFormReduction(tBoxGraph)
-network.setupDescriptionLogicProgramming(tBoxGraph)
-network.feedFactsToAdd(generateTokenSet(tBoxGraph))
-network.feedFactsToAdd(generateTokenSet(someRDFGraph)) 
-```
-
-The setupDescriptionLogicProgramming method can be invoked on a ReteNetwork instance, passing in an RDFLib Graph that 
+The `setupDescriptionLogicProgramming` method can be invoked on a ReteNetwork instance, passing in an RDFLib Graph that 
 consists of the OWL assertions that we wish to translate to a ruleset as the only argument. This method will return a 
 list of RuleSet objects each of which represents a rule that was translated from the OWL assertions.
 
 This method also takes a safety keyword that is any of the safety flags described above.
 
-Note, the TBox OWL RDF graph is normalized before using the setupDescriptionLogicProgramming method. This is necessary 
+The TBox OWL RDF graph is normalized before using the setupDescriptionLogicProgramming method. This is necessary 
 in order to handle certain OWL nested axioms.
 
-The following line then sends the OWL RDF assertions through the network. This is necessary to fully classify the OWL 
-ontology. Then finally, an RDF graph of facts are sent through the network. Typically, a user will have an RDF graph 
-with instance-level statements (the ABox) and an OWL RDF graph that describes the vocabulary terms used in the instance 
-graph (the TBox). After following the three steps above, the network.inferredFacts graph will now have all the RDF 
-statements that can be inferred from the combination of the OWL graph and the instance graph. Note, the DLP algorithm 
-only supports a subset of OWL-DL, so not all OWL graphs will be properly axiomatized.
+After execution, the network.inferredFacts graph will now have all the RDF statements that can be inferred from the \
+combination of the OWL graph and the instance graph. The DLP algorithm only supports a subset of OWL-DL, so not all 
+OWL graphs will be properly axiomatized.
 
 Finally, a network can be reset via the network.reset() method. This will clear the RETE-UL network, and is useful when 
 you want to setup a network once from an OWL graph and calculate the closure delta graph for multiple instance graphs 
 from the same ruleset. After resetting the network, the TBox graph will both need to be sent through the network again, 
-followed by the later instance graph:
+followed by the later instance graph.
 
 ```python
-network.setupDescriptionLogicProgramming(tBoxGraph) 
-network.feedFactsToAdd(generateTokenSet(tBoxGraph)) 
-network.feedFactsToAdd(generateTokenSet(someRDFGraph1)) 
-network.reset() 
-network.feedFactsToAdd(generateTokenSet(tBoxGraph)) 
-network.feedFactsToAdd(generateTokenSet(someRDFGraph2)) ..etc..```
-
-Or, consider the use of HornFromDL to do something similar, but more directly:
-
-```python
-from FuXi.Horn.HornRules import HornFromDL 
+from fuxi.Horn.HornRules import HornFromDL 
 from rdflib.Graph import Graph 
 from rdflib.util import first 
-first([r for r in HornFromDL(Graph().parse('http://www.lehigh.edu/%7Ezhp2/2004/0401/univ-bench.owl')) if not r.isSafe()]) ```
+first([r for r in HornFromDL(Graph().parse('http://www.lehigh.edu/%7Ezhp2/2004/0401/univ-bench.owl')) if not r.isSafe()]) 
+```
 
 ```console
-Forall ?X ( Exists _:tCDCSqnL314 ( Course(tCDCSqnL314) ) :- TeachingAssistant(?X) )
+Forall ?X ( Exists _:[.bnode label.] ( Course([.bnode label.]) ) :- TeachingAssistant(?X) )
 ```
 
 Here, the first unsafe rule from the Lehigh University Benchmark ontology is printed out. The rule is unsafe because 
 the existential variable in the rule head does not appear in the body.
 
-We can look at the OWL formulae associated with the TeachingAssistant class to see why its conversion to rules includes 
+We can look at the OWL formulae via OWL 2 Manchester OWL format for the TeachingAssistant class to see 
+why its conversion to rules includes 
 an unsafe rule:
 
 ```console
@@ -372,29 +631,19 @@ Class: :TeachingAssistant
     EquivalentTo: person THAT ( 'is a teaching assistant for' SOME teaching course )
 ```
 
-### FuXi.LP ### 
-A backwards fixpoint procedure (BFP) implementation in Python.
+### fuxi.LP ### 
+FuXi includes a backwards fixpoint procedure (BFP) implementation in Python, a sound and complete query answering 
+method for recursive databases based on meta-interpretation. It uses RETE-UL as the RIF PRD implementation of a 
+meta-interpreter of an adorned ruleset that builds large, conjunctive (BGPs) SPARQL queries.
 
-A sound and complete query answering method for recursive databases based on meta-interpretation called 
-Backward Fixpoint Procedure
-
-Uses RETE-UL as the RIF PRD implementation of a meta-interpreter of an adorned ruleset that builds large, 
-conjunctive (BGPs) SPARQL queries.
-
-Uses the specialized BFP meta-interpretation rules to build a RETE-UL decision network that is modified to support the 
+Specialized BFP meta-interpretation rules are used to build a RETE-UL decision network that is modified to support the 
 propagation of bindings from the evaluate predicates into a supplimental magic set sip strategy and the generation of 
-subqueries. The end result is a bottom-up simulation of SLD resolution with complete, sound, and safe memoization in 
-the face of recursion.
+subqueries. The end result is a bottom-up simulation of SLD resolution.
 
 Specialization is applied to the BFP meta-interpreter with respect to the rules of the object program. For each rule of 
 the meta-interpreter that includes a premise referring to a rule of the object program, one specialized version is 
-created for each rule of the object program.
-
-OpenQuery is used with predicate symbols to indicate a query without any bindings provided to the program 
-(disadvantageous for GMS).
-
-The semantics of the evaluate predicate is as follows: in each case, we add entailed evaluate bindings 
-(as high-arity predicates) directly into RETE-UL beta node memories in a circular fashion, propagating their successor.
+created for each rule of the object program.  OpenQuery is used with predicate symbols to indicate a query without any 
+bindings provided to the program (disadvantageous for GMS).
 
 The Beta Nodes are changed in the following way:
 

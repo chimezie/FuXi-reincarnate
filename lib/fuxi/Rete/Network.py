@@ -750,10 +750,10 @@ class ReteNetwork:
                             )
                             inferredToken.debug = True
                         self.inferredFacts.add(inferredTriple)
-                        self.addWME(inferredToken)
                         currIdx = self.instantiations.get(termNode, 0)
                         currIdx += 1
                         self.instantiations[termNode] = currIdx
+                        self.addWME(inferredToken)
                         if executeFn:
                             # The indicated execute action is supposed to be triggered
                             # when the indicates RHS triple is inferred for the

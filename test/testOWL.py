@@ -1,30 +1,29 @@
 from io import StringIO
 from glob import glob
 import os
+import re
 import time
 import pytest
-from pprint import pprint, pformat
-from rdflib import BNode, Namespace, RDF, RDFS, URIRef, plugin, Literal
+from pprint import pformat
+
+from fuxi.Rete.Network import ReteNetwork
+from rdflib import BNode, Namespace, RDF, RDFS, URIRef, Literal
 from rdflib.graph import Graph
-from rdflib.store import Store
 from fuxi.DLP import non_DHL_OWL_Semantics
 from fuxi.DLP.ConditionalAxioms import AdditionalRules
 from fuxi.Horn.HornRules import HornFromN3
 from fuxi.Horn.PositiveConditions import BuildUnitermFromTuple
-from fuxi.Rete.Magic import AdornLiteral, MagicSetTransformation
-from fuxi.Syntax.InfixOWL import nsBinds, all_classes, Individual, Variable
+from fuxi.Syntax.InfixOWL import all_classes, Individual, Variable
 from fuxi.Rete.ReteVocabulary import RETE_NS
-from fuxi.Rete.RuleStore import SetupRuleStore
 from fuxi.Rete.Util import generateTokenSet
-from fuxi.SPARQL.BackwardChainingStore import (
-    BFP_METHOD,
-    TOP_DOWN_METHOD,
-    TopDownSPARQLEntailingStore,
-)
+from fuxi.Rete.Proof import GenerateProof
+from fuxi.Rete.SidewaysInformationPassing import GetOp
+from fuxi.SPARQL.BackwardChainingStore import BFP_METHOD, TopDownSPARQLEntailingStore
 from fuxi.SPARQL import EDBQuery
+from rdflib.term import Identifier
+from .conftest import OwlTestOptions
 
 pytestmark = pytest.mark.integration
-
 
 RDFLIB_CONNECTION = ""
 RDFLIB_STORE = "IOMemory"
@@ -41,14 +40,12 @@ RDF_TEST = Namespace("http://www.w3.org/2000/10/rdf-tests/rdfcore/testSchema#")
 OWL_TEST = Namespace("http://www.w3.org/2002/03owlt/testOntology#")
 LIST = Namespace("http://www.w3.org/2000/10/swap/list#")
 
-queryNsMapping = {
+query_ns_mapping = {
     "test": "http://metacognition.info/FuXi/test#",
     "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
     "foaf": "http://xmlns.com/foaf/0.1/",
     "dc": "http://purl.org/dc/elements/1.1/",
     "rss": "http://purl.org/rss/1.0/",
-    "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
-    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
     "owl": str(OWL_NS),
     "rdfs": str(RDFS),
 }
@@ -79,16 +76,16 @@ WHERE {
 """
 # PARSED_MANIFEST_QUERY = parse(MANIFEST_QUERY)
 
-Features2Skip = [
+FEATURES_TO_SKIP = [
     URIRef("http://www.w3.org/2002/07/owl#sameClassAs"),
 ]
 
-NonNaiveSkip = [
+NON_NAIVE_SKIP = [
     "OWL/oneOf/Manifest002.rdf",  # see Issue 25
     "OWL/unionOf/Manifest002.rdf",  # support for disjunctive horn logic
 ]
 
-MagicTest2Skip = [
+MAGIC_TESTS_TO_SKIP = [
     # requires second order predicate derivation
     "OWL/oneOf/Manifest002.rdf",
     # requires second order predicate derivation
@@ -98,7 +95,7 @@ MagicTest2Skip = [
 ]
 
 
-BFPTests2SKip = [
+BFP_TESTS_TO_SKIP = [
     # Haven't reconciled *all* 2nd order predicate queries
     "OWL/FunctionalProperty/Manifest002.rdf",
     # "         "        "    "
@@ -107,7 +104,7 @@ BFPTests2SKip = [
     "OWL/oneOf/Manifest003.rdf",  # "         "        "    "
 ]
 
-TopDownTests2Skip = [
+TOP_DOWN_TESTS_TO_SKIP = [
     # requires second order predicate derivation
     "OWL/FunctionalProperty/Manifest002.rdf",
     "OWL/FunctionalProperty/Manifest004.rdf",
@@ -119,7 +116,7 @@ TopDownTests2Skip = [
     "OWL/distinctMembers/Manifest001.rdf",  # Not sure why
 ]
 
-Tests2Skip = [
+TESTS_TO_SKIP = [
     # owl:sameIndividualAs deprecated
     "OWL/InverseFunctionalProperty/Manifest001.rdf",
     # owl:sameIndividualAs deprecated
@@ -127,53 +124,13 @@ Tests2Skip = [
     "OWL/Nothing/Manifest002.rdf",  # owl:sameClassAs deprecated
 ]
 
-patterns2Skip = ["OWL/cardinality", "OWL/samePropertyAs"]
+PATTERNS_TO_SKIP = ["OWL/cardinality", "OWL/samePropertyAs"]
+
+def triple_to_triple_pattern(graph, triple):
+    return "%s %s %s" % tuple([render_term(graph, term) for term in triple])
 
 
-@pytest.fixture(scope="session")
-def test_options(request):
-    """Session-scoped fixture to access test configuration options."""
-
-    class Options:
-        def __init__(self):
-            self.profile = request.config.getoption("profile")
-            self.singleTest = request.config.getoption("singleTest")
-            self.debug = request.config.getoption("verbose") > 0
-            self.groundQuery = request.config.getoption("groundQuery")
-            self.strategy = request.config.getoption("strategy")
-
-    return Options()
-
-
-@pytest.fixture(scope="session")
-def reasoning_strategy(test_options):
-    """Get the reasoning strategy from test options."""
-    return test_options.strategy
-
-
-@pytest.fixture(scope="session")
-def ground_query(test_options):
-    """Get the ground query setting from test options."""
-    return test_options.groundQuery
-
-
-@pytest.fixture(scope="session")
-def debug_mode(test_options):
-    """Get the debug mode from test options."""
-    return test_options.debug
-
-
-@pytest.fixture(scope="session")
-def single_test(test_options):
-    """Get the single test filter from test options."""
-    return test_options.singleTest
-
-
-def tripleToTriplePattern(graph, triple):
-    return "%s %s %s" % tuple([renderTerm(graph, term) for term in triple])
-
-
-def renderTerm(graph, term):
+def render_term(graph, term):
     if term == RDF.type:
         return " a "
     else:
@@ -182,41 +139,29 @@ def renderTerm(graph, term):
         except:
             return term.n3()
 
-
-@pytest.fixture(scope="function")
-def network_fixture():
-    """Function-scoped pytest fixture to set up a fresh network for each test."""
-    rule_store, rule_graph, network = SetupRuleStore(makeNetwork=True)
-    network.nsMap = nsBinds
-    return network
-
-
-def calculateEntailments(network, factGraph):
+def calculate_entailments(network, factGraph):
     start = time.time()
     network.feedFactsToAdd(generateTokenSet(factGraph))
-    sTime = time.time() - start
-    if sTime > 1:
-        sTimeStr = "%s seconds" % sTime
+    s_time = time.time() - start
+    if s_time > 1:
+        s_time_str = "%s seconds" % s_time
     else:
-        sTime = sTime * 1000
-        sTimeStr = "%s milli seconds" % sTime
-    print("Time to calculate closure on working memory: %s" % sTimeStr)
+        s_time = s_time * 1000
+        s_time_str = "%s milli seconds" % s_time
+    print("Time to calculate closure on working memory: %s" % s_time_str)
     print(network)
 
-    tNodeOrder = [
-        tNode for tNode in network.terminalNodes if network.instantiations.get(tNode, 0)
+    terminal_node_order = [
+        t_node for t_node in network.terminalNodes if network.instantiations.get(t_node, 0)
     ]
-    tNodeOrder.sort(key=lambda x: network.instantiations[x], reverse=True)
-    for termNode in tNodeOrder:
-        print(termNode)
-        print("\t", termNode.rules)
-        print("\t\t%s instantiations" % network.instantiations[termNode])
-        # for c in AllClasses(factGraph):
-        #     print(CastClass(c,factGraph))
+    terminal_node_order.sort(key=lambda x: network.instantiations[x], reverse=True)
+    for term_node in terminal_node_order:
+        print(term_node)
+        print("\t", term_node.rules)
+        print("\t\t%s instantiations" % network.instantiations[term_node])
     print("==============")
     network.inferredFacts.namespace_manager = factGraph.namespace_manager
-    return sTimeStr
-
+    return s_time_str
 
 def _owl_test_id(params):
     if not isinstance(params, tuple):
@@ -229,6 +174,47 @@ def _owl_test_id(params):
     return "::".join([manifest, manifest_token, short_id, premise_file])
 
 
+def _owl_test_uri_id(test_uri):
+    """Return the most specific portion of the OWL test URI."""
+    if not test_uri:
+        return "owl_test"
+    if "http://www.w3.org/2002/03owlt/" in test_uri:
+        return test_uri.split("http://www.w3.org/2002/03owlt/")[-1]
+    return test_uri
+
+
+def _safe_test_id(test_id):
+    safe_id = re.sub(r"[^A-Za-z0-9._-]+", "_", test_id)
+    safe_id = safe_id.strip("_")
+    return safe_id or "owl_test"
+
+def _network_for_goal(query_networks, goal):
+    for network, tp in query_networks:
+        if tp == goal:
+            return network
+    if isinstance(goal, tuple) and len(goal) == 3:
+        for network, tp in query_networks:
+            if isinstance(tp, tuple) and len(tp) == 3:
+                if tp[1] == goal[1] and tp[2] == goal[2]:
+                    return network
+    return None
+
+
+def _proof_goal_for_query(goal: tuple[Variable, Identifier, Identifier],
+                          goal_dict: dict[tuple[Variable, Identifier, Identifier], Identifier] | None):
+    if goal_dict and goal in goal_dict:
+        return (goal_dict[goal], goal[1], goal[2])
+    return goal
+
+
+def _render_proof_diagrams(network, goal, proof_id, goal_index, top_down_store):
+    builder, proof = GenerateProof(network, goal, top_down_store)
+    dot = builder.renderProof(proof, nsMap=network.nsMap)
+    suffix = f"-goal-{goal_index}" if goal_index is not None else ""
+    base = f"/tmp/{proof_id}{suffix}"
+    dot.render(filename=base, cleanup=True, format="svg")
+    dot.render(filename=base, cleanup=True, format="png")
+
 def collect_owl_test_cases():
     """
     Collect all OWL test cases from manifest files.
@@ -236,190 +222,164 @@ def collect_owl_test_cases():
     Returns a list of test case tuples:
     (manifest, premise_file, conclusion_file, feature, description)
     """
+    from pathlib import Path
+
+    test_dir = Path(__file__).parent
     test_cases = []
-    here = os.getcwd()
-    original_dir = here
 
-    # Change to test directory if needed
-    if not here.endswith("/test") and not here.endswith("entailment"):
-        test_dir = here + "/test"
-        if os.path.exists(test_dir):
-            os.chdir(test_dir)
-        else:
-            # Try to find test directory
-            return test_cases
+    for manifest in (test_dir / "OWL").glob("*//Manifest*.rdf"):
+        manifest_str = str(manifest.relative_to(test_dir))
 
-    try:
-        for manifest in glob("OWL/*/Manifest*.rdf"):
-            # Skip explicitly excluded manifests
-            if manifest in Tests2Skip:
+        # Skip explicitly excluded manifests
+        if manifest_str in TESTS_TO_SKIP:
+            continue
+
+        # Skip based on patterns
+        skip = False
+        for pattern2Skip in PATTERNS_TO_SKIP:
+            if manifest_str.find(pattern2Skip) > -1:
+                skip = True
+                break
+        if skip:
+            continue
+
+        # Parse manifest
+        manifest_graph = Graph()
+        manifest_graph.parse(open(manifest), format="xml")
+        rt = manifest_graph.query(MANIFEST_QUERY, initNs=nsMap, DEBUG=False)
+
+        for test_uri, status, premise, conclusion, feature, description in rt:
+            # Only process APPROVED tests
+            if status != Literal("APPROVED"):
                 continue
 
-            # Skip based on patterns
-            skip = False
-            for pattern2Skip in patterns2Skip:
-                if manifest.find(pattern2Skip) > -1:
-                    skip = True
-                    break
-            if skip:
+            # Skip features that are explicitly excluded
+            if feature in FEATURES_TO_SKIP:
                 continue
 
-            # Parse manifest
-            try:
-                manifestGraph = Graph()
-                manifestGraph.parse(open(manifest), format="xml")
-                rt = manifestGraph.query(MANIFEST_QUERY, initNs=nsMap, DEBUG=False)
+            # Extract file names
+            premise = manifest_graph.namespace_manager.compute_qname(premise)[-1]
+            conclusion = manifest_graph.namespace_manager.compute_qname(
+                conclusion
+            )[-1]
 
-                for test_uri, status, premise, conclusion, feature, description in rt:
-                    # Only process APPROVED tests
-                    if status != Literal("APPROVED"):
-                        continue
+            manifest_parent = manifest.parent
+            premise_file = str((manifest_parent / premise).relative_to(test_dir))
+            conclusion_file = str((manifest_parent / conclusion).relative_to(test_dir))
 
-                    # Skip features that are explicitly excluded
-                    if feature in Features2Skip:
-                        continue
-
-                    # Extract file names
-                    premise = manifestGraph.namespace_manager.compute_qname(premise)[-1]
-                    conclusion = manifestGraph.namespace_manager.compute_qname(
-                        conclusion
-                    )[-1]
-
-                    premiseFile = "/".join(manifest.split("/")[:2] + [premise])
-                    conclusionFile = "/".join(manifest.split("/")[:2] + [conclusion])
-
-                    # Check that files exist
-                    if not os.path.exists(".".join([premiseFile, "rdf"])):
-                        continue
-                    if not os.path.exists(".".join([conclusionFile, "rdf"])):
-                        continue
-
-                    # Add test case
-                    test_params = (
-                        manifest,
-                        premiseFile,
-                        conclusionFile,
-                        str(feature),
-                        str(description),
-                        str(test_uri),
-                    )
-                    test_cases.append(
-                        pytest.param(*test_params, id=_owl_test_id(test_params))
-                    )
-            except Exception as e:
-                print(f"Error parsing manifest {manifest}: {e}")
+            # Check that files exist
+            if not (test_dir / f"{premise_file}.rdf").exists():
                 continue
-    finally:
-        # Restore original directory
-        os.chdir(original_dir)
+            if not (test_dir / f"{conclusion_file}.rdf").exists():
+                continue
 
+            # Add test case
+            test_params = (
+                manifest_str,
+                premise_file,
+                conclusion_file,
+                str(feature),
+                str(description),
+                str(test_uri),
+            )
+            test_cases.append(
+                pytest.param(*test_params, id=_owl_test_id(test_params))
+            )
     return test_cases
 
 
-def MagicOWLProof(network, goals, rules, factGraph, conclusionFile):
-    progLen = len(rules)
-    magicRuleNo = 0
-    dPreds = []
-    for rule in AdditionalRules(factGraph):
+def magic_owl_proof(network, goals, rules, fact_graph, options, proof_id=None):
+    goal_dict = None
+    for rule in AdditionalRules(fact_graph):
         rules.append(rule)
-    if not GROUND_QUERY and REASONING_STRATEGY != "gms":
-        goalDict = dict(
+    if not options.ground_query:
+        goal_dict: dict[tuple[Variable, Identifier, Identifier], Identifier] = dict(
             [
-                ((Variable("SUBJECT"), goalP, goalO), goalS)
+                ((Variable("SUBJECT"),
+                  goalP,
+                  goalO),
+                 goalS)
                 for goalS, goalP, goalO in goals
             ]
         )
-        goals = list(goalDict.keys())
+        goals: list[tuple[Variable, Identifier, Identifier]] = list(goal_dict.keys())
     assert goals
 
-    if REASONING_STRATEGY == "gms":
-        for rule in MagicSetTransformation(factGraph, rules, goals, dPreds):
-            magicRuleNo += 1
-            network.buildNetworkFromClause(rule)
-            network.rules.add(rule)
-            if DEBUG:
-                print("\t%s" % rule)
-        print(
-            "rate of reduction in the size of the program: %s "
-            % (100 - (float(magicRuleNo) / float(progLen)) * 100)
-        )
-
-    if REASONING_STRATEGY in ["bfp", "sld"]:  # and not GROUND_QUERY:
-        reasoningAlg = TOP_DOWN_METHOD if REASONING_STRATEGY == "sld" else BFP_METHOD
-        topDownStore = TopDownSPARQLEntailingStore(
-            factGraph.store,
-            factGraph,
+    if options.strategy == "bfp":
+        reasoning_alg = BFP_METHOD
+        top_down_store = TopDownSPARQLEntailingStore(
+            fact_graph.store,
+            fact_graph,
             idb=rules,
-            DEBUG=DEBUG,
+            DEBUG=options.debug,
             nsBindings=nsMap,
-            decisionProcedure=reasoningAlg,
-            identifyHybridPredicates=REASONING_STRATEGY == "bfp",
+            decisionProcedure=reasoning_alg,
+            identifyHybridPredicates=True,
         )
-        targetGraph = Graph(topDownStore)
+        target_graph = Graph(top_down_store)
         for pref, nsUri in list(nsMap.items()):
-            targetGraph.bind(pref, nsUri)
+            target_graph.bind(pref, nsUri)
         start = time.time()
 
-        for goal in goals:
-            queryLiteral = EDBQuery(
+        for goal_index, goal in enumerate(goals, start=1):
+            query_literal = EDBQuery(
                 [BuildUnitermFromTuple(goal)],
-                factGraph,
-                None if GROUND_QUERY else [goal[0]],
+                fact_graph,
+                None if options.ground_query else [goal[0]],
             )
-            query = queryLiteral.asSPARQL()
+            query = query_literal.asSPARQL()
             print("Goal to solve ", query)
-            rt = targetGraph.query(query, initNs=nsMap)
-            if GROUND_QUERY:
+            rt = target_graph.query(query, initNs=nsMap)
+            if options.ground_query:
                 assert bool(rt), "Failed top-down problem"
             else:
-                if not any(row[0] == goalDict[goal] for row in rt) or DEBUG:
-                    for network, _goal in topDownStore.queryNetworks:
+                if not any(row[0] == goal_dict[goal] for row in rt) or options.debug:
+                    for network, _goal in top_down_store.queryNetworks:
                         print(network, _goal)
                         network.reportConflictSet(True)
-                    for query in topDownStore.edbQueries:
-                        print(query.asSPARQL())
-                assert any(row[0] == goalDict[goal] for row in rt), (
+                    for query in top_down_store.edbQueries:
+                        print(query)
+                assert any(row[0] == goal_dict[goal] for row in rt), (
                     "Failed top-down problem"
                 )
-        sTime = time.time() - start
-        if sTime > 1:
-            sTimeStr = "%s seconds" % sTime
-        else:
-            sTime = sTime * 1000
-            sTimeStr = "%s milli seconds" % sTime
-        return sTimeStr
-    elif REASONING_STRATEGY == "gms":
-        for goal in goals:
-            adornedGoalSeed = AdornLiteral(goal).makeMagicPred()
-            goal = adornedGoalSeed.toRDFTuple()
-            if DEBUG:
-                print("Magic seed fact %s" % adornedGoalSeed)
-            factGraph.add(goal)
-        timing = calculateEntailments(network, factGraph)
-        for goal in goals:
-            # assert goal in network.inferredFacts or goal in factGraph, "Failed GMS query"
-            if goal not in network.inferredFacts and goal not in factGraph:
-                print("missing triple %s" % (pformat(goal)))
-                pprint(list(factGraph.adornedProgram))
-                # from fuxi.Rete.Util import renderNetwork
-                # dot=renderNetwork(network,network.nsMap).write_jpeg('test-fail.jpeg')
-                network.reportConflictSet(True)
-                raise  # Exception ("Failed test: "+feature)
-            else:
-                print("=== Passed! ===")
-        return timing
+            if proof_id and options.capture_proofs:
+                network_for_goal = _network_for_goal(top_down_store.queryNetworks, goal)
+                if network_for_goal is None and top_down_store.queryNetworks:
+                    network_for_goal = top_down_store.queryNetworks[-1][0]
+                if network_for_goal is None:
+                    network_for_goal = network
+                proof_goal = _proof_goal_for_query(goal, goal_dict)
 
+                if top_down_store.hybrid_predicates:
+                    lit = BuildUnitermFromTuple(proof_goal)
+                    op = GetOp(lit)
+                    if op in top_down_store.hybrid_predicates:
+                        lit.setOperator(URIRef(op + "_derived"))
+                        proof_goal = lit.toRDFTuple()
+                _render_proof_diagrams(
+                    network_for_goal,
+                    proof_goal,
+                    proof_id,
+                    goal_index,
+                    top_down_store
+                )
+        s_time = time.perf_counter() - start
+        if s_time > 1:
+            s_time_str = "%s seconds" % s_time
+        else:
+            s_time = s_time * 1000
+            s_time_str = "%s milli seconds" % s_time
+        return s_time_str
+    else:
+        raise NotImplementedError(f"Unsupported reasoning strategy: {options.strategy}")
 
 @pytest.mark.parametrize(
     "manifest,premise_file,conclusion_file,feature,description,test_uri",
     collect_owl_test_cases(),
 )
 def test_owl(
-    network_fixture,
-    reasoning_strategy,
-    ground_query,
-    debug_mode,
-    single_test,
+    rete_network: ReteNetwork,
+    owl_test_options: OwlTestOptions,
     manifest,
     premise_file,
     conclusion_file,
@@ -432,112 +392,99 @@ def test_owl(
 
     Each approved test from the OWL manifest files runs as a separate pytest test.
     """
-    # Set global variables for compatibility with existing code
-    global REASONING_STRATEGY, GROUND_QUERY, DEBUG
-    REASONING_STRATEGY = reasoning_strategy
-    GROUND_QUERY = ground_query
-    DEBUG = debug_mode
-
-    network = network_fixture
-
     # Apply single test filter
-    if single_test and premise_file != single_test:
+    if owl_test_options.single_test and premise_file != owl_test_options.single_test:
         pytest.skip(f"Skipping {premise_file} (--singleTest filter active)")
 
     # Apply strategy-specific skips
-    if (
-        (reasoning_strategy is not None and manifest in NonNaiveSkip)
-        or (reasoning_strategy == "sld" and manifest in TopDownTests2Skip)
-        or (reasoning_strategy == "bfp" and manifest in BFPTests2SKip)
-        or (reasoning_strategy == "gms" and manifest in MagicTest2Skip)
-    ):
-        pytest.skip(f"Incompatible with reasoning strategy: {reasoning_strategy}")
+    if manifest in NON_NAIVE_SKIP or (owl_test_options.strategy == "bfp" and manifest in BFP_TESTS_TO_SKIP):
+        pytest.skip(f"Incompatible with reasoning strategy: {owl_test_options.strategy}")
 
-    if feature in TopDownTests2Skip:
+    if feature in TOP_DOWN_TESTS_TO_SKIP:
         pytest.skip(f"Feature {feature} requires skipping for top-down tests")
 
-    # Change to test directory
-    here = os.getcwd()
-    if not here.endswith("/test") and not here.endswith("entailment"):
-        test_dir = here + "/test"
-        if os.path.exists(test_dir):
-            os.chdir(test_dir)
+    from pathlib import Path
+    base_dir = Path(os.path.relpath(__file__, os.getcwd())).parent
 
-    try:
-        # Verify files exist
-        premise_rdf = ".".join([premise_file, "rdf"])
-        conclusion_rdf = ".".join([conclusion_file, "rdf"])
+    # Verify files exist
+    premise_rdf = base_dir / Path(premise_file + ".rdf")
+    conclusion_rdf = base_dir / Path(conclusion_file + ".rdf")
+    assert premise_rdf.exists(), f"Premise file not found: {premise_rdf}"
+    assert conclusion_rdf.exists(), f"Conclusion file not found: {conclusion_rdf}"
 
-        assert os.path.exists(premise_rdf), f"Premise file not found: {premise_rdf}"
-        assert os.path.exists(conclusion_rdf), (
-            f"Conclusion file not found: {conclusion_rdf}"
+    print(f"\n{'=' * 60}")
+    print(f"Test: {premise_file}")
+    print(f"Feature: {feature}")
+    print(f"Description: {description}")
+    print(f"{'=' * 60}")
+    print(f"{conclusion_rdf} :- {premise_rdf}")
+
+    # Parse premise graph
+    fact_graph = Graph()
+    with premise_rdf.open() as f:
+        fact_graph.parse(f, format="xml")
+    nsMap.update(dict([(k, v) for k, v in fact_graph.namespaces()]))
+
+    if owl_test_options.debug:
+        print("\n## Source Graph ##")
+        print(fact_graph.serialize(format="n3"))
+
+    Individual.factoryGraph = fact_graph
+
+    if owl_test_options.debug:
+        for c in all_classes(fact_graph):
+            if not isinstance(c.identifier, BNode):
+                print(c.__repr__(True))
+
+    # Build program
+    program = list(HornFromN3(StringIO(non_DHL_OWL_Semantics)))
+    program.extend(
+        rete_network.setupDescriptionLogicProgramming(
+            fact_graph, addPDSemantics=False, constructNetwork=False
         )
+    )
 
-        print(f"\n{'=' * 60}")
-        print(f"Test: {premise_file}")
-        print(f"Feature: {feature}")
-        print(f"Description: {description}")
-        print(f"{'=' * 60}")
-        print(f"<{conclusion_rdf}> :- <{premise_rdf}>")
+    if owl_test_options.debug:
+        print("\n## Original Program ##")
+        print(pformat(program))
 
-        # Parse premise graph
-        factGraph = Graph()
-        factGraph.parse(open(premise_rdf), format="xml")
-        nsMap.update(dict([(k, v) for k, v in factGraph.namespaces()]))
+    # Run test based on reasoning strategy
+    if owl_test_options.strategy is None:
+        # Naive forward chaining
+        s_time_str = calculate_entailments(rete_network, fact_graph)
 
-        if DEBUG:
-            print("\n## Source Graph ##")
-            print(factGraph.serialize(format="n3"))
-
-        Individual.factoryGraph = factGraph
-
-        if DEBUG:
-            for c in all_classes(factGraph):
-                if not isinstance(c.identifier, BNode):
-                    print(c.__repr__(True))
-
-        # Build program
-        program = list(HornFromN3(StringIO(non_DHL_OWL_Semantics)))
-        program.extend(
-            network.setupDescriptionLogicProgramming(
-                factGraph, addPDSemantics=False, constructNetwork=False
-            )
-        )
-
-        if DEBUG:
-            print("\n## Original Program ##")
-            print(pformat(program))
-
-        # Run test based on reasoning strategy
-        if reasoning_strategy is None:
-            # Naive forward chaining
-            sTimeStr = calculateEntailments(network, factGraph)
-
-            # Verify expected facts
-            expectedFacts = Graph()
-            for triple in expectedFacts.parse(conclusion_rdf, format="xml"):
-                if triple not in network.inferredFacts and triple not in factGraph:
+        # Verify expected facts
+        expected_facts = Graph()
+        with conclusion_rdf.open() as f:
+            for triple in expected_facts.parse(f, format="xml"):
+                if triple not in rete_network.inferredFacts and triple not in fact_graph:
                     print(f"\nMissing triple: {pformat(triple)}")
                     print(f"Manifest: {manifest}")
                     print(f"Feature: {feature}")
                     print(f"Description: {description}")
-                    if DEBUG:
+                    if owl_test_options.debug:
                         print("\n## Inferred Facts ##")
-                        print(pformat(list(network.inferredFacts)))
+                        print(pformat(list(rete_network.inferredFacts)))
                     pytest.fail(f"Failed test: {feature} - Missing expected triple")
 
-            print(f"\n=== PASSED === (Time: {sTimeStr})")
-        else:
-            # Top-down or magic set reasoning
-            goals = []
-            conclusionGraph = Graph()
-            for triple in conclusionGraph.parse(conclusion_rdf, format="xml"):
-                if triple not in factGraph:
+        print(f"\n=== PASSED === (Time: {s_time_str})")
+    else:
+        # Top-down or magic set reasoning
+        goals = []
+        conclusion_graph = Graph()
+        with conclusion_rdf.open() as f:
+            for triple in conclusion_graph.parse(f, format="xml"):
+                if triple not in fact_graph:
                     goals.append(triple)
 
-            timing = MagicOWLProof(network, goals, program, factGraph, conclusion_file)
-            print(f"\n=== PASSED === (Time: {timing})")
+        test_id = _safe_test_id(_owl_test_uri_id(test_uri))
+        timing = magic_owl_proof(
+            rete_network,
+            goals,
+            program,
+            fact_graph,
+            owl_test_options,
+            proof_id=test_id,
+        )
+        print(f"\n=== PASSED === (Time: {timing})")
 
-    finally:
-        # Restore original directory
-        os.chdir(here)

@@ -639,8 +639,8 @@ class TopDownSPARQLEntailingStore(Store):
                 # also appears in the EDB (a "hybrid" predicate), the adornment
                 # step renamed the IDB variant to "<pred>_derived".  Rewrite the
                 # goal to match so the BFP targets the right adorned rules.
+                lit = BuildUnitermFromTuple(goal)
                 if self.hybrid_predicates:
-                    lit = BuildUnitermFromTuple(goal)
                     op = GetOp(lit)
                     if op in self.hybrid_predicates:
                         lit.setOperator(URIRef(op + "_derived"))

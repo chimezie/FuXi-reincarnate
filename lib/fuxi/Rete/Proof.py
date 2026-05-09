@@ -536,9 +536,10 @@ class ProofBuilder(object):
         # =====================================================================
         derived_right_activating_antecedents = [
             t for i, t in enumerate(body_terms) if
+            hasattr(t, 'op') and
             t.op != BFP_NS.evaluate and
             any(self.network.inferredFacts.triples((None, t.op, None))) and
-            (i > 0 and body_terms[i - 1].op == BFP_NS.evaluate)
+            (i > 0 and getattr(body_terms[i - 1], 'op', None) == BFP_NS.evaluate)
         ]
 
         for term in derived_right_activating_antecedents:
@@ -584,7 +585,7 @@ class ProofBuilder(object):
         # Dispatch based on the shape of the rule and the goal predicate.
         # =====================================================================
 
-        if p == BFP_NS.evaluate and any(t.op == BFP_NS.evaluate for t in body_terms):
+        if p == BFP_NS.evaluate and any(getattr(t, 'op', None) == BFP_NS.evaluate for t in body_terms):
             # -----------------------------------------------------------------
             # Case (a): evaluate(rule:M N) :- And( evaluate(rule:M K) ... )
             #
@@ -627,10 +628,9 @@ class ProofBuilder(object):
 
             # Fallback: if no matching EvaluateExecution was found, ground the first non-evaluate body term
             # and treat it as a regular (non-evaluate) derivation.
-            for term in [t for t in body_terms if t.op != BFP_NS.evaluate]:
+            for term in [t for t in body_terms if getattr(t, 'op', None) != BFP_NS.evaluate]:
                 term_triples = term.toRDFTuple()
-                for bindings in step.bindings:
-                    term_triples = tuple([bindings.get(arg, arg) for arg in term_triples])
+                term_triples = tuple([step.bindings.get(arg, arg) for arg in term_triples])
                 goal = term_triples
                 return self.build_non_evaluation_step(goal, parent, step, bindings, topDownStore)
 
@@ -679,7 +679,7 @@ class ProofBuilder(object):
                 )
                 return step
 
-            elif any(t.op == BFP_NS.evaluate for t in body_terms) and len(body_terms) == 1:
+            elif any(getattr(t, 'op', None) == BFP_NS.evaluate for t in body_terms) and len(body_terms) == 1:
                 # -------------------------------------------------------------
                 # Case (b): p_derived(...) :- evaluate(rule:M N)
                 #
@@ -721,7 +721,7 @@ class ProofBuilder(object):
                         return step
 
                 # Fallback: ground the non-evaluate body terms and delegate.
-                for term in [t for t in body_terms if t.op != BFP_NS.evaluate]:
+                for term in [t for t in body_terms if getattr(t, 'op', None) != BFP_NS.evaluate]:
                     term_triples = term.toRDFTuple()
                     term_triples = tuple([step.bindings.get(arg, arg) for arg in term_triples])
                     goal = term_triples

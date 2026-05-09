@@ -1164,7 +1164,7 @@ class Class(AnnotatibleTerms):
         >>> len(set([b, c]))
         1
         """
-        return hash(se1lf.identifier)
+        return hash(self.identifier)
 
     def __eq__(self, other):
         assert isinstance(other, Class), repr(other)

@@ -21,7 +21,14 @@ from fuxi.Rete.SidewaysInformationPassing import GetOp
 from fuxi.SPARQL.BackwardChainingStore import BFP_METHOD, TopDownSPARQLEntailingStore
 from fuxi.SPARQL import EDBQuery
 from rdflib.term import Identifier
-from .conftest import OwlTestOptions
+from .conftest import (
+    OwlTestOptions,
+    _owl_test_uri_id,
+    _safe_test_id,
+    _network_for_goal,
+    _proof_goal_for_query,
+    _render_proof_diagrams,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -173,47 +180,6 @@ def _owl_test_id(params):
     manifest_token = manifest.replace("/", "_")
     return "::".join([manifest, manifest_token, short_id, premise_file])
 
-
-def _owl_test_uri_id(test_uri):
-    """Return the most specific portion of the OWL test URI."""
-    if not test_uri:
-        return "owl_test"
-    if "http://www.w3.org/2002/03owlt/" in test_uri:
-        return test_uri.split("http://www.w3.org/2002/03owlt/")[-1]
-    return test_uri
-
-
-def _safe_test_id(test_id):
-    safe_id = re.sub(r"[^A-Za-z0-9._-]+", "_", test_id)
-    safe_id = safe_id.strip("_")
-    return safe_id or "owl_test"
-
-def _network_for_goal(query_networks, goal):
-    for network, tp in query_networks:
-        if tp == goal:
-            return network
-    if isinstance(goal, tuple) and len(goal) == 3:
-        for network, tp in query_networks:
-            if isinstance(tp, tuple) and len(tp) == 3:
-                if tp[1] == goal[1] and tp[2] == goal[2]:
-                    return network
-    return None
-
-
-def _proof_goal_for_query(goal: tuple[Variable, Identifier, Identifier],
-                          goal_dict: dict[tuple[Variable, Identifier, Identifier], Identifier] | None):
-    if goal_dict and goal in goal_dict:
-        return (goal_dict[goal], goal[1], goal[2])
-    return goal
-
-
-def _render_proof_diagrams(network, goal, proof_id, goal_index, top_down_store):
-    builder, proof = GenerateProof(network, goal, top_down_store)
-    dot = builder.renderProof(proof, nsMap=network.nsMap)
-    suffix = f"-goal-{goal_index}" if goal_index is not None else ""
-    base = f"/tmp/{proof_id}{suffix}"
-    dot.render(filename=base, cleanup=True, format="svg")
-    dot.render(filename=base, cleanup=True, format="png")
 
 def collect_owl_test_cases():
     """

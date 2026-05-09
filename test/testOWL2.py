@@ -13,6 +13,12 @@ from fuxi.Syntax.InfixOWL import nsBinds
 from fuxi.SPARQL import EDBQuery
 from fuxi.SPARQL.utilities import owl_entailment_regime_graph
 from fuxi.Horn.HornRules import HornFromN3
+from .conftest import (
+    OwlTestOptions,
+    _safe_test_id,
+    _network_for_goal,
+    _render_proof_diagrams,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -87,9 +93,11 @@ def test_owl_2(
     premise_ont,
     conclusion_ont,
     namespace_manager,
-    pytestconfig,
+    owl_test_options: OwlTestOptions,
 ):
-    debug = pytestconfig.getoption("--owl-debug")
+    debug = owl_test_options.debug
+    if owl_test_options.single_test and str(test_id) != owl_test_options.single_test:
+        pytest.skip(f"Skipping {test_id} (--single-test filter active)")
     premise_graph = Graph().parse(io.StringIO(premise_ont), format="xml")
     for (imported_ontology_url, ) in premise_graph.query(IMPORTS_QUERY, initNs=ns_map):
         print("Importing", imported_ontology_url)
@@ -126,7 +134,10 @@ def test_owl_2(
         extra_rulesets=HornFromN3(StringIO(thing_rule)),
         verbose=debug,
     )
-    for goal in goals:
+    proof_id = _safe_test_id(str(test_id)) if owl_test_options.capture_proofs else None
+    top_down_store = entailing_graph.store
+
+    for goal_index, goal in enumerate(goals, start=1):
         query_literal = EDBQuery(
             [BuildUnitermFromTuple(goal, ns_map)],
             premise_graph,
@@ -141,3 +152,16 @@ def test_owl_2(
             print("## Closure graph\n", closure_delta_graph.serialize(format="turtle"))
             print("## Goal\n", query_literal, query)
         assert rt.askAnswer, "Failed top-down problem"
+
+        if proof_id and owl_test_options.capture_proofs:
+            network_for_goal = _network_for_goal(top_down_store.queryNetworks, goal)
+            if network_for_goal is None and top_down_store.queryNetworks:
+                network_for_goal = top_down_store.queryNetworks[-1][0]
+            if network_for_goal is not None:
+                _render_proof_diagrams(
+                    network_for_goal,
+                    goal,
+                    proof_id,
+                    goal_index,
+                    top_down_store,
+                )

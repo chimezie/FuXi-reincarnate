@@ -12,6 +12,7 @@ from fuxi.Syntax.InfixOWL import nsBinds
 
 from fuxi.SPARQL import EDBQuery
 from fuxi.SPARQL.utilities import owl_entailment_regime_graph
+from fuxi.LP.BackwardFixpointProcedure import BFP_NS, BFP_RULE
 from fuxi.Horn.HornRules import HornFromN3
 from .conftest import (
     OwlTestOptions,
@@ -26,7 +27,14 @@ pytestmark = pytest.mark.integration
 OWL_NS = Namespace("http://www.w3.org/2002/07/owl#")
 OWL_TEST = Namespace("http://www.w3.org/2007/OWL/testOntology#")
 
-ns_map = {"rdfs": RDFS, "rdf": RDF, "owl": OWL_NS, "test": OWL_TEST, "xsd": XSD}
+ns_map = {"rdfs": RDFS,
+          "rdf": RDF,
+          "owl": OWL_NS,
+          "test": OWL_TEST,
+          "xsd": XSD,
+          "eval": BFP_NS,
+          "rule": BFP_RULE,
+          }
 
 MANIFEST_QUERY = """\
 SELECT ?test ?id ?profile ?comment ?description ?premiseOntology ?conclusionOntology
@@ -164,4 +172,5 @@ def test_owl_2(
                     proof_id,
                     goal_index,
                     top_down_store,
+                    extra_nsmap=ns_map,
                 )

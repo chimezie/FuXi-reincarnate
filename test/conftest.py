@@ -54,9 +54,12 @@ def _proof_goal_for_query(goal: tuple[Variable, Identifier, Identifier],
     return goal
 
 
-def _render_proof_diagrams(network, goal, proof_id, goal_index, top_down_store):
+def _render_proof_diagrams(network, goal, proof_id, goal_index, top_down_store, extra_nsmap=None):
     builder, proof = GenerateProof(network, goal, top_down_store)
-    dot = builder.renderProof(proof, nsMap=network.nsMap)
+    nsMap = {**network.nsMap, **(extra_nsmap or {})}
+    if not nsMap:
+        nsMap = top_down_store.ns_bindings or (extra_nsmap or {})
+    dot = builder.renderProof(proof, nsMap=nsMap)
     suffix = f"-goal-{goal_index}" if goal_index is not None else ""
     base = f"/tmp/{proof_id}{suffix}"
     dot.render(filename=base, cleanup=True, format="svg")

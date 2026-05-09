@@ -18,10 +18,7 @@ classifiers = [
     "Natural Language :: English",
 ]
 dependencies = [
-    "html5lib",
-    "isodate",
     "pyparsing",
-    "SPARQLWrapper",
     "rdflib>=7.4",
 ]
 
@@ -31,11 +28,14 @@ dev = [
     "coverage",
     "mypy",
     "pylint",
+    "graphviz",
     "pytest",
     "pytest-cov",
     "pyupgrade",
     "radon",
     "ruff",
+    "sphinx",
+    "sphinxcontrib-mermaid",
     "vulture",
     "lizard",
     "xenon",
@@ -46,21 +46,14 @@ dev = [
 fuxi = "fuxi.Rete.CommandLine:main"
 
 [project.urls]
-Homepage = "https://github.com/RDFLib/FuXi"
+Homepage = "https://github.com/chimezie/FuXi-reincarnate/blob/fuxi-reincarnate/"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-zip-safe = false
-
-[tool.setuptools.package-dir]
-"" = "lib"
-
 [tool.setuptools.packages.find]
 where = ["lib"]
-include = ["fuxi*"]
 
 [tool.pytest.ini_options]
 testpaths = ["test"]
@@ -88,57 +81,3 @@ target-version = "py313"
 [tool.ruff.lint]
 select = ["UP"]
 
-[tool.mypy]
-python_version = "3.13"
-files = ["lib"]
-ignore_missing_imports = true
-check_untyped_defs = false
-disallow_incomplete_defs = false
-warn_unused_ignores = true
-warn_return_any = false
-warn_redundant_casts = false
-warn_unreachable = false
-disallow_any_generics = false
-disallow_subclassing_any = false
-disallow_untyped_defs = false
-
-[[tool.mypy.overrides]]
-module = [
-    "fuxi.Horn.PositiveConditions",
-    "fuxi.Rete.RuleStore",
-    "fuxi.Rete.Network",
-    "fuxi.Horn.HornRules",
-]
-check_untyped_defs = true
-warn_unused_ignores = true
-
-[[tool.mypy.overrides]]
-module = [
-    "fuxi.SPARQL",
-    "fuxi.SPARQL.BackwardChainingStore",
-    "fuxi.LP.BackwardFixpointProcedure",
-]
-check_untyped_defs = true
-disallow_incomplete_defs = true
-warn_return_any = true
-
-[tool.coverage.run]
-source = ["fuxi"]
-omit = [
-    "*/test/*",
-    "*/tests/*",
-    "*/.venv/*",
-    "*/.tox/*",
-]
-branch = true
-
-[tool.coverage.report]
-precision = 2
-show_missing = true
-skip_covered = false
-exclude_lines = [
-    "pragma: no cover",
-    "if __name__ == .__main__.:",
-    "raise NotImplementedError",
-    "if TYPE_CHECKING:",
-]

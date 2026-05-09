@@ -565,7 +565,7 @@ The OWL test harness supports several custom pytest options:
 |--------|-------------|
 | `--strategy` | Reasoning strategy: `bfp` (default) or `naive` |
 | `--ground-query` | For top-down strategies, solve ground triple patterns |
-| `--single-test` | Run only the test with matching premise file (e.g., `OWL/TransitiveProperty/premises001`) |
+| `--single-test` | Run only the test matching the given identifier (format varies by test file) |
 | `--owl-debug` | Enable verbose OWL entailment debugging |
 | `--capture-proofs` | Capture PML proof graphs for tests |
 | `--profile` | Enable pytest profiling |
@@ -573,11 +573,17 @@ The OWL test harness supports several custom pytest options:
 ### Running Specific OWL Tests
 
 ```bash
-# Run a specific test by premise file
+# OWL 1 — filter by premise file path
 uv run pytest test/testOWL.py --single-test OWL/TransitiveProperty/premises001 --ground-query
 
-# Run with verbose debugging and proof capture
-uv run pytest test/testOWL.py --single-test OWL/TransitiveProperty/premises001 --owl-debug --capture-proofs --full-trace
+# OWL 2 — filter by test identifier (base ID, no goal suffix)
+uv run pytest test/testOWL2.py --single-test WebOnt-equivalentProperty-001
+
+# OWL 2 — run with verbose debugging
+uv run pytest test/testOWL2.py --single-test WebOnt-equivalentProperty-001 --owl-debug
+
+# OWL 2 — capture proof diagrams for a specific test
+uv run pytest test/testOWL2.py --single-test WebOnt-equivalentProperty-001 --capture-proofs
 
 # Run with BFP strategy (backward-chaining)
 uv run pytest test/testOWL.py --strategy bfp
@@ -585,12 +591,19 @@ uv run pytest test/testOWL.py --strategy bfp
 # Run with naive forward-chaining strategy
 uv run pytest test/testOWL.py --strategy naive
 
-# Filter tests using pytest -k (by test ID)
+# Filter OWL 1 tests using pytest -k (by test ID)
 uv run pytest test/testOWL.py -k "TransitiveProperty"
 
-# Run all tests in a specific category
+# Run all OWL 1 tests in a specific category
 uv run pytest test/testOWL.py -k "OWL/differentFrom"
 ```
+
+**`--single-test` identifier format:**
+
+- `testOWL.py` — the premise file path, e.g. `OWL/TransitiveProperty/premises001`
+- `testOWL2.py` — the base test identifier from the manifest, e.g. `WebOnt-equivalentProperty-001`.
+  Each test can produce multiple goal-instances (e.g. `_0`, `_1`) which share the same base ID;
+  the filter matches all of them at once.
 
 ### Filtering OWL Tests with `-k`
 

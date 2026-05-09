@@ -543,7 +543,7 @@ any reasoning capabilities of the service.
 Run the full pytest suite:
 
 ```bash
-uv run --active pytest
+uv run pytest test
 ```
 
 Fuxi comes with harnesses to run the various OWL tests suites:
@@ -554,26 +554,50 @@ Fuxi comes with harnesses to run the various OWL tests suites:
 Run the OWL test suite (each APPROVED test is an individual pytest case):
 
 ```bash
-uv run --active pytest test/testOWL.py
+uv run pytest test/testOWL.py
 ```
 
-OWL test options:
+### OWL Test Options
+
+The OWL test harness supports several custom pytest options:
+
+| Option | Description |
+|--------|-------------|
+| `--strategy` | Reasoning strategy: `bfp` (default) or `naive` |
+| `--ground-query` | For top-down strategies, solve ground triple patterns |
+| `--single-test` | Run only the test with matching premise file (e.g., `OWL/TransitiveProperty/premises001`) |
+| `--owl-debug` | Enable verbose OWL entailment debugging |
+| `--capture-proofs` | Capture PML proof graphs for tests |
+| `--profile` | Enable pytest profiling |
+
+### Running Specific OWL Tests
 
 ```bash
-uv run --active pytest test/testOWL.py --strategy bfp
-uv run --active pytest test/testOWL.py --groundQuery
-uv run --active pytest test/testOWL.py --singleTest OWL/differentFrom/premises002
-uv run --active pytest test/testOWL.py --profile
-uv run --active pytest test/testOWL.py -k "OWL_I5.1_Manifest001.rdf"
-uv run --active pytest test/testOWL.py -k "I5.1/Manifest001#test"
+# Run a specific test by premise file
+uv run pytest test/testOWL.py --single-test OWL/TransitiveProperty/premises001 --ground-query
+
+# Run with verbose debugging and proof capture
+uv run pytest test/testOWL.py --single-test OWL/TransitiveProperty/premises001 --owl-debug --capture-proofs --full-trace
+
+# Run with BFP strategy (backward-chaining)
+uv run pytest test/testOWL.py --strategy bfp
+
+# Run with naive forward-chaining strategy
+uv run pytest test/testOWL.py --strategy naive
+
+# Filter tests using pytest -k (by test ID)
+uv run pytest test/testOWL.py -k "TransitiveProperty"
+
+# Run all tests in a specific category
+uv run pytest test/testOWL.py -k "OWL/differentFrom"
 ```
 
-Note: `--profile` requires a pytest profiling plugin to produce output.
+### Filtering OWL Tests with `-k`
 
-Filtering OWL tests with `-k`:
+The test ID format is: `MANIFEST_PATH::normalized_manifest::test_uri::premise_file`
 
-- Use the normalized manifest path (slashes replaced with `_`), for example `OWL_I5.1_Manifest001.rdf`.
-- The manifest test IDs are always `test`, so the test ID form is `I5.1/Manifest001#test`.
+- Use the normalized manifest path (slashes replaced with `_`), for example `OWL_I5.1_Manifest001.rdf`
+- The manifest test IDs are always `test`, so the test ID form is `I5.1/Manifest001#test`
 
 ## Details ##
 

@@ -36,51 +36,6 @@ tox -e docs
 cd FuXi-reincarnate-chimezie/docs && make html
 ```
 
-### RDFLib (pytest + poetry)
-```bash
-# Install dependencies via poetry
-poetry install
-
-# Run all tests
-poetry run pytest
-
-# Run single test file
-poetry run pytest rdflib/test/test_graph.py
-
-# Run specific test with full path
-poetry run pytest rdflib/test/test_graph.py::TestGraph::test_len
-
-# Lint with ruff
-poetry run ruff check .
-tox -e lint
-
-# Type checking with mypy
-poetry run python -m mypy --show-error-context --show-error-codes
-tox -e py39  # Run for specific Python version
-
-# Generate MkDocs
-poetry run mkdocs build
-tox -e docs
-
-# Coverage report
-tox -e covreport
-
-# Pre-commit checks
-tox -e precommit
-```
-
-### Tox (RDFLib multi-version testing)
-```bash
-# Test all Python versions (3.9-3.13+)
-tox -e py3{9,10,11,12,13,14}
-
-# Coverage report generation
-tox -e covreport
-
-# Pre-commit validation
-tox -e precommitall
-```
-
 ---
 
 ## Code Style Guidelines
@@ -137,7 +92,22 @@ Use pytest for all new tests.
 ### FuXi test organization
 - Primary test directory: `FuXi-reincarnate-chimezie/test/`
 - SPARQL-specific tests: `FuXi-reincarnate-chimezie/test/SPARQL/`
-- Known failing tests excluded via nose markers
+- OWL test suites: `test/testOWL.py` (OWL 1), `test/testOWL2.py` (OWL 2)
+
+### Running FuXi Tests
+
+See the [Testing section](../README.md#testing) in README.md for detailed examples.
+
+```bash
+# Run all tests
+uv run pytest test
+
+# Run OWL test suite with specific options
+uv run pytest test/testOWL.py --single-test OWL/TransitiveProperty/premises001 --ground-query
+
+# Run with debugging
+uv run pytest test/testOWL.py --owl-debug --capture-proofs
+```
 
 ---
 

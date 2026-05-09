@@ -449,6 +449,45 @@ class Uniterm(QNameManager, Atomic):
             )
         )
 
+    def unify_with(self, otherLit):
+        """
+        Given another Uniterm, ``otherLit``, that is assumed to be ground and
+        structurally compatible with ``self`` (same arity and same constant
+        predicate where applicable), return a dict mapping each
+        :class:`~rdflib.Variable` occurring in ``self`` to the corresponding
+        term at the same position in ``otherLit``.
+
+        Non-variable terms in ``self`` are not included in the result, even
+        when they differ from the corresponding term in ``otherLit`` (no
+        unification / consistency check is performed here — the caller is
+        expected to guarantee that ``otherLit`` is ground and matches).
+
+        >>> x = Variable('X')
+        >>> y = Variable('Y')
+        >>> # Binary predicate: both args are variables in A, ground in B
+        >>> a = Uniterm(RDF.type, [x, RDFS.Class])
+        >>> b = Uniterm(RDF.type, [RDFS.comment, RDFS.Class])
+        >>> bindings = a.getBindingsFromGround(b)
+        >>> bindings[x] == RDFS.comment
+        True
+        >>> len(bindings)
+        1
+
+        >>> # Second-order: the predicate symbol itself is a variable
+        >>> a2 = Uniterm(x, [y, RDFS.Class])
+        >>> b2 = Uniterm(RDF.type, [RDFS.comment, RDFS.Class])
+        >>> m = a2.getBindingsFromGround(b2)
+        >>> m[x] == RDF.type and m[y] == RDFS.comment
+        True
+        """
+        bindings = {}
+        for selfTerm, otherTerm in zip(
+                [self.op] + self.arg, [otherLit.op] + otherLit.arg
+        ):
+            if isinstance(selfTerm, Variable):
+                bindings[selfTerm] = otherTerm
+        return bindings
+
     @property
     def variables(self) -> "Iterator[Variable]":
         """

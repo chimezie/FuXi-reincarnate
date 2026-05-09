@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # flake8: noqa
+import copy
 import sys
 import warnings
 from typing import Any, Mapping
@@ -29,7 +30,7 @@ from fuxi.Rete.SidewaysInformationPassing import SIPRepresentation
 from fuxi.Rete.Util import LOG
 from fuxi.LP.BackwardFixpointProcedure import BackwardFixpointProcedure
 from fuxi.LP import IdentifyHybridPredicates
-from fuxi.Horn.PositiveConditions import BuildUnitermFromTuple
+from fuxi.Horn.PositiveConditions import BuildUnitermFromTuple, Uniterm
 from fuxi.SPARQL import EDBQuery
 
 # for docstring/test purposes
@@ -273,6 +274,9 @@ class TopDownSPARQLEntailingStore(Store):
         for key, uri in self.edb.namespaces():
             self.edb.rev_ns_map[uri] = key
             self.edb.ns_map[key] = uri
+        #Mapping from goal triple pattern to its Uniterm representation, the adorned program and SIP collections
+        #used to solve the goal, the inferred facts, and the meta interpretation network
+        self.goal_rule_sip_info: dict[tuple[Identifier], tuple] = {}
 
     def invoke_decision_procedure(
         self, tp, fact_graph, bindings, debug, sip_collection
@@ -289,7 +293,20 @@ class TopDownSPARQLEntailingStore(Store):
             debug=self.DEBUG,
         )
         bfp.createTopDownReteNetwork(self.DEBUG)
+        bfp.metaInterpNetwork.inferredFacts.namespace_manager = fact_graph.namespace_manager
         response = bfp.answers(debug=self.DEBUG)
+
+        goal_lit, adorned_program, sip_collections, _, _ = self.goal_rule_sip_info[tp]
+        self.goal_rule_sip_info[tp] = (goal_lit,
+                                       adorned_program,
+                                       sip_collections,
+                                       bfp.metaInterpNetwork.inferredFacts,
+                                       bfp.metaInterpNetwork)
+        #Save information used for proof generation to the store
+        self.queryPropagationInfo = bfp.actionPropagationInfo
+        self.meta_interpretation_seeds = bfp.meta_interpretation_seeds
+        self.meta_evaluation = bfp.meta_evaluation
+        self.actionPropagationInfo = bfp.actionPropagationInfo
         self.query_networks.append((bfp.metaInterpNetwork, tp))
         self.edb_queries.update(bfp.edbQueries)
         if self.DEBUG:
@@ -304,97 +321,192 @@ class TopDownSPARQLEntailingStore(Store):
                 bfp.metaInterpNetwork.inferredFacts.serialize(format="turtle"),
             )
         if is_not_ground is not None:
-            for item in bfp.goalSolutions:
-                yield item, None
+            if any(len(l) for l in bfp.goalSolutions):
+                for item in bfp.goalSolutions:
+                    yield item, None
+            else:
+                #Yield any facts previously inferred as a result of queries dispatched on behalf of the goal
+                goal_literal = BuildUnitermFromTuple(tp)
+                variables = list(goal_literal.variables)
+                query = EDBQuery([goal_literal], bfp.metaInterpNetwork.inferredFacts).as_sparql()
+                for item in bfp.metaInterpNetwork.inferredFacts.query(query):
+                    yield {variables[idx]: item[idx] for idx in range(len(variables))}, None
         else:
             yield response, None
         if debug:
             print(bfp.metaInterpNetwork)
             bfp.metaInterpNetwork.reportConflictSet(True, sys.stderr, self.ns_bindings)
             for query in self.edb_queries:
-                print("Dispatched query against dataset: ", query.as_sparql())
+                print("Dispatched query against dataset: ", query)
 
     def conjunctive_sip_strategy(self, goals_remaining, fact_graph, bindings=None):
         """
-        Given a conjunctive set of triples, invoke sip-strategy passing
-        on intermediate solutions to facilitate 'join' behavior
+        Evaluate a conjunctive set of triple patterns using the SIP (Sideways
+        Information Passing) strategy, yielding one binding dict per complete
+        solution that satisfies all patterns simultaneously.
+
+        This is the core join engine for top-down entailment.  It works left-to-right
+        through the pattern list, solving each triple pattern in turn and threading
+        the resulting variable bindings forward into the remaining patterns — exactly
+        the same join semantics as a SPARQL BGP evaluation, but driven by the
+        backward-chaining procedure instead of a SPARQL engine.
+
+        The recursion structure mirrors a nested-loop join:
+
+            for each solution to pattern[0]:
+                for each solution to pattern[1] given solution[0]:
+                    ...
+                        yield combined_solution
+
+        ``goals_remaining`` — the ordered list of (s, p, o) triple patterns still
+            to be solved.  Each term is either a bound RDF node or a Variable.
+        ``fact_graph`` — the EDB (extensional / base-fact) graph used by the
+            backward-fixpoint procedure for ground look-ups.
+        ``bindings`` — a dict mapping Variable → RDF node for bindings already
+            established by previously solved patterns in this conjunction.  None
+            is treated as an empty mapping.
         """
-        bindings = bindings if bindings else {}
-        try:
-            tp = next(goals_remaining)
-            assert isinstance(bindings, dict)
-            d_pred = self.derived_predicate_from_triple(tp)
-            if d_pred is None:
-                base_edb_query = EDBQuery(
-                    [BuildUnitermFromTuple(tp)], self.edb, bindings=bindings
-                )
-                if self.DEBUG:
-                    print("Evaluating TP against EDB:%s" % base_edb_query.as_sparql())
-                query, rt = base_edb_query.evaluate()
-                # _vars = base_edb_query.return_vars
-                for item in rt:
-                    next_bindings = dict(bindings)
-                    next_bindings.update(item)
+        bindings = bindings if bindings is not None else {}
+
+        # Materialise goals into a list so each solution branch receives an
+        # independent *slice* of the remaining work.  If we kept a shared
+        # iterator, the first recursive branch would advance it and subsequent
+        # solution branches (from additional answers to the same pattern) would
+        # silently skip patterns, breaking join correctness.
+        if not isinstance(goals_remaining, list):
+            goals_remaining = list(goals_remaining)
+
+        # Base case: all patterns have been satisfied.  The accumulated
+        # bindings dict is a complete, consistent solution — yield it.
+        if not goals_remaining:
+            yield bindings
+            return
+
+        # Take the next pattern to solve and leave the rest for recursive calls.
+        tp = goals_remaining[0]
+        rest = goals_remaining[1:]
+
+        assert isinstance(bindings, dict)
+
+        # Determine whether the predicate of this triple pattern is a derived
+        # (IDB) predicate — one whose truth depends on the ruleset — or a base
+        # (EDB) predicate that can be answered directly from the store.
+        d_pred = self.derived_predicate_from_triple(tp)
+
+        if d_pred is None:
+            # ----------------------------------------------------------------
+            # EDB branch: the predicate is a base predicate.
+            # Substitute any already-known variable bindings into the pattern
+            # and issue a SPARQL query directly against the underlying store.
+            # ----------------------------------------------------------------
+            base_edb_query = EDBQuery(
+                [BuildUnitermFromTuple(tp)], self.edb, bindings=bindings
+            )
+            if self.DEBUG:
+                print("Evaluating TP against EDB:%s" % base_edb_query.as_sparql())
+            query, rt = base_edb_query.evaluate()
+            # For each row returned by the store, merge the new variable
+            # bindings with the bindings accumulated so far, then recurse to
+            # solve the remaining patterns under that combined environment.
+            for item in rt:
+                next_bindings = dict(bindings)
+                next_bindings.update(item)
+                for ans_dict in self.conjunctive_sip_strategy(
+                    rest, fact_graph, next_bindings
+                ):
+                    yield ans_dict
+
+        else:
+            # ----------------------------------------------------------------
+            # IDB branch: the predicate is derived — it requires the top-down
+            # backward-chaining (BFP) procedure to evaluate.
+            # ----------------------------------------------------------------
+
+            # Build a uniterm (structured literal) from the triple pattern so
+            # we can manipulate it as a logic-programming goal term.
+            query_lit = BuildUnitermFromTuple(tp)
+            current_op = GetOp(query_lit)
+            query_lit.setOperator(current_op)
+
+            # Wrap the goal in an EDBQuery so that any already-bound variables
+            # in ``bindings`` get substituted into the pattern before we hand
+            # it off to the adornment / SIP machinery.
+            query = EDBQuery([query_lit], self.edb, bindings=bindings)
+            if bindings:
+                # Re-extract the triple after substitution so that bound
+                # variables appear as concrete RDF terms in the adorned goal.
+                tp = first(query.formulae).toRDFTuple()
+            if self.DEBUG:
+                print("Goal/Query: ", query.as_sparql())
+
+            # Adornment analysis: label each argument of the goal as Bound or
+            # Free (the "adornment"), then rewrite the relevant rules so the
+            # planner knows which arguments carry information sideways into
+            # sub-goals (Sideways Information Passing).  This step also
+            # populates ``self.edb.adornedProgram`` with the rewritten rules.
+            SetupDDLAndAdornProgram(
+                self.edb,
+                self.idb,
+                [tp],
+                derivedPreds=self.derived_predicates,
+                ignoreUnboundDPreds=True,
+                hybridPreds2Replace=self.hybrid_predicates,
+            )
+
+            # Hybrid predicates appear in both EDB and IDB.  The adornment
+            # machinery renames the IDB variant to "<pred>_derived" so the two
+            # roles stay separate.  Rewrite the goal accordingly.
+            if self.hybrid_predicates:
+                lit = BuildUnitermFromTuple(tp)
+                op = GetOp(lit)
+                if op in self.hybrid_predicates:
+                    lit.setOperator(URIRef(op + "_derived"))
+                    tp = lit.toRDFTuple()
+
+            # Build the SIP graph: a directed graph that encodes, for each
+            # adorned rule head, which bound arguments should be passed
+            # sideways into each body sub-goal.  The BFP uses this graph to
+            # guide its top-down search and avoid redundant EDB queries.
+            sip_collection = PrepareSipCollection(self.edb.adornedProgram)
+            if self.DEBUG and sip_collection:
+                for sip in SIPRepresentation(sip_collection):
+                    print(sip)
+                pprint(list(self.edb.adornedProgram), sys.stderr)
+            elif self.DEBUG:
+                print("No SIP graph.")
+
+            # Run the backward-fixpoint procedure for this single goal.
+            # ``invoke_decision_procedure`` yields (answer, node) pairs where
+            # ``answer`` is either:
+            #   - a dict (Variable → value) for an open (non-ground) goal, or
+            #   - a truthy/falsy scalar for a ground goal (proved or not).
+            for next_answer, ns in self.invoke_decision_procedure(
+                tp, fact_graph, bindings, self.DEBUG, sip_collection
+            ):
+                # Distinguish open goals (variables remain) from ground goals
+                # (all terms were already concrete — just True/False proof).
+                non_ground_goal = isinstance(next_answer, dict)
+                if non_ground_goal or next_answer:
+                    # The BFP either returned variable bindings (open goal) or
+                    # confirmed a ground goal as provable.
+                    if not non_ground_goal:
+                        # Ground goal was proved: no new variable bindings to
+                        # add; carry the existing ``bindings`` forward as-is.
+                        rt = next_answer
+                    else:
+                        # Open goal: merge the BFP's answer bindings with the
+                        # bindings already established by prior patterns so
+                        # that later patterns can use all bound variables.
+                        rt = mergeMappings1To2(bindings, next_answer)
+
+                    # Recurse: solve the remaining patterns under the now-
+                    # extended binding environment.  Each answer from this
+                    # call is a fully consistent solution to the entire
+                    # original conjunction (this pattern plus all that follow).
                     for ans_dict in self.conjunctive_sip_strategy(
-                        goals_remaining, fact_graph, next_bindings
+                        rest, fact_graph, rt
                     ):
                         yield ans_dict
-
-            else:
-                query_lit = BuildUnitermFromTuple(tp)
-                current_op = GetOp(query_lit)
-                query_lit.setOperator(current_op)
-                query = EDBQuery([query_lit], self.edb, bindings=bindings)
-                if bindings:
-                    tp = first(query.formulae).toRDFTuple()
-                if self.DEBUG:
-                    print("Goal/Query: ", query.as_sparql())
-                SetupDDLAndAdornProgram(
-                    self.edb,
-                    self.idb,
-                    [tp],
-                    derived_preds=self.derived_predicates,
-                    ignore_unbound_d_preds=True,
-                    hybrid_preds_2_replace=self.hybrid_predicates,
-                )
-
-                if self.hybrid_predicates:
-                    lit = BuildUnitermFromTuple(tp)
-                    op = GetOp(lit)
-                    if op in self.hybrid_predicates:
-                        lit.setOperator(URIRef(op + "_derived"))
-                        tp = lit.toRDFTuple()
-
-                sip_collection = PrepareSipCollection(self.edb.adorned_program)
-                if self.DEBUG and sip_collection:
-                    for sip in SIPRepresentation(sip_collection):
-                        print(sip)
-                    pprint(list(self.edb.adorned_program), sys.stderr)
-                elif self.DEBUG:
-                    print("No SIP graph.")
-                for next_answer, ns in self.invoke_decision_procedure(
-                    tp, fact_graph, bindings, self.DEBUG, sip_collection
-                ):
-                    non_ground_goal = isinstance(next_answer, dict)
-                    if non_ground_goal or next_answer:
-                        # Either we recieved bindings from top-down evaluation
-                        # or we (successfully) proved a ground query
-                        if not non_ground_goal:
-                            # Attempt to prove a ground query, return the
-                            # response
-                            rt = next_answer
-                        else:
-                            # Recieved solutions to 'open' query, merge with given bindings
-                            # and continue
-                            rt = mergeMappings1To2(bindings, next_answer)
-                        # either answers were provided (the goal wasn't grounded) or
-                        # the goal was ground and successfully proved
-                        for ans_dict in self.conjunctive_sip_strategy(
-                            goals_remaining, fact_graph, rt
-                        ):
-                            yield ans_dict
-        except StopIteration:
-            yield bindings
 
     def derived_predicate_from_triple(self, triple):
         """
@@ -420,7 +532,56 @@ class TopDownSPARQLEntailingStore(Store):
         is_ask: bool = False,
         projected_vars: list[Variable] | None = None,
     ):
+        """
+        Evaluate a list of triple patterns against this store's entailment regime
+        and return the result as an rdflib ``Result`` object (SELECT or ASK).
+
+        This is the single-shot evaluation path used by ``query()``.  It differs
+        from ``conjunctive_sip_strategy`` in that it does *not* thread bindings
+        between patterns incrementally; instead it separates EDB from IDB patterns,
+        evaluates the EDB group first (as a single SPARQL query), and then evaluates
+        each IDB pattern independently via the BFP, accumulating all bindings into
+        a flat list that is returned as the final result set.
+
+        Strategy overview
+        -----------------
+        1. Partition ``triples`` into two groups:
+           - ``ground_conjunct``: patterns whose predicate is an EDB (base) predicate,
+             answerable directly from the RDF store.
+           - ``derived_conjunct``: patterns whose predicate is a derived (IDB) predicate,
+             requiring the backward-chaining / SIP procedure.
+
+        2. Evaluate the EDB group first.  A single SPARQL query covers all EDB
+           patterns together, exploiting the store's native join and index machinery.
+
+        3. Only if the EDB group succeeds (or is empty) do we proceed to the IDB
+           patterns.  For ASK queries this short-circuits as soon as any pattern fails.
+
+        4. For each IDB pattern, run the full adornment + SIP + BFP pipeline and
+           collect the resulting bindings.
+
+        5. Project the collected bindings onto ``projected_vars`` and wrap them in
+           an rdflib ``Result``.
+
+        Parameters
+        ----------
+        triples :
+            The triple patterns to evaluate.  Each element is a 3- or 4-tuple
+            ``(s, p, o[, filter_fn])``; the optional fourth element is ignored.
+            Any term may be a ``Variable`` (open) or a concrete RDF node (bound).
+        init_ns :
+            Namespace prefix bindings used when building uniterm representations
+            of the patterns.
+        is_ask :
+            If True, return an ASK result (boolean) rather than a SELECT result
+            (binding rows).  Evaluation short-circuits on the first failure.
+        projected_vars :
+            The variables to include in SELECT results.  If None, all variables
+            found in the returned bindings are used.
+        """
         select_bindings: list[Mapping[Variable, Identifier]] = []
+
+        # Step 1 — partition patterns into EDB (base store) vs IDB (derived).
         ground_conjunct = []
         derived_conjunct = []
         for item in triples:
@@ -432,22 +593,39 @@ class TopDownSPARQLEntailingStore(Store):
                 ground_conjunct.append(BuildUnitermFromTuple((s, p, o), init_ns))
             else:
                 derived_conjunct.append(BuildUnitermFromTuple((s, p, o), init_ns))
+
         ans = None
+        # Default to True so that if there are no EDB patterns the derived
+        # evaluation proceeds unconditionally.
         ask_result = True
+
+        # Step 2 — evaluate EDB patterns as a single SPARQL query.
         if ground_conjunct:
             base_edb_query = EDBQuery(ground_conjunct, self.edb)
             sub_query, ans = base_edb_query.evaluate(self.DEBUG)
             if is_ask:
+                # For ASK: if the store returns no results the answer is False;
+                # skip IDB evaluation entirely (short-circuit).
                 if not bool(ans):
                     ask_result = False
             else:
+                # For SELECT: seed the binding list with every row returned by
+                # the EDB query.  IDB results are appended below.
                 if ans:
                     for binding in ans:
                         select_bindings.append(binding)
+
+        # Step 3 — evaluate IDB (derived) patterns, but only if we still have
+        # a chance of overall success (EDB didn't already falsify an ASK).
         if not is_ask or ask_result:
             for derived_literal in derived_conjunct:
+                # Convert the uniterm back to a plain (s, p, o) tuple so the
+                # adornment and SIP machinery can process it.
                 goal = derived_literal.toRDFTuple()
-                # Solve ground, derived goal directly
+
+                # Step 3a — adornment: rewrite the relevant rules with Bound/Free
+                # argument labels based on which terms in ``goal`` are already
+                # concrete.  This populates ``self.edb.adornedProgram``.
                 SetupDDLAndAdornProgram(
                     self.edb,
                     self.idb,
@@ -457,6 +635,10 @@ class TopDownSPARQLEntailingStore(Store):
                     hybridPreds2Replace=self.hybrid_predicates,
                 )
 
+                # Step 3b — hybrid-predicate renaming: if this goal's predicate
+                # also appears in the EDB (a "hybrid" predicate), the adornment
+                # step renamed the IDB variant to "<pred>_derived".  Rewrite the
+                # goal to match so the BFP targets the right adorned rules.
                 if self.hybrid_predicates:
                     lit = BuildUnitermFromTuple(goal)
                     op = GetOp(lit)
@@ -464,14 +646,33 @@ class TopDownSPARQLEntailingStore(Store):
                         lit.setOperator(URIRef(op + "_derived"))
                         goal = lit.toRDFTuple()
 
+                # Step 3c — build the SIP graph from the adorned rules.
+                # The SIP graph encodes which bound arguments are passed sideways
+                # (as "magic" facts) into each body sub-goal, restricting the
+                # search to only the relevant portion of the derivation space.
                 sip_collection = PrepareSipCollection(self.edb.adornedProgram)
                 if self.DEBUG and sip_collection:
+                    print("Adorned Program:")
+                    print("Adorned Program:")
+                    for rule in self.edb.adornedProgram:
+                        print("\t", rule)
+                    print(f"{len(sip_collection)} SIP Collection(s)")
+                    print(sip_collection.serialize(format="turtle"))
                     for sip in SIPRepresentation(sip_collection):
                         print(sip)
                     pprint(list(self.edb.adornedProgram))
                 elif self.DEBUG:
                     print("No SIP graph.")
+                self.goal_rule_sip_info[goal] = (lit,
+                                                 copy.deepcopy(self.edb.adornedProgram),
+                                                 sip_collection,
+                                                 None,
+                                                 None)
+
+                # Step 3d — run the BFP for this single derived goal.
                 if is_ask:
+                    # For ASK we only need the first answer; if the BFP cannot
+                    # prove the goal the result is falsy and we stop immediately.
                     rt, node = first(
                         self.invoke_decision_procedure(
                             goal, self.edb, {}, self.DEBUG, sip_collection
@@ -479,21 +680,31 @@ class TopDownSPARQLEntailingStore(Store):
                     )
                     if not rt:
                         ask_result = False
-                        break
+                        break  # short-circuit: one unprovable pattern falsifies the conjunction
                 else:
+                    # For SELECT, collect every solution the BFP produces.
+                    # ``rt`` is either a dict (Variable → value) for an open goal
+                    # or a truthy scalar for a ground goal that was proved.
                     for rt, node in self.invoke_decision_procedure(
                         goal, self.edb, {}, self.DEBUG, sip_collection
                     ):
                         if isinstance(rt, dict):
                             select_bindings.append(rt)
                         elif rt:
+                            # Ground goal proved with no new variable bindings;
+                            # record an empty binding row so the result is non-empty.
                             select_bindings.append({})
+
+        # Step 4 — package results as an rdflib Result object.
         if is_ask:
             ask_result_obj = Result("ASK")
             ask_result_obj.askAnswer = ask_result
             return sparql_query_from_result(ask_result_obj)
         else:
             select_result = Result("SELECT")
+
+            # If the caller did not specify which variables to project, infer
+            # them from the union of all keys across all binding dicts.
             if projected_vars is None:
                 projected_vars = []
                 for binding in select_bindings:
@@ -502,6 +713,9 @@ class TopDownSPARQLEntailingStore(Store):
                             projected_vars.append(var)
 
             if projected_vars:
+                # Drop any variables not requested by the projection, and fill
+                # in only the variables that actually appear in each binding
+                # (some patterns may leave certain variables unbound).
                 projected_bindings = []
                 for binding in select_bindings:
                     projected_bindings.append(
@@ -586,7 +800,7 @@ class TopDownSPARQLEntailingStore(Store):
         if set(d_preds).intersection(self.derived_predicates):
             # Patterns involve derived predicates
             self.batch_unification = False
-            for ans_dict in self.conjunctive_sip_strategy(iter(goals), self.edb):
+            for ans_dict in self.conjunctive_sip_strategy(goals, self.edb):
                 yield ans_dict
             self.batch_unification = True
         else:
@@ -602,7 +816,7 @@ class TopDownSPARQLEntailingStore(Store):
                 print("Batch unify resolved against EDB")
                 print(query)
 
-            rt = self.edb.query(query, init_ns=self.ns_bindings)
+            rt = self.edb.query(query, initNs=self.ns_bindings)
 
             rt = (
                 len(vars) > 1

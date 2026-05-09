@@ -188,6 +188,8 @@ class EvaluateExecution(object):
                 for memory in self.bfp.evalHash[(self.ruleNo, self.bodyIdx)]:
                     for bindings in token.bindings:
                         memory.addToken(token, debug)
+                        self.bfp.actionPropagationInfo.setdefault(self, {}).setdefault(memory.successor,
+                                                                                       set()).add((tNode, token))
                         if memory.position == LEFT_MEMORY:
                             memory.successor.propagate(memory.position, debug, token)
                         else:
@@ -207,9 +209,9 @@ class QueryExecution(object):
         self.factGraph = bfp.factGraph
         self.bfp = bfp
         self.queryLiteral = queryLiteral
-        self.bfp.firedEDBQueries = set()
         self.edbConj = edbConj
         self.conjoinedTokenMem = conjoinedTokenMem
+        self.fired_grounded_queries = {}
 
     def __call__(self, tNode, inferredTriple, token, binding, debug=False):
         """
@@ -220,9 +222,9 @@ class QueryExecution(object):
         key = (self.queryLiteral, tNode, token)
         if key not in self.bfp.firedEDBQueries:
             self.bfp.firedEDBQueries.add(key)
-            for binding in token.bindings:
+            for token_binding in token.bindings:
                 _bindings = dict(
-                    [(k, v) for k, v in list(binding.items()) if v is not None]
+                    [(k, v) for k, v in list(token_binding.items()) if v is not None]
                 )
 
                 closure = ReadOnlyGraphAggregate(
@@ -248,6 +250,7 @@ class QueryExecution(object):
                     )
                 origQuery = _qLit.copy()
                 _qLit.ground(_bindings)
+                self.fired_grounded_queries[MakeImmutableDict(_bindings)] = _qLit
                 if self.bfp.debug:
                     print(
                         "%sQuery triggered for "
@@ -255,28 +258,19 @@ class QueryExecution(object):
                         tNode.clauseRepresentation(),
                     )
                 self.bfp.edbQueries.add(_qLit)
-                # queryVars = origQuery.getOpenVars()
-
-                # tokens2Propagate=[
-                #     t for t in token.tokens
-                #         if [
-                #             v for v in t.getVarBindings()
-                #                 if v not in queryVars
-                #         ]
-                # ]
                 isGround = not _qLit.return_vars
                 rt = self.tabledQuery(_qLit)
                 if isGround:
                     if first(rt):
                         self.handleQueryAnswer(
-                            origQuery, token, self.bfp.debug, ({}, binding)
+                            origQuery, token, self.bfp.debug, tNode, ({}, token_binding)
                         )
                 else:
                     for ans in rt:
                         if self.bfp.debug:
                             pprint(ans)
                         self.handleQueryAnswer(
-                            origQuery, token, self.bfp.debug, (ans, binding)
+                            origQuery, token, self.bfp.debug, tNode, (ans, token_binding)
                         )
 
     @ConjunctiveQueryMemoize()
@@ -288,7 +282,7 @@ class QueryExecution(object):
             for item in rt:
                 yield item
 
-    def handleQueryAnswer(self, literal, token, debug, bindings=None):
+    def handleQueryAnswer(self, literal, token, debug, tNode, bindings=None):
         edbResult = literal.copy()
         if self.conjoinedTokenMem:
             assert bindings is not None
@@ -336,7 +330,7 @@ class QueryExecution(object):
             # Defensive: unwrap any ResultRow objects that may have leaked into bindings
             from rdflib.query import ResultRow
             queryBindings = {
-                k: (v[0] if isinstance(v, ResultRow) and len(v) == 1 else v)
+                 k: (v[0] if isinstance(v, ResultRow) and len(v) == 1 else v)
                 for k, v in queryBindings.items()
             }
             # toDo = []
@@ -369,6 +363,8 @@ class QueryExecution(object):
             tokenClone._generateBindings()
             for memory in self.associatedBetaMemories():
                 memory.addToken(tokenClone, debug)
+                self.bfp.actionPropagationInfo.setdefault(self, {}).setdefault(memory.successor,
+                                                                               set()).add((tNode, token))
                 if memory.position == LEFT_MEMORY:
                     memory.successor.propagate(memory.position, debug, tokenClone)
                 else:
@@ -501,8 +497,12 @@ class BackwardFixpointProcedure(object):
             else derivedPredicates
         )
         self.hybridPredicates = hybridPredicates if hybridPredicates else []
+        self.firedEDBQueries = set()
         self.edbQueries = set()
         self.goalSolutions = set()
+        self.actionPropagationInfo = {}
+        self.meta_interpretation_seeds = {}
+        self.meta_evaluation = {}
 
     def answers(self, debug=False, solutionCallback=NoopCallbackFn):
         """
@@ -541,6 +541,7 @@ class BackwardFixpointProcedure(object):
             print("Asserting initial BFP query ", bfpTopQuery)
 
         assert bfpTopQuery.isGround()
+        self.meta_interpretation_seeds[bfpTopQuery.toRDFTuple()] = None
         # Add BFP query atom to working memory, triggering procedure
         try:
             self.metaInterpNetwork.feedFactsToAdd(
@@ -867,6 +868,9 @@ class BackwardFixpointProcedure(object):
             # token to beta memory associated with evaluate(ruleNo, bodyIdx)
             executeAction = EvaluateExecution((ruleNo, bodyIdx), self, tNodes)
             evaluationStmt = (BFP_RULE[str(ruleNo)], BFP_NS.evaluate, Literal(bodyIdx))
+            eval_index = tuple([i.value if isinstance(i, Literal) else int(i.split("Rule#")[-1])
+                                for i in [evaluationStmt[0], evaluationStmt[-1]]])
+            self.meta_evaluation.setdefault(eval_index, set()).add(executeAction)
             for tNode in tNodes:
                 tNode.executeActions[evaluationStmt] = (True, executeAction)
                 # executeAction = EvaluateExecution(evalHash, (idx+1, bodyIdx+1), self, termNodeCk)

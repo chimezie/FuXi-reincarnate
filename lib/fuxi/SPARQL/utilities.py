@@ -26,6 +26,7 @@ def owl_entailment_regime_graph(
     namespace_manager: NamespaceManager = None,
     add_pd_semantics: bool = False,
     add_non_dhl_owl_rules: bool = True,
+    tbox_only_graph: Graph = None
 ):
     """
     Build a goal-directed OWL entailment graph for SPARQL interlocution.
@@ -80,8 +81,12 @@ def owl_entailment_regime_graph(
     :param add_non_dhl_owl_rules: Enables additional OWL rules beyond those used in
         the Description Logic Horn (DLH) fragment.
     :type add_non_dhl_owl_rules: bool, optional
+    :param tbox_only_graph: If provided, only the TBox (ontology) part of the graph will be used for entailment.
+    :type tbox_only_graph: Graph, optional
+
     :return: Tuple of (entailment graph, closure delta graph).
     :rtype: Tuple[Graph, Graph]
+    :type tbox_only_graph
 
     Example (goal-directed mediation):
     >>> from rdflib import Graph, Namespace
@@ -131,11 +136,14 @@ def owl_entailment_regime_graph(
         rules = []
     rules.extend(
         network.setupDescriptionLogicProgramming(
-            graph, addPDSemantics=add_pd_semantics, constructNetwork=False
+            graph if tbox_only_graph is None else tbox_only_graph,
+            addPDSemantics=add_pd_semantics,
+            constructNetwork=False
         )
     )
-    for rule in AdditionalRules(graph):
-        rules.append(rule)
+    if not tbox_only_graph:
+        for rule in AdditionalRules(graph):
+            rules.append(rule)
     if extra_rulesets:
         rules.extend(extra_rulesets)
     top_down_store = TopDownSPARQLEntailingStore(
@@ -239,7 +247,17 @@ def extract_triples_from_query(
                         )
                     )
                 else:
-                    raise Exception(f"Unknown type: {type(item)}")
+                    items = [*map(
+                        lambda i: extract_triples_from_triple_part(i, ns_binds),
+                        item,
+                    )]
+                    triples.extend([
+                        tuple(
+                            extract_triples_from_triple_part(part, ns_binds)
+                            for part in item[i: i + 3]
+                        )
+                        for i in range(0, len(item), 3)
+                    ])
     elif query_structure.name == "BGP":
         triples.extend(query_structure.triples)
     elif query_structure.name == "SelectQuery":

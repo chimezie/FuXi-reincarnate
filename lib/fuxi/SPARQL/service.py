@@ -85,11 +85,25 @@ class SPARQLServiceGraph(Graph):
     def __init__(self, service_url: str, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.service_url = service_url
+        self.num_queries = 0
 
     def __repr__(self):
         return f"SPARQLServiceGraph(service_url='{self.service_url}')"
 
     def triples(self, triple, context=None):
+        ns_map = {prefix: uri for prefix, uri in self.namespace_manager.namespaces()}
+        query_literal = EDBQuery(
+            [BuildUnitermFromTuple(triple, ns_map)],
+            self,
+            None,
+        )
+        mediated_query = query_literal.as_sparql(service_url=self.service_url)
+        response = Graph().query(
+            mediated_query, init_ns=ns_map
+        )
+        self.num_queries += 1
+        return response
+
         raise RuntimeError("SPARQLServiceGraph does not support triples()")
 
     def query(
@@ -97,8 +111,8 @@ class SPARQLServiceGraph(Graph):
         query_object: Union[str, Query],
         processor: Optional[Union[str, Processor]] = "sparql",
         result: Optional[Union[str, type[Result]]] = "sparql",
-        init_ns: dict[str, Identifier] | None = None,  # noqa: N803
-        init_bindings: Mapping[str, Identifier] | None = None,  # noqa: N803
+        initNs: dict[str, Identifier] | None = None,  # noqa: N803
+        initBindings: Mapping[str, Identifier] | None = None,  # noqa: N803
         use_store_provided: bool = True,
         **kwargs: Any,
     ) -> Result:
@@ -109,7 +123,7 @@ class SPARQLServiceGraph(Graph):
         :param query_object: The SPARQL query string or parsed Query object.
         :param processor: The query processor to use, defaults to 'sparql'.
         :param result: The result format, defaults to 'sparql'.
-        :param init_ns: Initial namespace bindings, defaults to None.
+        :param initNs: Initial namespace bindings, defaults to None.
         :param initBindings: Initial variable bindings, defaults to None.
         :param use_store_provided: Whether to use store-provided results, defaults to True.
         :param kwargs: Additional keyword arguments for query execution.
@@ -118,8 +132,8 @@ class SPARQLServiceGraph(Graph):
         from fuxi.SPARQL.utilities import extract_triples_from_query
 
         _, parsed_query = parseQuery(query_object)
-        _service_url, triples = extract_triples_from_query(parsed_query, init_ns)
-        uniterms = [BuildUnitermFromTuple(triple, init_ns) for triple in triples]
+        _service_url, triples = extract_triples_from_query(parsed_query, initNs)
+        uniterms = [BuildUnitermFromTuple(triple, initNs) for triple in triples]
         vars = [
             *set(
                 chain(
@@ -137,8 +151,9 @@ class SPARQLServiceGraph(Graph):
         )
         mediated_query = conjunct.as_sparql(service_url=self.service_url)
         response = Graph().query(
-            mediated_query, init_ns=init_ns, init_bindings=init_bindings
+            mediated_query, initNs=initNs, initBindings=initBindings
         )
+        self.num_queries += 1
         return response
 
 

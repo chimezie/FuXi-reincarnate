@@ -343,7 +343,6 @@ def BuildNaturalSIP(
             left = list(set(left))
             [leftList.append(i) for i in [GetOp(ii) for ii in left]]
             left.append(right)
-            # arc = SIPGraphArc(leftList.uri, getOccurrenceId(right, occurLookup), vars, sipGraph)
             return left
         else:
             left.isHead = True
@@ -351,9 +350,7 @@ def BuildNaturalSIP(
             if not vars and ignoreUnboundDPreds:
                 raise InvalidSIPException("No bound variables for %s" % right)
             ph = GetOp(left)
-            # q = getOccurrenceId(right, occurLookup)
             if boundHead:
-                # arc = SIPGraphArc(ph, q, vars, sipGraph, headPassing=boundHead)
                 sipGraph.add((ph, RDF.type, MAGIC.BoundHeadPredicate))
                 rt = [left, right]
             else:
@@ -461,23 +458,3 @@ def test():
 
 if __name__ == "__main__":
     test()
-
-# from fuxi.Rete.SidewaysInformationPassing import SIPGraphArc
-# from fuxi.Rete.SidewaysInformationPassing import InvalidSIPException
-
-
-# from fuxi.Rete.SidewaysInformationPassing import makeMD5Digest
-# from fuxi.Rete.SidewaysInformationPassing import iterCondition
-# from fuxi.Rete.SidewaysInformationPassing import normalizeTerm
-# from fuxi.Rete.SidewaysInformationPassing import RenderSIPCollection
-# from fuxi.Rete.SidewaysInformationPassing import CollectSIPArcVars
-# from fuxi.Rete.SidewaysInformationPassing import SetOp
-# from fuxi.Rete.SidewaysInformationPassing import GetOp
-# from fuxi.Rete.SidewaysInformationPassing import GetVariables
-# from fuxi.Rete.SidewaysInformationPassing import GetArgs
-# from fuxi.Rete.SidewaysInformationPassing import IncomingSIPArcs
-# from fuxi.Rete.SidewaysInformationPassing import validSip
-# from fuxi.Rete.SidewaysInformationPassing import getOccurrenceId
-# from fuxi.Rete.SidewaysInformationPassing import findFullSip
-# from fuxi.Rete.SidewaysInformationPassing import BuildNaturalSIP
-# from fuxi.Rete.SidewaysInformationPassing import SIPRepresentation

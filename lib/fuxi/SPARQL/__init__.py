@@ -26,7 +26,7 @@ from fuxi.Horn.PositiveConditions import (
 )
 from fuxi.Rete.BetaNode import project
 from fuxi.Rete.Magic import AdornedUniTerm
-from fuxi.Rete.Proof import ImmutableDict
+from frozendict import frozendict
 from fuxi.Rete.RuleStore import N3Builtin
 from fuxi.Rete.SidewaysInformationPassing import (
     GetOp,
@@ -203,6 +203,35 @@ def run_query(
     debug: bool = False,
     symm_atomic_inclusion: bool = False,
 ):
+    """
+    Executes a SPARQL query based on a given subquery join and bindings, returning the
+    query output or a boolean indicating if the query matched the graph. The method
+    supports initial namespace mapping, substitution of bindings, and optional debugging
+    output. Grounded queries and projected bindings are handled differently based
+    on the provided variables and bindings.
+
+    :param sub_query_join: A list of ``Uniterm`` literals representing the subquery
+        join structure to be executed.
+    :type sub_query_join: list[Uniterm]
+    :param bindings: A dictionary representing apriori bindings to the query or
+        an empty dictionary if none are provided.
+    :param fact_graph: The RDF graph against which the query is executed.
+    :type fact_graph: Graph
+    :param vars: An optional list of ``Variable`` instances representing the query
+        variables to be projected. Defaults to None, indicating no projection.
+    :type vars: list[Variable] | None
+    :param debug: A boolean flag indicating whether to enable debugging outputs.
+        Defaults to False.
+    :type debug: bool
+    :param symm_atomic_inclusion: A boolean flag determining whether symmetric
+        atomic inclusion is applied to ground literals in the query.
+        Defaults to False.
+    :type symm_atomic_inclusion: bool
+    :return: If the query is grounded, returns a tuple of the SPARQL query string and
+        a boolean indicating query results. Otherwise, returns the SPARQL query string
+        and an iterable of dictionaries mapping variables to their values.
+    :rtype: tuple[str, bool | Iterable[dict]]
+    """
     initial_ns = (
         hasattr(fact_graph, "ns_map")
         and fact_graph.ns_map
@@ -425,7 +454,7 @@ class EDBQuery(QNameManager, SetOperator, Condition):
 
         super(EDBQuery, self).__init__(fact_graph.namespace_manager.namespaces())
         self.bindings = (
-            bindings.normalize() if isinstance(bindings, ImmutableDict) else bindings
+            dict(bindings) if isinstance(bindings, frozendict) else bindings
         )
 
     def copy(self):

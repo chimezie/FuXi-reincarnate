@@ -386,7 +386,7 @@ class TopDownSPARQLEntailingStore(Store):
         tp = goals_remaining[0]
         rest = goals_remaining[1:]
 
-        assert isinstance(bindings, dict)
+        assert isinstance(bindings, Mapping)
 
         # Determine whether the predicate of this triple pattern is a derived
         # (IDB) predicate — one whose truth depends on the ruleset — or a base
@@ -485,7 +485,7 @@ class TopDownSPARQLEntailingStore(Store):
             ):
                 # Distinguish open goals (variables remain) from ground goals
                 # (all terms were already concrete — just True/False proof).
-                non_ground_goal = isinstance(next_answer, dict)
+                non_ground_goal = isinstance(next_answer, Mapping)
                 if non_ground_goal or next_answer:
                     # The BFP either returned variable bindings (open goal) or
                     # confirmed a ground goal as provable.
@@ -688,7 +688,7 @@ class TopDownSPARQLEntailingStore(Store):
                     for rt, node in self.invoke_decision_procedure(
                         goal, self.edb, {}, self.DEBUG, sip_collection
                     ):
-                        if isinstance(rt, dict):
+                        if isinstance(rt, Mapping):
                             select_bindings.append(rt)
                         elif rt:
                             # Ground goal proved with no new variable bindings;

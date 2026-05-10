@@ -11,15 +11,16 @@ Native Prolog-like Python implementation for RIF-Core, OWL 2, and SPARQL.
 import copy
 import itertools
 import sys
+from collections.abc import Mapping
 from pprint import pprint
+
+from frozendict import frozendict
 
 from fuxi.Rete.AlphaNode import AlphaNode
 from fuxi.Horn.PositiveConditions import Uniterm
 from fuxi.Horn.PositiveConditions import BuildUnitermFromTuple
-from fuxi.Rete.Proof import ImmutableDict
 from fuxi.Rete.Proof import NodeSet
 from fuxi.Rete.Proof import InferenceStep
-from fuxi.Rete.Proof import MakeImmutableDict
 from fuxi.Rete.RuleStore import N3Builtin
 from fuxi.Rete.SidewaysInformationPassing import makeMD5Digest
 from fuxi.Rete.SidewaysInformationPassing import iterCondition
@@ -90,7 +91,7 @@ def getBindingsFromLiteral(groundTuple, ungroundLiteral):
     to terms in the ground fact
     """
     ungroundTuple = ungroundLiteral.toRDFTuple()
-    return ImmutableDict(
+    return frozendict(
         [
             (term, groundTuple[idx])
             for idx, term in enumerate(ungroundTuple)
@@ -238,7 +239,7 @@ def mergeMappings1To2(mapping1, mapping2, makeImmutable=False):
         else:
             newMap[k] = mapping1[k]
     newMap.update(mapping2)
-    return makeImmutable and MakeImmutableDict(newMap) or newMap
+    return frozendict(newMap) if makeImmutable else newMap
 
 
 class RuleFailure(Exception):
@@ -407,7 +408,7 @@ def invokeRule(
                         for ans in answers
                     )
                 else:
-                    combinedAnswers = (MakeImmutableDict(ans) for ans in answers)
+                    combinedAnswers = (frozendict(ans) for ans in answers)
                 combinedAnsLazyGenerator = lazyGeneratorPeek(combinedAnswers)
                 rtCheck = combinedAnsLazyGenerator.successful
 
@@ -528,7 +529,7 @@ def invokeRule(
                                     sipCollection,
                                     factGraph,
                                     derivedPreds,
-                                    MakeImmutableDict(projectedBindings),
+frozendict(projectedBindings),
                                     processedRules,
                                     network=step is not None
                                     and step.parent.network
@@ -579,7 +580,7 @@ def invokeRule(
                             sipCollection,
                             factGraph,
                             derivedPreds,
-                            MakeImmutableDict(projectedBindings),
+                            frozendict(projectedBindings),
                             processedRules,
                             network=step is not None and step.parent.network or None,
                             debug=debug,
@@ -591,7 +592,7 @@ def invokeRule(
                         # solve (non-ground) subgoal
                         def collectAnswers(_ans):
                             for ans, ns in _ans:
-                                if isinstance(ans, dict):
+                                if isinstance(ans, Mapping):
                                     try:
                                         map = mergeMappings1To2(
                                             ans, projectedBindings, makeImmutable=True
@@ -666,7 +667,7 @@ def refactorMapping(keyMapping, origMapping):
 
 
 def prepMemiozedAns(ans):
-    return isinstance(ans, dict) and MakeImmutableDict(ans) or ans
+    return frozendict(ans) if isinstance(ans, dict) else ans
 
 
 def SipStrategy(
@@ -876,14 +877,14 @@ def SipStrategy(
                     debug=debug,
                 ):
                     if rt:
-                        if isinstance(rt, dict):
+                        if isinstance(rt, Mapping):
                             # We received a mapping and must rewrite it via
                             # correlation between the variables in the rule head
                             # and the variables in the original query (after applying
                             # bindings)
                             varMap = rule.formula.head.getVarMapping(queryLiteral)
                             if varMap:
-                                rt = MakeImmutableDict(refactorMapping(varMap, rt))
+                                rt = frozendict(refactorMapping(varMap, rt))
                             if buildProof:
                                 step.bindings = rt
                         else:

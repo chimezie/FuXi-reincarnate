@@ -7,8 +7,10 @@ A set of Python objects which create a PML instance in order to serialize as
 OWL/RDF
 
 """
-from typing import Any, Optional, Tuple, Union, Mapping, Iterable, List
+from collections.abc import Mapping
+from typing import Any, Optional, Tuple, Union, Iterable, List
 
+from frozendict import frozendict
 from rdflib.term import Identifier
 
 def _get_graphviz():
@@ -82,57 +84,6 @@ def _body_term_tuples(body_term):
     if hasattr(body_term, "toRDFTuple"):
         return [body_term.toRDFTuple()]
     return [term.toRDFTuple() for term in term_iterator(body_term)]
-
-
-class ImmutableDict(dict):
-    """
-    A hashable dict.
-
-    >>> a=[ImmutableDict([('one', 1), ('three', 3)]), ImmutableDict([('two', 2), ('four' , 4)])]
-    >>> b=[ImmutableDict([('two', 2), ('four' , 4)]), ImmutableDict([('one', 1), ('three', 3)])]
-    >>> a.sort(key=lambda d:hash(d))
-    >>> b.sort(key=lambda d:hash(d))
-    >>> a == b
-    True
-
-    """
-
-    def __init__(self, *args, **kwds):
-        dict.__init__(self, *args, **kwds)
-        self._items = list(self.items())
-        self._items.sort()
-        self._items = tuple(self._items)
-
-    def __setitem__(self, key, value):
-        raise NotImplementedError("dict is immutable")
-
-    def __delitem__(self, key):
-        raise NotImplementedError("dict is immutable")
-
-    def clear(self):
-        raise NotImplementedError("dict is immutable")
-
-    def setdefault(self, k, default=None):
-        raise NotImplementedError("dict is immutable")
-
-    def popitem(self):
-        raise NotImplementedError("dict is immutable")
-
-    def update(self, other):
-        raise NotImplementedError("dict is immutable")
-
-    def normalize(self):
-        return dict([(k, v) for k, v in list(self.items())])
-
-    def __hash__(self):
-        return hash(self._items)
-
-
-def MakeImmutableDict(regularDict):
-    """
-    Takes a regular dicitonary and makes an immutable dictionary out of it
-    """
-    return ImmutableDict([(k, v) for k, v in list(regularDict.items())])
 
 
 def fetch_rete_justifications(goal, nodeset, builder, antecedent=None):
@@ -546,7 +497,7 @@ class ProofBuilder(object):
             # Ground the right-activating body term by substituting variables
             # using the bindings already collected from proofTracers / the caller.
             term_triples = term.toRDFTuple()
-            if isinstance(step.bindings, dict):
+            if isinstance(step.bindings, Mapping):
                 grounded = tuple([step.bindings.get(arg, arg) for arg in term_triples])
             else:
                 grounded = term_triples
@@ -945,7 +896,7 @@ class ProofBuilder(object):
                             binds.extend([project(binding, a) for binding in t.bindings])
                         binds = set(
                             [
-                                ImmutableDict([(k, v) for k, v in list(bind.items())])
+                                frozendict(bind)
                                 for bind in binds
                             ]
                         )

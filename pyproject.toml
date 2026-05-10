@@ -18,6 +18,7 @@ classifiers = [
     "Natural Language :: English",
 ]
 dependencies = [
+    "frozendict",
     "pyparsing",
     "rdflib>=7.4",
 ]

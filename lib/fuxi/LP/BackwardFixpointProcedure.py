@@ -45,7 +45,7 @@ from fuxi.Rete.SidewaysInformationPassing import iterCondition, GetOp
 from fuxi.Rete.BetaNode import ReteMemory, BetaNode, RIGHT_MEMORY, LEFT_MEMORY
 from fuxi.Rete.AlphaNode import AlphaNode, ReteToken, BuiltInAlphaNode
 from fuxi.Rete.Network import HashablePatternList, InferredGoal
-from fuxi.Rete.Proof import MakeImmutableDict
+from frozendict import frozendict
 from fuxi.Rete.Magic import AdornedRule, AdornedUniTerm, IsHybridPredicate
 from fuxi.Rete.Util import generateTokenSet
 from fuxi.Horn.HornRules import Clause
@@ -146,14 +146,12 @@ class GoalSolutionAction(object):
         , storing the solutions for later retrieval
         """
         self.bfp.goalSolutions.add(
-            MakeImmutableDict(
-                dict(
-                    [
-                        (self.varMap[key], binding[key])
-                        for key in binding
-                        if key in self.varMap
-                    ]
-                )
+            frozendict(
+                [
+                    (self.varMap[key], binding[key])
+                    for key in binding
+                    if key in self.varMap
+                ]
             )
         )
 
@@ -250,7 +248,7 @@ class QueryExecution(object):
                     )
                 origQuery = _qLit.copy()
                 _qLit.ground(_bindings)
-                self.fired_grounded_queries[MakeImmutableDict(_bindings)] = _qLit
+                self.fired_grounded_queries[frozendict(_bindings)] = _qLit
                 if self.bfp.debug:
                     print(
                         "%sQuery triggered for "

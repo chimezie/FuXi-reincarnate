@@ -103,8 +103,9 @@ Instances of the fuxi.Rete.ReteNetwork class are RETE-UL networks. So, to progra
 
 ```python
 from rdflib.Graph import Graph
-from fuxi.Rete.RuleStore import SetupRuleStore
-rule_store, rule_graph, network = SetupRuleStore(makeNetwork=True,additionalBuiltins=...) 
+from fuxi.Rete.RuleStore import setup_rule_store
+
+rule_store, rule_graph, network = setup_rule_store(additional_builtins=..., make_network=True) 
 ```
 
 responds with:
@@ -135,9 +136,11 @@ This module is where the Sideways Information Passing reasoning capabilities are
 
 ### FuXi Sideways Information Passing ###
 
-FuXi has full support for Sideways Information Passing, a general optimization technique originally based on some 
-important algorithms in database theory called the Generalized Magic Set (GMS) transformation. Originally, the GMS 
-transformation is used to efficiently evaluate a query against a (possibly recursive) datalog program and database.
+FuXi uses SIP (Sideways Information Passing) and magic-set style rewriting to
+propagate bindings from query goals into rule evaluation. In current code,
+query-time reasoning in the CLI is centered on BFP (`--method=bfp`); older
+top-down/GMS pathways are retained as historical context but are not the
+primary command-line execution path.
 
 The mathematics of this is discussed in @EfficientSPARQL-in-use-generic.pdf
 
@@ -147,12 +150,10 @@ former comprises the Intensional Database (IDB) and the latter the Extensional D
 are derived by rules and base predicates are the stated facts (also known as _the database_).
 
 #### Backward Chaining / Top Down Evaluation #### 
-FuXi comes with two top-down (backward chaining) algorithms for SPARQL RIF-Core and OWL 2 RL entailment. The first is a 
-native Prolog-like Python implementation that can take a triple (as a goal) and generate a series of SPARQL queries 
-against the given factGraph, combining the results as answers to the goal. This has been deprecated by an extension of the 
-Backwards Fixpoint Procedure, a 'meta-interpretation' method that creates a program or ruleset that captures (or encodes) 
-a top-down procedure for answering the original question such that it can be evaluated via a 
-forward-chaining / bottom-up algorithm.
+Backward chaining in active use is the Backward Fixpoint Procedure (BFP), a
+meta-interpretation strategy evaluated over RETE structures. It compiles
+goal-driven behavior into a bottom-up executable form while preserving
+top-down query intent and binding propagation.
 
 Both of these methods can be used to answer queries that involve derived predicates whose semantics are defined either 
 in a set of OWL2 RL axioms or RIF Core formulas. Answers are computed via a series of coordinated SPARQL queries 
@@ -213,6 +214,24 @@ Why this matters for extension:
 ### fuxi.Rete.TopDown ### 
 The fuxi.Rete.TopDown module has since been deprecated by the Backwards Fixpoint Procedure (BFP). See backward chaining
 
+### Rendering and Diagnostics (Graphviz)
+
+FuXi exposes graph diagnostics as `graphviz.Digraph` objects (lazy-imported
+Graphviz dependency):
+
+- `fuxi.Rete.Proof.ProofBuilder.render_proof(...)` -> proof graph
+- `fuxi.Rete.Util.render_network(...)` -> RETE network graph
+- `fuxi.Rete.SidewaysInformationPassing.render_sip_collection(...)` -> SIP graph
+
+Command-line outputs map to these renderers:
+
+- `--output=proof-graph-svg|proof-graph-png` (requires `--why --method=bfp`)
+- `--output=rete-network-svg|rete-network-png`
+- `--output=sip-collection-svg|sip-collection-png` (requires `--why --method=bfp`)
+
+These outputs write binary/markup payloads directly to stdout for shell
+redirection.
+
 #### SPARQL FILTER Templates and Top Down Builtins ####
 Building a ruleset with a set of defined builtin implementations (as Python functions) will provide the means to use 
 builtins for forward chained inference via the RETE-UL network. However, as mentioned here the backward chaining inference 
@@ -231,8 +250,8 @@ factGraph.templateMap = dict([(pred,template) for pred,_ignore,template in
                               builtinTemplateGraph.triples( (None, TEMPLATES.filterTemplate, None))])
 ```
 
-Where builtinTemplateGraph is a graph of the templates. A SPARQL FILTER template builtin (N3) graph can be specified to 
-the FuXi command-line via the --builtinTemplates options:
+Where builtinTemplateGraph is a graph of the templates. A SPARQL FILTER template builtin (N3) graph can be specified to
+the FuXi command-line via the --builtin-templates option:
 
 ### fuxi.DLP ###
 
@@ -256,12 +275,12 @@ OWL editor and generate a corresponding ruleset.
 To invoke the DLP implementation, a developer would do the following:
 
 ```python from fuxi.Rete.Util import generateTokenSet 
-from fuxi.DLP.DLNormalization import NormalFormReduction
+from fuxi.DLP.DLNormalization import normal_form_reduction
 
-NormalFormReduction(tBoxGraph)
-network.setupDescriptionLogicProgramming(tBoxGraph)
-network.feedFactsToAdd(generateTokenSet(tBoxGraph))
-network.feedFactsToAdd(generateTokenSet(someRDFGraph)) 
+normal_form_reduction(tBoxGraph)
+network.setup_description_logic_programming(tBoxGraph)
+network.feed_facts_to_add(generateTokenSet(tBoxGraph))
+network.feed_facts_to_add(generateTokenSet(someRDFGraph)) 
 ```
 
 The setupDescriptionLogicProgramming method can be invoked on a ReteNetwork instance, passing in an RDFLib Graph that 
@@ -286,23 +305,39 @@ from the same ruleset. After resetting the network, the TBox graph will both nee
 followed by the later instance graph:
 
 ```python
-network.setupDescriptionLogicProgramming(tBoxGraph) 
-network.feedFactsToAdd(generateTokenSet(tBoxGraph)) 
-network.feedFactsToAdd(generateTokenSet(someRDFGraph1)) 
-network.reset() 
-network.feedFactsToAdd(generateTokenSet(tBoxGraph)) 
-network.feedFactsToAdd(generateTokenSet(someRDFGraph2)) ..etc..```
+network.setup_description_logic_programming(tBoxGraph)
+network.feed_facts_to_add(generateTokenSet(tBoxGraph))
+network.feed_facts_to_add(generateTokenSet(someRDFGraph1))
+network.reset()
+network.feed_facts_to_add(generateTokenSet(tBoxGraph))
+network.feed_facts_to_add(generateTokenSet(someRDFGraph2))..etc..
+```
 
-Or, consider the use of HornFromDL to do something similar, but more directly:
+Or, consider
+the
+use
+of
+HornFromDL
+to
+do
+something
+similar, but
+more
+directly:
 
 ```python
-from fuxi.Horn.HornRules import HornFromDL 
-from rdflib.Graph import Graph 
-from rdflib.util import first 
-first([r for r in HornFromDL(Graph().parse('http://www.lehigh.edu/%7Ezhp2/2004/0401/univ-bench.owl')) if not r.isSafe()]) ```
+from fuxi.Horn.HornRules import horn_from_dl
+from rdflib.Graph import Graph
+from rdflib.util import first
+
+first(
+    [r for r in horn_from_dl(Graph().parse('http://www.lehigh.edu/%7Ezhp2/2004/0401/univ-bench.owl')) if
+     not r.is_safe()])
+```
 
 ```console
-Forall ?X ( Exists _:tCDCSqnL314 ( Course(tCDCSqnL314) ) :- TeachingAssistant(?X) )
+Forall ?X(Exists
+_: tCDCSqnL314(Course(tCDCSqnL314)):- TeachingAssistant(?X) )
 ```
 
 Here, the first unsafe rule from the Lehigh University Benchmark ontology is printed out. The rule is unsafe because 
@@ -312,11 +347,22 @@ We can look at the OWL formulae associated with the TeachingAssistant class to s
 an unsafe rule:
 
 ```console
-$ fuxi --class=:TeachingAssistant --output=man-owl
+$ fuxi.owl --class=:TeachingAssistant --output=man-owl
 http://www.lehigh.edu/%7Ezhp2/2004/0401/univ-bench.owl 
 ... snip ... 
 Class: :TeachingAssistant ## A Defined Class (university teaching assistant) ## EquivalentTo: :Person that ( :teachingAssistantOf some :Course )```
 ```
+
+### CLI decomposition
+
+FuXi's command-line interface is now split by workflow:
+
+- `fuxi.core`: forward chaining, RDF serialization, conflict/rif output, RETE graphs
+- `fuxi.proof`: BFP query answering, proof graphs, SIP collection graphs
+- `fuxi.owl`: OWL/DLP reasoning workflows and Manchester OWL rendering
+
+The legacy `fuxi` entry point remains as a compatibility wrapper and routes to
+the most appropriate sub-command based on provided options.
 
 ### fuxi.LP ### 
 A backwards fixpoint procedure (BFP) implementation in Python.

@@ -1,11 +1,11 @@
 =========
-FuXi 1.2
+FuXi 1.4
 =========
 
 Introduction
 ================================
 
-`FuXi </p/fuxi/wiki/FuXi>`_ (pronounced foo-shee) is a forward-chaining
+FuXi (pronounced foo-shee) is a forward-chaining
 production system for Notation 3 Description Logic Programming. It is
 implemented as a companion to RDFLib – which it requires for its various
 RDF processing.
@@ -69,7 +69,7 @@ Python Idioms (hashing efficiently)
 ===================================
 
 -  compiles an RDFLib N3 rule graph into
-   :ref:`fuxi.Rete.AlphaNode` and :ref:`fuxi.Rete.BetaNode` instances
+   :class:`fuxi.Rete.AlphaNode.AlphaNode` and :class:`fuxi.Rete.BetaNode.BetaNode` instances
 -  takes a fact (or the removal of a fact, perhaps?) and propagates
    down, starting from it's alpha nodes
 -  stores inferred triples in provided triple source (an RDFLib graph)
@@ -77,7 +77,7 @@ Python Idioms (hashing efficiently)
 
 Like RDFLib, `FuXi` is very idiomatic and uses Python hash / set / list
 mechanism to maximize the matching efficiency of the network (see
-:mod:`Fuxi.Rete.Network`_). The extent of the efficiency has not been
+:mod:`fuxi.Rete.Network`). The extent of the efficiency has not been
 fully explored and there is much more that can be done to improve the
 already impressive performance.
 
@@ -87,18 +87,18 @@ Network
 Rete "Legend"
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. figure:: _static/rete-network.jpg
+.. figure:: _static/rete-network.svg
    :align: center
    :alt: 
 
 An OWL/RDFS Example
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. figure:: _static/fuxi.png
+.. figure:: _static/fuxi.svg
    :align: center
    :alt: 
 
-`FuXi </p/fuxi/wiki/FuXi>`_'s Network intances can be exported to a
+FuXi's Network instances can be exported to a
 `Graphviz <http://www.graphviz.org/>`_ **DOT** file and rendered to any
 image format. `Boost Graph Library - Python
 Bindings <http://www.generic-programming.org/~dgregor/bgl-python/>`_ is
@@ -115,9 +115,7 @@ Beta (Join) Nodes
     (<y> ^color red) /* C3 */
     ... /* other conditions */
 
-.. figure:: http://python-dlp.googlecode.com/files/rete-ul-join-node.png
-   :align: center
-   :alt: 
+Join node diagram omitted from this build.
 
 
 Roadmap & Limitations
@@ -125,18 +123,18 @@ Roadmap & Limitations
 
 The full unlinking algorithm has the following FSM:
 
-.. figure:: _static/rete-ul-unlinking-FSM.png
+.. figure:: _static/rete-ul-unlinking-fsm.svg
    :align: center
    :alt: 
 
-`FuXi </p/fuxi/wiki/FuXi>`_ currently implements production capabilities
+FuXi currently implements production capabilities
 for a limited subset of Notation 3. In particular built-ins are not
 implemented as they have a significant impact on the efficiency of a
 RETE network (which was really only intended for pattern matching).
 Robert's thesis includes algorithms / heuristics for implementing
 support for:
 
--  Negation `? </p/fuxi/w/edit/NegatedConditions>`_
+-  Negation (see :doc:`Overview`)
 -  Non-equality tests (read: built-in support)
 -  Live addition/removal of rules
 -  Support for removal of triples / WMEs
@@ -157,7 +155,7 @@ Fuxi is now setuptools integrated and can be installed via:
     wget http://peak.telecommunity.com/dist/ez_setup.py
     python ez_setup.py
     easy_install fuxi
-    Fuxi
+    fuxi
 
 Command-line Program
 ====================
@@ -166,7 +164,7 @@ Command-line help:
 
 ::
 
-    Usage: FuXi [options] factFile1 factFile2 ... factFileN
+    Usage: fuxi [options] factFile1 factFile2 ... factFileN
 
     Options:
       -h, --help            show this help message and exit
@@ -205,7 +203,7 @@ Command-line help:
                             initial facts  for the RETE network. One of
                             'xml','n3','trix', 'nt', or 'rdfa'.  The default is
                             xml
-      --pDSemantics         Used with --dlp to add pD semantics ruleset for
+      --pd-semantics        Used with --dlp to add pD semantics ruleset for
                             semantics not covered by DLP but can be expressed in
                             definite Datalog Logic Programming The default is
                             False
@@ -217,12 +215,10 @@ Command-line help:
                             RETE network.  Can be specified more than once
       --filter=PATH_OR_URI  The Notation 3 documents to use as a filter
                             (entailments do not particpate in network)
-      --ruleFacts           Determines whether or not to attempt to parse initial
+      --rule-facts          Determines whether or not to attempt to parse initial
                             facts from the rule graph.  The default is False
       --dlp                 Use Description Logic Programming (DLP) to extract
                             rules from OWL/RDF.  The default is False
       --negation            Extract negative rules?
-      --normalForm          Whether or not to reduce DL axioms & LP rules to a
+      --normal-form         Whether or not to reduce DL axioms & LP rules to a
                             normal form
-
-

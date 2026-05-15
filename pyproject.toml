@@ -45,6 +45,9 @@ dev = [
 
 [project.scripts]
 fuxi = "fuxi.Rete.CommandLine:main"
+"fuxi.core" = "fuxi.cli.core:main"
+"fuxi.proof" = "fuxi.cli.proof:main"
+"fuxi.owl" = "fuxi.cli.owl:main"
 
 [project.urls]
 Homepage = "https://github.com/chimezie/FuXi-reincarnate/blob/fuxi-reincarnate/"
@@ -78,7 +81,23 @@ target-version = "py313"
 
 [tool.ruff]
 target-version = "py313"
+line-length = 88
 
 [tool.ruff.lint]
-select = ["UP"]
+exclude = ["docs/*"]
+select = ["E", "W", "F", "I", "N", "FA", "UP"]
+ignore = [
+#    "E501",
+    "E203",
+    "E231",
+    "N999",
+    "N813"
+]
+[tool.ruff.lint.per-file-ignores]
+"lib/fuxi/DLP/__init__.py" = ["N802"]
+"lib/fuxi/SPARQL/service.py" = ["N803"]
+"test/SPARQL/*" = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["fuxi"]
 

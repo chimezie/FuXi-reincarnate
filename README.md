@@ -350,116 +350,93 @@ InfixOWL API to facilitate using OWL_DSL to fully render the logical semantics o
 
 ## Command Line Usage
 
-```console
-$ fuxi --help
-Usage: fuxi [options] factFile1 factFile2 ... factFileN
+FuXi provides focused sub-commands:
 
-Options:
-  -h, --help            show this help message and exit
-  --why=WHY             Specifies the goals to solve for using the non-naive
-                        methodssee --method
-  --closure             Whether or not to serialize the inferred triples along
-                        with the original triples.  Otherwise (the default
-                        behavior), serialize only the inferred triples
-  --imports             Whether or not to follow owl:imports in the fact graph
-  --output=RDF_FORMAT   Serialize the inferred triples and/or original RDF
-                        triples to STDOUT using the specified RDF syntax
-                        ('xml', 'pretty-xml', 'nt', 'turtle', or 'n3') or to
-                        print a summary of the conflict set (from the RETE
-                        network) if the value of this option is 'conflict'.
-                        If the the  value is 'rif' or 'rif-xml', Then the
-                        rules used for inference will be serialized as RIF.
-                        If the value is 'pml' and --why is used,  then the PML
-                        RDF statements are serialized.  If output is 'proof-
-                        graph then a graphviz .dot file of the proof graph is
-                        printed. Finally if the value is 'man-owl', then the
-                        RDF facts are assumed to be OWL/RDF and serialized via
-                        Manchester OWL syntax. The default is n3
-  --class=QNAME         Used with --output=man-owl to determine which classes
-                        within the entire OWL/RDF are targetted for
-                        serialization.  Can be used more than once
-  --hybrid              Used with with --method=bfp to determine whether or
-                        not to peek into the fact graph to identify predicates
-                        that are both derived and base.  This is expensive for
-                        large fact graphsand is explicitely not used against
-                        SPARQL endpoints
-  --property=QNAME      Used with --output=man-owl or --extract to determine
-                        which properties are serialized / extracted.  Can be
-                        used more than once
-  --normalize           Used with --output=man-owl to attempt to determine if
-                        the ontology is 'normalized' [Rector, A. 2003]The
-                        default is False
-  --ddlGraph=DDLGRAPH   The location of a N3 Data Description document
-                        describing the IDB predicates
-  --input-format=RDF_FORMAT
-                        The format of the RDF document(s) which serve as the
-                        initial facts  for the RETE network. One of 'xml',
-                        'n3', 'trix', 'nt', or 'rdfa'.  The default is xml
-  --safety=RULE_SAFETY  Determines how to handle RIF Core safety.  A value of
-                        'loose'  means that unsafe rules will be ignored.  A
-                        value of 'strict'  will cause a syntax exception upon
-                        any unsafe rule.  A value of 'none' (the default) does
-                        nothing
-  --pDSemantics         Used with --dlp to add pD semantics ruleset for
-                        semantics not covered by DLP but can be expressed in
-                        definite Datalog Logic Programming The default is
-                        False
-  --stdin               Parse STDIN as an RDF graph to contribute to the
-                        initial facts. The default is False
-  --ns=PREFIX=URI       Register a namespace binding (QName prefix to a base
-                        URI).  This can be used more than once
-  --rules=PATH_OR_URI   The Notation 3 documents to use as rulesets for the
-                        RETE network.  Can be specified more than once
-  -d, --debug           Include debugging output
-  --strictness=DDL_STRICTNESS
-                        Used with --why to specify whether to: *not* check if
-                        predicates are  both derived and base (loose), if they
-                        are, mark as derived (defaultDerived) or as base
-                        (defaultBase) predicates, else raise an exception
-                        (harsh)
-  --method=reasoning algorithm
-                        Used with --why to specify how to evaluate answers for
-                        query.  One of: gms, sld, bfp, naive
-  --firstAnswer         Used with --why to determine whether to fetch all
-                        answers or just the first
-  --edb=EXTENSIONAL_DB_PREDICATE_QNAME
-                        Used with --why/--strictness=defaultDerived to specify
-                        which clashing predicate will be designated as a base
-                        predicate
-  --idb=INTENSIONAL_DB_PREDICATE_QNAME
-                        Used with --why/--strictness=defaultBase to specify
-                        which clashing predicate will be designated as a
-                        derived predicate
-  --hybridPredicate=PREDICATE_QNAME
-                        Used with --why to explicitely specify a hybrid
-                        predicate (in both  IDB and EDB)
-  --noMagic=DB_PREDICATE_QNAME
-                        Used with --why to specify that the predicate shouldnt
-                        have its magic sets calculated
-  --filter=PATH_OR_URI  The Notation 3 documents to use as a filter
-                        (entailments do not particpate in network)
-  --ruleFacts           Determines whether or not to attempt to parse initial
-                        facts from the rule graph.  The default is False
-  --builtins=PATH_TO_PYTHON_MODULE
-                        The path to a python module with function definitions
-                        (and a dicitonary called ADDITIONAL_FILTERS) to use
-                        for builtins implementations
-  --dlp                 Use Description Logic Programming (DLP) to extract
-                        rules from OWL/RDF.  The default is False
-  --sparqlEndpoint      Indicates that the sole argument is the URI of a
-                        SPARQL endpoint to query
-  --ontology=PATH_OR_URI
-                        The path to an OWL RDF/XML graph to use DLP to extract
-                        rules from (other wise, fact graph(s) are used)
-  --ontologyFormat=RDF_FORMAT
-                        The format of the OWL RDF/XML graph specified via
-                        --ontology.  The default is xml
-  --builtinTemplates=N3_DOC_PATH_OR_URI
-                         The path to an N3 document associating SPARQL FILTER
-                         templates to rule builtins
-  --negation            Extract negative rules?
-  --normalForm          Whether or not to reduce DL axioms & LP rules to a
-                         normal form
+- `fuxi.core`: forward chaining, RDF serialization, RETE diagnostics
+- `fuxi.proof`: BFP query answering, proof graph and SIP graph output
+- `fuxi.owl`: OWL/DLP workflows, ontology-driven reasoning, Manchester OWL output
+
+The legacy `fuxi` command remains as a compatibility wrapper and routes to the
+appropriate sub-command.
+
+Core invocation patterns:
+
+```bash
+uv run --active --extra dev fuxi.core [options] factFile1 factFile2 ...
+uv run --active --extra dev fuxi.proof [options] factFile1 factFile2 ...
+uv run --active --extra dev fuxi.owl [options] factFile1 factFile2 ...
+```
+
+Common options:
+
+- `--rules PATH_OR_URI` (repeatable): Notation3 rulesets
+- `--input-format {xml,trix,n3,nt,rdfa}`: input RDF format
+- `--output FORMAT`: output mode (see table below)
+- `--ns PREFIX=URI` (repeatable): namespace bindings
+- `--why "SPARQL query"`: goal-directed query (use with `fuxi.proof` or `fuxi.owl`)
+- `--method {naive,bfp}`: available on `fuxi.owl` and compatibility wrapper
+- `--first-answer`: stop after first BFP answer
+
+### Output Formats
+
+| Output | Description | Notes |
+| --- | --- | --- |
+| `n3`, `nt`, `xml`, `TriX` | RDF serialization of inferred (or closure) triples | default is `n3` |
+| `conflict` | textual RETE conflict-set summary | prints to stdout |
+| `rif`, `rif-xml` | rule serialization | primarily for rule inspection |
+| `man-owl` | Manchester OWL rendering of OWL/RDF | use `--class` / `--property` selectors |
+| `proof-graph-svg`, `proof-graph-png` | proof graph rendering | requires `--why --method=bfp` |
+| `rete-network-svg`, `rete-network-png` | RETE network visualization | works in naive or BFP runs |
+| `sip-collection-svg`, `sip-collection-png` | SIP collection visualization | requires `--why --method=bfp` |
+
+### Graph Output Behavior
+
+Graph outputs (`proof-graph-*`, `rete-network-*`, `sip-collection-*`) are
+binary/markup payloads written directly to stdout. Pipe them to files:
+
+```bash
+uv run --active --extra dev fuxi.proof \
+  --rules test/command_line_test_rules.n3 \
+  --input-format n3 \
+  --ns fam=http://dev.w3.org/2000/10/swap/test/cwm/fam.n3# \
+  --why "PREFIX fam: <http://dev.w3.org/2000/10/swap/test/cwm/fam.n3#> SELECT ?a { fam:david fam:ancestor ?a }" \
+  --output proof-graph-svg \
+  test/command_line_facts.n3 > proof.svg
+```
+
+```bash
+uv run --active --extra dev fuxi.core \
+  --rules test/command_line_test_rules.n3 \
+  --input-format n3 \
+  --ns fam=http://dev.w3.org/2000/10/swap/test/cwm/fam.n3# \
+  --output rete-network-png \
+  test/command_line_facts.n3 > rete.png
+```
+
+> Note: Graph rendering requires Graphviz (`dot`) available in your environment.
+
+### Practical Recipes
+
+Naive forward chaining to inferred triples:
+
+```bash
+uv run --active --extra dev fuxi.core \
+  --rules test/command_line_test_rules.n3 \
+  --input-format n3 \
+  --ns fam=http://dev.w3.org/2000/10/swap/test/cwm/fam.n3# \
+  --output n3 \
+  test/command_line_facts.n3
+```
+
+BFP query answering (variable bindings):
+
+```bash
+uv run --active --extra dev fuxi.proof \
+  --rules test/command_line_test_rules.n3 \
+  --input-format n3 \
+  --ns fam=http://dev.w3.org/2000/10/swap/test/cwm/fam.n3# \
+  --why "PREFIX fam: <http://dev.w3.org/2000/10/swap/test/cwm/fam.n3#> SELECT ?a { fam:david fam:ancestor ?a }" \
+  test/command_line_facts.n3
 ```
 
 ## SPARQL 1.1 entailment regimes and a Data Description Language (DDL)
@@ -482,7 +459,7 @@ from io import StringIO
 
 from rdflib import Graph, Namespace, RDF
 
-from fuxi.Horn.HornRules import HornFromN3
+from fuxi.Horn.HornRules import horn_from_n3
 from fuxi.SPARQL.utilities import owl_entailment_regime_graph
 
 ex = Namespace("http://example.org/")
@@ -492,21 +469,21 @@ rules_n3 = """
 @prefix ex: <http://example.org/> .
 { ?s ex:parentOf ?o } => { ?s ex:relatedTo ?o } .
 """
-extra_rulesets = [HornFromN3(StringIO(rules_n3))]
+extra_rulesets = [horn_from_n3(StringIO(rules_n3))]
 goals = [
-    (ex.alice, RDF.type, ex.Person),
-    (ex.alice, ex.parentOf, ex.bob),
+  (ex.alice, RDF.type, ex.Person),
+  (ex.alice, ex.parentOf, ex.bob),
 ]
 
 entail_graph, _closure_delta = owl_entailment_regime_graph(
-    fact_graph,
-    ns_map,
-    extra_rulesets=extra_rulesets,
-    goals=goals,
+  fact_graph,
+  ns_map,
+  extra_rulesets=extra_rulesets,
+  goals=goals,
 )
 
 result = entail_graph.query(
-    "SELECT ?s ?o WHERE { ?s ex:relatedTo ?o }"
+  "SELECT ?s ?o WHERE { ?s ex:relatedTo ?o }"
 )
 ```
 
@@ -516,18 +493,20 @@ derived predicate for goal-directed resolution.
 If `fact_graph` has OWL 2 axioms that are axiomatizeable by a ruleset,
 then the semantics of the ruleset will be used for OWL entailment of axioms as well.
 
-CLI example (DDL + SPARQL endpoint):
+CLI example (BFP + SPARQL endpoint):
 
 ```console
-$ fuxi \
+$ fuxi.proof \
   --why="SELECT ?label { ?drug a drugbank:InfluenzaDrug; rdfs:label ?label }" \
-  --method=bfp \
-  --strictness=defaultDerived \
-  --ddlGraph=examples/drugBankDDL.n3 \
+  --hybrid \
+  --idb=drugbank:InfluenzaDrug \
+  --ns=drugbank=http://www4.wiwiss.fu-berlin.de/drugbank/resource/drugbank/ \
+  --ns=rdfs=http://www.w3.org/2000/01/rdf-schema# \
   --ontology=test/SPARQL/drugBankOnt.n3 \
-  --ontologyFormat=n3 \
-  --sparqlEndpoint \
-  --dlp http://www4.wiwiss.fu-berlin.de/drugbank/sparql
+  --ontology-format=n3 \
+  --sparql-endpoint \
+  --dlp \
+  http://www4.wiwiss.fu-berlin.de/drugbank/sparql
 ```
 
 ## SPARQL Graph Wrapper
@@ -537,6 +516,25 @@ query evaluation by extracting the basic graph pattern (BGP) from a query, compi
 issuing a service query against the configured SPARQL endpoint. It is designed to plug into FuXi's 
 SPARQL entailment machinery so you can implement SPARQL 1.1 entailment regimes over remote services independent of 
 any reasoning capabilities of the service.
+
+### Querying TopDownSPARQLEntailingStore
+
+The ``sparql_interlocution`` function provides a convenient way to execute SPARQL queries 
+against a ``TopDownSPARQLEntailingStore`` and yield solutions:
+
+```python
+from rdflib import Variable
+from fuxi.SPARQL.service import sparql_interlocution
+
+for answer in sparql_interlocution(query, top_down_store):
+    movie = answer[Variable('movie')]
+    print(f"Movie: {movie}")
+```
+
+This function bridges SPARQL query text and FuXi's backwards-chaining evaluation engine. 
+It parses the query, extracts the basic graph pattern, converts triples to quads, and uses 
+the store's ``batch_unify`` to retrieve matching solutions. Only solutions where all query 
+variables are bound are yielded.
 
 ## Testing
 
@@ -644,10 +642,12 @@ from the same ruleset. After resetting the network, the TBox graph will both nee
 followed by the later instance graph.
 
 ```python
-from fuxi.Horn.HornRules import HornFromDL 
-from rdflib.Graph import Graph 
-from rdflib.util import first 
-first([r for r in HornFromDL(Graph().parse('http://www.lehigh.edu/%7Ezhp2/2004/0401/univ-bench.owl')) if not r.isSafe()]) 
+from fuxi.Horn.HornRules import horn_from_dl
+from rdflib.Graph import Graph
+from rdflib.util import first
+
+first([r for r in horn_from_dl(Graph().parse('http://www.lehigh.edu/%7Ezhp2/2004/0401/univ-bench.owl')) if
+       not r.is_safe()]) 
 ```
 
 ```console
@@ -662,7 +662,7 @@ why its conversion to rules includes
 an unsafe rule:
 
 ```console
-$ fuxi --class=:TeachingAssistant --output=man-owl http://www.lehigh.edu/%7Ezhp2/2004/0401/univ-bench.owl
+$ fuxi.owl --class=:TeachingAssistant --output=man-owl http://www.lehigh.edu/%7Ezhp2/2004/0401/univ-bench.owl
 Class: :TeachingAssistant 
     ## A Defined Class (university teaching assistant) ##
     EquivalentTo: person THAT ( 'is a teaching assistant for' SOME teaching course )

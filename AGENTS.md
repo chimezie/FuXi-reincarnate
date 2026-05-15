@@ -11,46 +11,86 @@ The details of its original design are in ARCHITECTURE.md.
 
 ## Build, Lint, and Test Commands
 
-### FuXi (nose-based legacy system)
+### Modern Python (3.12+) Commands
 ```bash
 # Install dependencies
-pip install -r FuXi-reincarnate-chimezie/requirements.py3.txt
+uv pip install -e ".[dev]"
 
 # Run all tests
-python FuXi-reincarnate-chimezie/setup.py nosetests
+uv run pytest test
 
 # Run single test file
-nosetests FuXi-reincarnate-chimezie/test/test_issue_041.py
+uv run pytest test/testOWL2.py
 
-# Run specific test by name
-python FuXi-reincarnate-chimezie/setup.py nosetests --tests=FuXi-reincarnate-chimezie/test/test_issue_041:TestFoo.test_bar
+# Run specific test
+uv run pytest test/testOWL.py --single-test OWL/TransitiveProperty/premises001 --ground-query
 
-# Lint with flake8
-tox -e flake  # Uses: flake8 --exclude=tools,examples --max-line-length=350
+# Lint with ruff (replaces flake8, isort, black)
+uv run ruff check .
 
-# Coverage report (HTML in FuXi-reincarnate-chimezie/coverage/)
-tox -e cover
+# Format with ruff
+uv run ruff format .
 
 # Generate Sphinx docs
 tox -e docs
-cd FuXi-reincarnate-chimezie/docs && make html
+
+# Coverage report (HTML in coverage/)
+uv run pytest --cov=FuXi --cov-report=html
+```
+
+### Legacy Commands (FuXi-reincarnate-chimezie)
+```bash
+# Install dependencies (legacy)
+pip install -r FuXi-reincarnate-chimezie/requirements.py3.txt
+
+# Run all tests (legacy nose-based)
+python FuXi-reincarnate-chimezie/setup.py nosetests
 ```
 
 ---
 
 ## Code Style Guidelines
 
+### Ruff (Primary Linter & Formatter)
+
+FuXi uses **ruff** as the single tool for linting and formatting. It replaces flake8, isort, black, and pyupgrade. Configuration is in `pyproject.toml` [tool.ruff] section.
+
+```bash
+# Lint
+uv run ruff check .
+
+# Auto-fix
+uv run ruff check --fix .
+
+# Format
+uv run ruff format .
+
+# Check formatting without changes
+uv run ruff format --check .
+```
+
+**Enabled rules** (from pyproject.toml):
+- `E`, `W`, `F`: Pyflakes (replaces flake8)
+- `I`: isort (import sorting)
+- `N`: Naming conventions
+- `FA`: Future annotations
+- `UP`: Pyupgrade
+
+**Ignored rules**:
+- `E501`: Line too long (handled by formatter)
+- `E203`: Whitespace before ':'
+- `E231`: Missing whitespace after ','
+
 ### General Python Conventions
-- **Formatting**: Follow Black/PEP 8; never reformat unrelated code when editing.
 - **Imports**: Organize as standard library → third-party → local imports. Use absolute imports. One import per line for multiple symbols from same module.
 ```python
 import os
-from typing import Dict, List
+from typing import Any
 
 import rdflib
 from rdflib import Graph
 
-from .local_module import something
+from fuxi.local_module import something
 ```
 - **Type hints**: Use `typing` module for public APIs and complex type flows. Prefer modern syntax: `dict[str, Any]` over `Dict[str, Any]`.
 - **Naming conventions**:
@@ -63,21 +103,6 @@ if not isinstance(value, int):
     raise TypeError(f"Expected int, got {type(value).__name__}")
 ```
 - **Logging**: Use `logging.getLogger(__name__)` for all logging. Avoid `print()` statements except in debug scripts.
-
-### RDFLib-Specific Rules (from `rdflib/pyproject.toml`)
-- **Black configuration**: Line length 88, target Python 3.9, version 24.10.0+
-- **Ruff ruleset**: Target py39; enabled codes: `E`, `W`, `F`, `I`, `N`, `FA`, `UP*`
-- **Ignored codes**: `E501` (line too long), `E203` (whitespace before ':'), `E231` (missing whitespace after ',')
-- **isort profile**: Uses Black profile, line length 88, paths: `rdflib`, `test`, `devtools`, `examples`
-- **mypy strictness**: `check_untyped_defs = true` for all `rdflib.*`, `warn_unused_ignores = true`
-
-### FuXi-Specific Considerations
-- Test framework is nose-based (legacy). Check `setup.cfg` for test exclusions marked with `known_issue`.
-- Python 2 compatibility code exists in `FuXi-reincarnate-chimezie/setup.py`; minimize changes to legacy modules.
-- **Black configuration**: Line length 88, target Python 3.9, version 24.10.0+
-- **Ruff ruleset**: Target py39; enabled codes: `E`, `W`, `F`, `I`, `N`, `FA`, `UP*`
-- **isort profile**: Uses Black profile, line length 88, paths: `rdflib`, `test`, `devtools`, `examples`
-- **mypy strictness**: `check_untyped_defs = true` for all `rdflib.*`, `warn_unused_ignores = true`
 
 ---
 
@@ -122,6 +147,7 @@ uv run pytest test/testOWL.py --owl-debug --capture-proofs
 | `fuxi.DLP` | Description Logic Programs (OWL→rules) | DLProgram, translation utilities |
 | `fuxi.LP` | Backwards Fixpoint Procedure (BFP) | Query answering engine |
 | `fuxi.SPARQL` | Backward-chaining SPARQL store | Entailment registry |
+| `fuxi.SPARQL.service` | SPARQL service graph wrapper | SPARQLServiceGraph, sparql_interlocution |
 
 ### Rule Safety Levels (`fuxi.Horn`)
 ```python
@@ -134,14 +160,22 @@ DATALOG_SAFETY_LOOSE  # Relaxed safety with warnings
 
 ## Practical Tips for Agents
 
-1. **When modifying RDFLib code**: Always run `poetry run ruff check .` and `poetry run pytest <file>` before suggesting changes.
+1. **Before suggesting changes**: Always run `uv run ruff check .` and `uv run pytest <file>` to verify code quality.
 
-2. **When working on FuXi**: Use nose test discovery; add markers like `@known_issue` for expected failures in `setup.cfg`.
+2. **Use the right CLI command for examples/tests**:
+   - `fuxi.core` for forward-chaining examples and RETE diagnostics
+   - `fuxi.proof` for `--why` query solving and proof/SIP graph output
+   - `fuxi.owl` for DLP/ontology and `--output=man-owl` workflows
+   - `fuxi` remains a compatibility wrapper
 
-3. **Import ordering**: Use `isort` with Black profile to auto-sort imports consistently across the codebase.
+3. **When working on FuXi**: Use pytest for all new tests. Legacy nose-based tests may have `@known_issue` markers in `setup.cfg`.
 
-4. **Type annotations**: Add types to new public APIs and complex internal functions. Legacy code may have minimal typing.
+4. **Import ordering and formatting**: Use `uv run ruff check --fix .` to auto-fix imports and formatting issues.
 
-5. **Testing edge cases**: RDFLib handles many RDF/OWL edge cases; review existing tests for patterns before writing new ones.
+5. **Type annotations**: Add types to new public APIs and complex internal functions. Legacy code may have minimal typing.
 
-6. **SPARQL queries in FuXi**: Check `FuXi-reincarnate-chimezie/test/SPARQL/` for query test templates and expected result formats.
+6. **Testing edge cases**: Review existing tests in `test/` for patterns before writing new ones.
+
+7. **SPARQL queries in FuXi**: Use `sparql_interlocution` from `fuxi.SPARQL.service` for querying `TopDownSPARQLEntailingStore`. Check `test/SPARQL/` for query test templates and expected result formats.
+
+8. **Building documentation**: Run `tox -e docs` to build Sphinx documentation locally.

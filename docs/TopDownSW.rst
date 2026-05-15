@@ -5,8 +5,8 @@ TopDownSW
 Introduction
 ===============================
 
-The wiki describes and documents `FuXi </p/fuxi/wiki/FuXi>`_'s
-`BackwardsChainingStore <http://code.google.com/p/fuxi/source/browse/lib/SPARQL/BackwardChainingStore.py>`_
+This document describes and documents FuXi's
+`BackwardsChainingStore <https://github.com/RDFLib/FuXi/blob/main/lib/fuxi/SPARQL/BackwardChainingStore.py>`_
 - an rdflib Store that serves as a query mediation wrapper over an
 existing RDFLib graph. The main use is to be able to pose queries
 involving terms from a ruleset and/or ontology such that either of the
@@ -15,7 +15,7 @@ dispatching queries at the bottom of the resolution tree involving EDB
 predicates against the given graph. Query mediation can also be used
 against a remote SPARQL service using the generic SPARQL store provided
 by
-`layercake-python <http://code.google.com/p/python-dlp/wiki/LayerCakePythonDivergence>`_.
+the legacy layercake-python fork.
 
 Details
 =====================
@@ -74,15 +74,17 @@ Use
 
 ::
 
-    $ FuXi \
-    --output=rif --safety=loose --strictness=loose \
-    --ddlGraph=test/drugBankDDL.n3 --method=sld 
+    $ fuxi.proof \
     --output=n3 \
-    --why="SELECT ?label { ?drug a drugbank:InfluenzaDrug; rdfs:label ?label }" 
-    --debug --ontology=test/drugBankOnt.n3 
-    --ontologyFormat=n3 
-    --builtinTemplates=http://fuxi.googlecode.com/hg/RuleBuiltinSPARQLTemplates.n3 
-    --sparqlEndpoint --dlp http://www4.wiwiss.fu-berlin.de/drugbank/sparql
+    --safety=loose \
+    --why="SELECT ?label { ?drug a drugbank:InfluenzaDrug; rdfs:label ?label }" \
+    --debug \
+    --ontology=test/drugBankOnt.n3 \
+    --ontology-format=n3 \
+    --builtin-templates=RuleBuiltinSPARQLTemplates.n3 \
+    --sparql-endpoint \
+    --dlp \
+    http://www4.wiwiss.fu-berlin.de/drugbank/sparql
 
     ## Full SPARQL Algebra expression ##
     BGP((?drug,rdf:type,drugbank:InfluenzaDrug),(?drug,rdfs:label,?label))
@@ -97,19 +99,16 @@ Use
     Evaluating TP against EDB:  SELECT ?label {     <http://www4.wiwiss.fu-berlin.de/drugbank/resource/drugs/DB00198> <http://www.w3.org/2000/01/rdf-schema#label> ?label }
     Time to reach answer Oseltamivir via top-down SPARQL sip strategy: 731.135129929 milli seconds
 
-    $ FuXi \
+    $ fuxi.proof \
       --output=rif \
       --safety=loose \
-      --strictness=loose \
-      --ddlGraph=test/drugBankDDL.n3 \
-      --method=bfp \
       --output=n3 \
       --why="SELECT ?label { ?drug a drugbank:InfluenzaDrug; rdfs:label ?label }" \
       --debug \
       --ontology=test/drugBankOnt.n3 \
-      --ontologyFormat=n3 \
-      --builtinTemplates=http://fuxi.googlecode.com/hg/RuleBuiltinSPARQLTemplates.n3 \
-      --sparqlEndpoint \
+      --ontology-format=n3 \
+      --builtin-templates=RuleBuiltinSPARQLTemplates.n3 \
+      --sparql-endpoint \
       --dlp http://www4.wiwiss.fu-berlin.de/drugbank/sparql
 
     ## Full SPARQL Algebra expression ##
@@ -135,4 +134,3 @@ Use
     Evaluating TP against EDB:  SELECT ?label {     <http://www4.wiwiss.fu-berlin.de/drugbank/resource/drugs/DB00198> <http://www.w3.org/2000/01/rdf-schema#label> ?label }
     FtWarning: Creation of InputSource without a URI
     Time to reach answer Oseltamivir via top-down SPARQL sip strategy: 725.481987 milli seconds
-

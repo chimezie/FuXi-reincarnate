@@ -8,6 +8,10 @@
 { ?S rdfs:range   ?R . ?R rdfs:subClassOf ?R2 } => { ?S rdfs:range ?R2 } .
 { ?S rdfs:domain  ?R . ?R rdfs:subClassOf ?R2 } => { ?S rdfs:domain ?R2 } .
 { ?C a rdfs:Class } => { ?C rdfs:subClassOf rdfs:Resource } .
+{ ?C a owl:Class } => { ?C rdfs:subClassOf ?C } .
+{ ?C a rdfs:Class } => { ?C rdfs:subClassOf ?C } .
+{ ?A rdfs:subClassOf ?B . ?B rdfs:subClassOf ?C } => { ?A rdfs:subClassOf ?C } .
+{ ?P rdfs:subPropertyOf ?Q . ?Q rdfs:subPropertyOf ?R } => { ?P rdfs:subPropertyOf ?R } .
 { ?List ?prop ?obj.
   ?prop str:contains "http://www.w3.org/1999/02/22\\-rdf\\-syntax\\-ns#_\\d+"  }
   => { ?prop a rdfs:ContainerMembershipProperty } .

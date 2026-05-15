@@ -117,6 +117,39 @@ Most-used options:
 - ``--why "SPARQL query"``: top-down query goal (``fuxi.proof`` or ``fuxi.owl``)
 - ``--method {naive,bfp}``: reasoning mode (``fuxi.owl`` and compatibility wrapper)
 
+.. _quickstart-sparql-entailment:
+
+SPARQL Entailment Test Harness
+------------------------------
+
+FuXi ships a manifest-driven SPARQL entailment regression harness:
+
+.. code-block:: bash
+
+   uv run pytest test/SPARQL/test_sparql_entailment.py
+
+Useful focused runs:
+
+.. code-block:: bash
+
+   # run one manifest test ID
+   uv run pytest test/SPARQL/test_sparql_entailment.py --single-test rdfs04
+
+   # run a subset by pytest expression
+   uv run pytest test/SPARQL/test_sparql_entailment.py -k "paper-sparqldl-Q1-rdfs or sparqldl-05"
+
+Harness behavior summary:
+
+- Collects one pytest case per approved W3C manifest entry.
+- Runs currently supported regimes (RDFS/RDF) through
+  ``owl_entailment_regime_graph``.
+- For ASK queries, compares expected and actual booleans exactly.
+- For SELECT-style result sets, requires expected bindings to be present;
+  additional inferred bindings are tolerated.
+- Uses explicit skip marks for known unsupported areas (for example,
+  BIND-heavy algebra and OWL-strength SPARQL-DL cases outside current
+  RDFS/RDF scope).
+
 Notable output modes:
 
 - ``n3``, ``nt``, ``xml``, ``TriX``: RDF output

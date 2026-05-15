@@ -118,6 +118,7 @@ Use pytest for all new tests.
 - Primary test directory: `FuXi-reincarnate-chimezie/test/`
 - SPARQL-specific tests: `FuXi-reincarnate-chimezie/test/SPARQL/`
 - OWL test suites: `test/testOWL.py` (OWL 1), `test/testOWL2.py` (OWL 2)
+- SPARQL entailment harness: `test/SPARQL/test_sparql_entailment.py`
 
 ### Running FuXi Tests
 
@@ -132,7 +133,49 @@ uv run pytest test/testOWL.py --single-test OWL/TransitiveProperty/premises001 -
 
 # Run with debugging
 uv run pytest test/testOWL.py --owl-debug --capture-proofs
+
+# Run SPARQL entailment harness
+uv run pytest test/SPARQL/test_sparql_entailment.py
+
+# Run one SPARQL entailment case by manifest ID
+uv run pytest test/SPARQL/test_sparql_entailment.py --single-test rdfs04
 ```
+
+### SPARQL entailment harness architecture notes (agent-facing)
+
+`test/SPARQL/test_sparql_entailment.py` is intentionally structured like the
+OWL harnesses:
+
+1. **Manifest collection** (`collect_sparql_entailment_test_cases`):
+   - Parses the W3C entailment manifest
+   - Filters to approved query-evaluation tests
+   - Chooses supported regimes (`ent:RDFS`, `ent:RDF`)
+   - Applies explicit `SKIP` reasons via pytest marks
+
+2. **Entailment setup**:
+   - Builds a fact graph from test data
+   - Adds RDFS axiomatic triples for RDFS-regime runs
+   - Extends the entailment rule program with regime-specific extra rules
+     (`test/SPARQL/W3C/rdf-rdfs.n3` and RDF helper rules)
+   - Constructs an entailing graph via
+     `fuxi.SPARQL.utilities.owl_entailment_regime_graph`
+
+3. **Query execution and comparison**:
+   - Executes each manifest query against the entailing graph
+   - Parses expected `.srx` result sets
+   - ASK queries are strict boolean comparisons
+   - SELECT-style result sets use subset comparison (expected bindings must be
+     present; extra bindings are currently tolerated)
+
+4. **Current boundaries**:
+   - BIND-heavy tests (`bind01`-`bind08`) are known failures pending richer
+     algebra support in top-down query extraction.
+   - Some SPARQL-DL tests require OWL entailment strength beyond current
+     RDFS/RDF harness mode and are explicitly skipped.
+
+When editing this harness, prefer small, explicit transformations and keep the
+collector, setup, and assertion paths separate (SRP) to reduce debugging
+complexity.
 
 ---
 

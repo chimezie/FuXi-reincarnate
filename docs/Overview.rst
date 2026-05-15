@@ -18,7 +18,7 @@ Contents
 Architectural Motivation
 =======================================================
 
-Briefly, `FuXi </p/fuxi/wiki/FuXi>`_ aims to be the engine for
+Briefly, FuXi aims to be the engine for
 contemporary expert systems based on the Semantic Web technologies.
 Traditionally, expert systems are an application of computing and
 artificial intelligence with the aim of supporting software that
@@ -107,10 +107,36 @@ Memory Elements) to 3-item tuples (which corresponds quite nicely with
 the RDF abstract syntax). The thesis also describes methods for using
 hash tables to improve efficiency of alpha nodes and beta nodes.
 
+RETE Network Flows
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Alpha/Beta network, working memory, and token propagation:
+
+.. mermaid::
+
+   flowchart LR
+       Facts["Input Facts (WMEs)"] --> Alpha["Alpha Nodes\n(pattern match)"]
+       Alpha -->|tokens| Beta["Beta Nodes\n(joins)"]
+       Beta -->|partial match tokens| Terminal["Terminal Nodes\n(rule fired)"]
+       Terminal -->|assert inferred triples| WM["Working Memory / Inferred Graph"]
+       WM -->|new facts| Alpha
+
+SIP adornment and magic set rewriting flow:
+
+.. mermaid::
+
+   flowchart LR
+       Goal["Goal Triple Patterns"] --> Adorn["Adornment\n(bound/free analysis)"]
+       Adorn --> Magic["Magic Predicates\n(seed facts)"]
+       Magic --> Rewrite["Rewrite Rules\n(adorned rules + magic rules)"]
+       Rewrite --> SIP["SIP Graph\n(binding propagation)"]
+       SIP --> Eval["Bottom-up Evaluation\n(RETE over EDB)"]
+       Eval --> Answers["Derived Answers"]
+
 Sideways Information Passing
 -------------------------------------------------------------------------------------------
 
-`FuXi </p/fuxi/wiki/FuXi>`_ has full support for Sideways Information
+FuXi has full support for Sideways Information
 Passing, a general optimization technique originally based on one of the
 more important algorithms in database theory called the Generalized
 Magic Set (GMS) transformation. Originally, the GMS transformation is
@@ -122,7 +148,7 @@ algebra implementations which include (possibly recursive)
 Base and Derived Predicates
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-An important distinction needed for `FuXi </p/fuxi/wiki/FuXi>`_'s SIP
+An important distinction needed for FuXi's SIP
 capabilities is between **derived** predicates and **base** predicates,
 the former comprises the Intensional Database (**IDB**) and the latter
 the Extensional Database (**EDB**). Derived predicates are those that
@@ -133,7 +159,7 @@ database*).
 Backward Chaining / Top Down Evaluation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-`FuXi </p/fuxi/wiki/FuXi>`_ comes with two top-down (backward chaining)
+FuXi comes with two top-down (backward chaining)
 algorithms for SPARQL RIF-Core and OWL 2 RL entailment. The first is a
 native Prolog-like Python implementation that can take a triple (as a
 goal) and generate a series of SPARQL queries against the given
@@ -157,8 +183,7 @@ to a large, remote SQL backend).
 Reason for Deprecation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The
-`FuXi </p/fuxi/wiki/FuXi>`_.Rete.TopDown`? </p/fuxi/w/edit/TopDown>`_
+The FuXi Rete.TopDown module
 module is essentially a refutation (proof)-based implementation of a
 top-down strategy. Adding tabling / memoization to this strategy became
 quite complicated and the BFP is meant to address (and replace) this
@@ -180,15 +205,19 @@ complexity:
 
 It is this hierarchical data structure (still a work in progress at the
 time the TopDown`? </p/fuxi/w/edit/TopDown>`_ method was deprecated)
-that is `most <http://code.google.com/p/fuxi/issues/detail?id=28>`_
+that is most visible in historic issue tracking and related discussions.
 problematic.
 
 The use of the RETE-UL network to
-`implement <http://code.google.com/p/fuxi/wiki/FuXiUserManual#FuXi_.LP>`_
+implement :doc:`FuXiUserManual`
 a BFP ruleset results in a much smaller and manageable code base, so
 this is now the preferred means for top-down SPARQL query mediation /
 entailment (see:
-`TopDownSW <http://code.google.com/p/fuxi/wiki/TopDownSW>`_)
+:doc:`TopDownSW`)
+
+For a practical regression harness exercising SPARQL 1.1 entailment
+regimes over RDFS/RDF, see the :ref:`SPARQL Entailment Test Harness
+section <quickstart-sparql-entailment>` in :doc:`Quickstart`.
 
 Builtin Infrastructure
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -206,12 +235,12 @@ fact graph.
 
 In converting builtins into SPARQL FILTERs, a user-specified template
 can be provided for this purpose. An example of how this can be done is
-below. The format for this SPARQL FILER template specification is in
-RDF:
+below. The format for this SPARQL FILTER template specification is in
+RDF; see :doc:`builtin_SPARQL_templates` for a full listing.
 
 ::
 
-    @prefix templ:  <http://code.google.com/p/fuxi/wiki/BuiltinSPARQLTemplates#>.
+    @prefix templ:  <tag:info@metacognition.info,2026:FuXiVocabulary#>.
     @prefix owl:    <http://www.w3.org/2002/07/owl#>.
     @prefix owl:    <http://www.w3.org/2002/07/owl#>.
     @prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#>.
@@ -229,7 +258,7 @@ RDF:
 FuXi and Description Logic Programming
 -----------------------------------------------------------------------------------------------------
 
-`FuXi </p/fuxi/wiki/FuXi>`_ includes an implementation of the
+FuXi includes an implementation of the
 Description Logic Programming language. Specifically, for certain
 restricted classes of OWL-DL and OWL2 (OWL2 RL in particular), axioms
 expressed in this language can be converted into a set of rules that
@@ -239,14 +268,14 @@ network .
 Non-Monotonic Negation
 ---------------------------------------------------
 
-`FuXi </p/fuxi/wiki/FuXi>`_ has support for non-monotonic negation:
+FuXi has support for non-monotonic negation:
 default negation and negation as failure. There is a very long history
 of non-monotonic reasoning. The reader is directed to `Logic Programming
 and Negation: A
 Survery <http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.20.7217>`_
 for more details on the subject.
 
-`FuXi </p/fuxi/wiki/FuXi>`_ can perform reasoning over rules with
+FuXi can perform reasoning over rules with
 negated literals in the body / consequent. When calculating an RDF
 closure graph via forward chaining, the rules are separated into two
 sets: those without negation and those without. The first group is used
@@ -268,7 +297,7 @@ set of answers even in the face of rules that use negation.
 This essentially coincides with the `stable model
 semantics <http://en.wikipedia.org/wiki/Stable_model_semantics>`_.
 
-When `FuXi </p/fuxi/wiki/FuXi>`_ is solving a query via backward
+When FuXi is solving a query via backward
 chaining, however, the rulesets are considered a complete set (including
 both those that involve negated consequences and those that dont). When
 the top-down solver comes across a negated literal in the body, it will
@@ -292,10 +321,10 @@ Records <http://chimezie.posterous.com/using-owl-and-default-negation-to-reason-
 OWL and Rule APIs
 -----------------------------------------
 
-`FuXi </p/fuxi/wiki/FuXi>`_ includes two Python APIs that seek to
+FuXi includes two Python APIs that seek to
 leverage the versatility and expressiveness of the host language for
 managing rulesets and OWL axioms. The former API is described in more
-detail in the `user manual </p/fuxi/wiki/FuXiUserManual>`_ and the
+detail in :doc:`FuXiUserManual` and the
 latter (InfixOWL) is the subject of the 2008 OWLED paper `InfixOWL: An
 Idiomatic Interface for
 OWL <http://ftp.informatik.rwth-aachen.de/Publications/CEUR-WS/Vol-432/owled2008eu_submission_19.pdf>`_
@@ -303,7 +332,7 @@ OWL <http://ftp.informatik.rwth-aachen.de/Publications/CEUR-WS/Vol-432/owled2008
 Additional Capabilities
 -----------------------------------------------------
 
-In addition, `FuXi </p/fuxi/wiki/FuXi>`_ includes libraries for
+In addition, FuXi includes libraries for
 
 -  Reducing DL and Horn clauses into *normal* forms
 -  (Limited) support for default negation (different from the
@@ -316,7 +345,7 @@ In addition, `FuXi </p/fuxi/wiki/FuXi>`_ includes libraries for
 Usage
 -----------------
 
-The typical usage of python-dlp (or `FuXi </p/fuxi/wiki/FuXi>`_ more
+The typical usage of python-dlp (or FuXi more
 specifically) is to either programatically compose a set of OWL
 descriptions using the Infix OWL interface or to parse them from an
 existing OWL/RDF document. Then, the DLP APIs can be used to construct a
@@ -327,4 +356,3 @@ against a corresponding RETE network.
 
 *(1)* Vianu, V.: Rule-based languages, Annals of Mathematics and
 Artificial Intelligence, Springer 1997.
-

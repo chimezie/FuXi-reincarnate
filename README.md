@@ -524,11 +524,11 @@ against a ``TopDownSPARQLEntailingStore`` and yield solutions:
 
 ```python
 from rdflib import Variable
-from fuxi.SPARQL.service import sparql_interlocution
+from fuxi.SPARQL.utilities import sparql_interlocution
 
 for answer in sparql_interlocution(query, top_down_store):
-    movie = answer[Variable('movie')]
-    print(f"Movie: {movie}")
+  movie = answer[Variable('movie')]
+  print(f"Movie: {movie}")
 ```
 
 This function bridges SPARQL query text and FuXi's backwards-chaining evaluation engine. 
@@ -549,6 +549,12 @@ Fuxi comes with harnesses to run the various OWL tests suites:
 - `pytest test/testOWL.py` - ["OWL 1"](http://www.w3.org/2002/03owlt/approved.zip) - harness for the original OWL test cases
 - `pytest test/testOWL2.py` - ["OWL 2"](http://www.w3.org/2009/01/pr-owl2-test-cases-20100301/) - similar harness for OWL 2 test cases (conformance conditions)
 
+FuXi also includes a SPARQL entailment harness for selected W3C SPARQL 1.1
+entailment tests:
+
+- `pytest test/SPARQL/test_sparql_entailment.py` - manifest-driven SPARQL
+  entailment regression harness over `ent:RDFS` and `ent:RDF` regimes
+
 Run the OWL test suite (each APPROVED test is an individual pytest case):
 
 ```bash
@@ -567,6 +573,9 @@ The OWL test harness supports several custom pytest options:
 | `--owl-debug` | Enable verbose OWL entailment debugging |
 | `--capture-proofs` | Capture PML proof graphs for tests |
 | `--profile` | Enable pytest profiling |
+
+The same options are shared by the SPARQL entailment harness when relevant
+(`--single-test` and `--owl-debug` are especially useful for focused triage).
 
 ### Running Specific OWL Tests
 
@@ -594,7 +603,30 @@ uv run pytest test/testOWL.py -k "TransitiveProperty"
 
 # Run all OWL 1 tests in a specific category
 uv run pytest test/testOWL.py -k "OWL/differentFrom"
+
+# Run one SPARQL entailment test by ID
+uv run pytest test/SPARQL/test_sparql_entailment.py --single-test rdfs04
+
+# Run a focused SPARQL entailment subset
+uv run pytest test/SPARQL/test_sparql_entailment.py -k "paper-sparqldl-Q1-rdfs or sparqldl-05"
 ```
+
+### SPARQL Entailment Harness Notes
+
+`test/SPARQL/test_sparql_entailment.py` is designed to parallel the OWL harness
+style (`test/testOWL.py`, `test/testOWL2.py`):
+
+- It collects one pytest case per approved manifest entry.
+- It supports explicit test skips through a `SKIP` map in the harness.
+- It compares expected SPARQL XML result sets against FuXi-mediated query
+  answers over `TopDownSPARQLEntailingStore`.
+- For non-ASK result sets, it verifies expected bindings are a subset of
+  actual bindings (extra answers are tolerated).
+
+The harness currently prioritizes `ent:RDFS` (then `ent:RDF`) from the manifest
+regime list. Tests that require stronger OWL entailment semantics are tracked in
+`SKIP` until a compatible OWL-RDF-Based entailment profile is enabled for this
+path.
 
 **`--single-test` identifier format:**
 

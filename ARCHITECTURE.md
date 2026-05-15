@@ -211,6 +211,33 @@ Why this matters for extension:
 - You can plug in large/remote RDF stores because only relevant subqueries execute.
 - The approach is sound and complete with respect to naive rule materialization, but much cheaper in practice.
 
+#### SPARQL entailment regression harness
+
+FuXi includes a dedicated manifest-driven harness at
+`test/SPARQL/test_sparql_entailment.py` to validate the SPARQL interlocution
+stack against W3C SPARQL 1.1 entailment tests.
+
+Architecturally, this harness exercises the same runtime path used by
+goal-directed entailment querying:
+
+1. Parse an approved manifest entry (`mf:QueryEvaluationTest`)
+2. Build a fact graph from the test data
+3. Add regime-specific support artifacts:
+   - RDFS axiomatic triples (`test/SPARQL/W3C/rdfs-axiomatic-triples.n3`)
+   - RDFS/RDF helper rules (`test/SPARQL/W3C/rdf-rdfs.n3` + RDF helper rules)
+4. Construct an entailing graph via `owl_entailment_regime_graph(...)`
+5. Execute query text against `TopDownSPARQLEntailingStore`
+6. Compare actual bindings to expected `.srx` bindings
+
+Current comparison policy is intentionally asymmetric for SELECT-style results:
+expected bindings must be present, while additional inferred bindings are
+accepted. This keeps the harness robust against harmless over-generation while
+still detecting missing entailments.
+
+Known implementation boundaries are documented in the harness `SKIP` map
+(for example, BIND algebra support and OWL-strength SPARQL-DL cases that exceed
+the current RDFS/RDF scope).
+
 ### fuxi.Rete.TopDown ### 
 The fuxi.Rete.TopDown module has since been deprecated by the Backwards Fixpoint Procedure (BFP). See backward chaining
 

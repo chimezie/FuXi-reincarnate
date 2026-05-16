@@ -1,12 +1,13 @@
 #!/usr/bin/env python
-# encoding: utf-8
-import pytest
 from io import StringIO
 from pprint import pprint
+
+import pytest
+
+from fuxi.DLP.DLNormalization import normal_form_reduction
+from fuxi.Rete.RuleStore import setup_rule_store
+from fuxi.Rete.Util import generate_token_set
 from rdflib import Graph, Namespace
-from fuxi.Rete.RuleStore import SetupRuleStore
-from fuxi.Rete.Util import generateTokenSet
-from fuxi.DLP.DLNormalization import NormalFormReduction
 
 EX = Namespace("http://example.org/")
 EX_TERMS = Namespace("http://example.org/terms/")
@@ -60,19 +61,19 @@ pytestmark = pytest.mark.integration
 
 
 def test_superproperty_entailment():
-    rule_store, rule_graph, network = SetupRuleStore(makeNetwork=True)
+    rule_store, rule_graph, network = setup_rule_store(make_network=True)
     tbox_graph = Graph().parse(StringIO(TBOX), format="n3")
     abox_graph = Graph().parse(StringIO(ABOX), format="n3")
-    NormalFormReduction(tbox_graph)
+    normal_form_reduction(tbox_graph)
 
-    network.setupDescriptionLogicProgramming(tbox_graph)
+    network.setup_description_logic_programming(tbox_graph)
     pprint(list(network.rules))
 
-    network.feedFactsToAdd(generateTokenSet(tbox_graph))
-    network.feedFactsToAdd(generateTokenSet(abox_graph))
+    network.feed_facts_to_add(generate_token_set(tbox_graph))
+    network.feed_facts_to_add(generate_token_set(abox_graph))
 
-    network.inferredFacts.bind("ex", EX)
-    network.inferredFacts.bind("exterms", EX_TERMS)
+    network.inferred_facts.bind("ex", EX)
+    network.inferred_facts.bind("exterms", EX_TERMS)
 
     for triple in expected_triples:
-        assert triple in network.inferredFacts, f"Missing {triple!r}"
+        assert triple in network.inferred_facts, f"Missing {triple!r}"

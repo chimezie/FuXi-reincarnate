@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 https://github.com/RDFLib/FuXi/issues/8
 """
@@ -7,10 +6,9 @@ from io import StringIO
 
 import pytest
 
-from rdflib import Graph, Namespace
-
-from fuxi.Horn.HornRules import HornFromN3
+from fuxi.Horn.HornRules import horn_from_n3
 from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
+from rdflib import Graph, Namespace
 
 rules = """\
 @prefix : <http://dev.w3.org/2000/10/swap/test/cwm/fam.n3#>.
@@ -35,20 +33,14 @@ SELECT ?a { fam:david fam:ancestor ?a }"""
 def _make_store_and_graph():
     fam_ns = Namespace("http://dev.w3.org/2000/10/swap/test/cwm/fam.n3#")
     ns_mapping = {"fam": fam_ns}
-    parsed_rules = HornFromN3(StringIO(rules))
+    parsed_rules = horn_from_n3(StringIO(rules))
     fact_graph = Graph().parse(StringIO(facts), format="n3")
     fact_graph.bind("fam", fam_ns)
     fact_graph.bind("", fam_ns)
-    derived_predicates = [fam_ns.ancestor]
-    top_down_store = TopDownSPARQLEntailingStore(
-        fact_graph.store,
-        fact_graph,
-        idb=parsed_rules,
-        DEBUG=True,
-        derivedPredicates=derived_predicates,
-        nsBindings=ns_mapping,
-        identifyHybridPredicates=True,
-    )
+    top_down_store = TopDownSPARQLEntailingStore(fact_graph.store,
+                                                 fact_graph,
+                                                 idb=parsed_rules,
+                                                 debug=True)
     return fam_ns, ns_mapping, top_down_store
 
 

@@ -1,0 +1,8 @@
+@prefix : <http://dev.w3.org/2000/10/swap/test/cwm/fam.n3#>.
+@keywords is, of, a.
+
+albert begat bill, bevan.
+bill begat carol, charlie.
+bertha begat carol, charlie.
+bevan begat chaude, christine.
+christine begat david, diana, douglas.

@@ -1,8 +1,20 @@
-import unittest
-from rdflib.graph import Graph
-from rdflib import Namespace
+"""
+Tests for additional Description Logic Programming (DLP) functionality.
+
+These tests verify:
+- GCI (General Concept Inclusion) with disjunctions
+- Base predicate equivalence
+- Existential restrictions in GCI
+- Value restrictions in GCI
+- Nested conjunctions
+- Complex OWL class expressions
+"""
+
+import pytest
 from rdflib.util import first
-from fuxi.Rete.RuleStore import SetupRuleStore
+
+from fuxi.DLP import SKOLEMIZED_CLASS_NS
+from fuxi.Rete.RuleStore import setup_rule_store
 from fuxi.Syntax.InfixOWL import (
     OWL_NS,
     Class,
@@ -13,177 +25,224 @@ from fuxi.Syntax.InfixOWL import (
     some,
     value,
 )
-from fuxi.DLP import SKOLEMIZED_CLASS_NS
-
-EX_NS = Namespace("http://example.com/")
-EX = ClassNamespaceFactory(EX_NS)
+from rdflib import Graph, Namespace
 
 
-class AdditionalDescriptionLogicTests(unittest.TestCase):
-    def setUp(self):
-        self.ontGraph = Graph()
-        self.ontGraph.bind("ex", EX_NS)
-        self.ontGraph.bind("owl", OWL_NS)
-        Individual.factoryGraph = self.ontGraph
+@pytest.fixture
+def ex_ns():
+    """Provide example namespace."""
+    return Namespace("http://example.com/")
 
-    def testGCIConDisjunction(self):
-        conjunct = EX.Foo & (EX.Omega | EX.Alpha)
-        EX.Bar += conjunct
-        ruleStore, ruleGraph, network = SetupRuleStore(makeNetwork=True)
-        rules = network.setupDescriptionLogicProgramming(
-            self.ontGraph,
-            derivedPreds=[EX_NS.Bar],
-            addPDSemantics=False,
-            constructNetwork=False,
-        )
-        self.assertEqual(
-            repr(rules),
-            "set([Forall ?X ( ex:Bar(?X) :- And( ex:Foo(?X) ex:Alpha(?X) ) ), Forall ?X ( ex:Bar(?X) :- And( ex:Foo(?X) ex:Omega(?X) ) )])",
-        )
-        self.assertEqual(len(rules), 2, "There should be 2 rules")
 
-    #    def testMalformedUnivRestriction(self):
-    #        someProp = Property(EX_NS.someProp)
-    #        conjunct = EX.Foo & (someProp|only|EX.Omega)
-    #        conjunct.identifier = EX_NS.Bar
-    #        ruleStore,ruleGraph,network=SetupRuleStore(makeNetwork=True)
-    #        self.failUnlessRaises(MalformedDLPFormulaError,
-    #                              network.setupDescriptionLogicProgramming,
-    #                              self.ontGraph,
-    #                              derivedPreds=[EX_NS.Bar],
-    #                              addPDSemantics=False,
-    #                              constructNetwork=False)
+@pytest.fixture
+def ex_factory(ex_ns):
+    """Provide ClassNamespaceFactory for example namespace."""
+    return ClassNamespaceFactory(ex_ns)
 
-    def testBasePredicateEquivalence(self):
-        (EX.Foo).equivalent_class = [EX.Bar]
-        self.assertEqual(repr(Class(EX_NS.Foo)), "Class: ex:Foo EquivalentTo: ex:Bar")
-        ruleStore, ruleGraph, network = SetupRuleStore(makeNetwork=True)
-        rules = network.setupDescriptionLogicProgramming(
-            self.ontGraph, addPDSemantics=False, constructNetwork=False
-        )
-        self.assertEqual(
-            repr(rules),
-            "set([Forall ?X ( ex:Bar(?X) :- ex:Foo(?X) ), Forall ?X ( ex:Foo(?X) :- ex:Bar(?X) )])",
-        )
-        self.assertEqual(len(rules), 2, "There should be 2 rules")
 
-    def testExistentialInRightOfGCI(self):
-        someProp = Property(EX_NS.someProp)
-        existential = someProp | some | EX.Omega
-        existential += EX.Foo
-        self.assertEqual(
-            repr(Class(EX_NS.Foo)),
-            "Class: ex:Foo SubClassOf: ( ex:someProp SOME ex:Omega )",
-        )
-        ruleStore, ruleGraph, network = SetupRuleStore(makeNetwork=True)
-        # rules = network.setupDescriptionLogicProgramming(
-        #     self.ontGraph,
-        #     addPDSemantics=False,
-        #     constructNetwork=False)
-        # self.assertEqual(len(rules),
-        #                 1,
-        #                "There should be 1 rule: %s"%rules)
-        # rule=rules[0]
-        # self.assertEqual(repr(rule.formula.body),
-        #                 "ex:Foo(?X)")
-        # self.assertEqual(len(rule.formula.head.formula),
-        #                 2)
+@pytest.fixture
+def ontology_graph(ex_ns):
+    """Provide empty ontology graph with bound prefixes."""
+    graph = Graph()
+    graph.bind("ex", ex_ns)
+    graph.bind("owl", OWL_NS)
+    Individual.factoryGraph = graph
+    return graph
 
-    def testValueRestrictionInLeftOfGCI(self):
-        someProp = Property(EX_NS.someProp)
-        leftGCI = (someProp | value | EX.fish) & EX.Bar
-        foo = EX.Foo
-        foo += leftGCI
-        self.assertEqual(
-            repr(leftGCI), "ex:Bar THAT ( ex:someProp VALUE <http://example.com/fish> )"
-        )
-        ruleStore, ruleGraph, network = SetupRuleStore(makeNetwork=True)
-        rules = network.setupDescriptionLogicProgramming(
-            self.ontGraph, addPDSemantics=False, constructNetwork=False
-        )
-        self.assertEqual(
-            repr(rules),
-            "set([Forall ?X ( ex:Foo(?X) :- "
-            + "And( ex:someProp(?X ex:fish) ex:Bar(?X) ) )])",
+
+class TestGCIWithDisjunction:
+    """Tests for General Concept Inclusion (GCI) with disjunctions."""
+
+    def test_gci_con_disjunction(self, ontology_graph, ex_ns, ex_factory):
+        """Test GCI with conjunction and disjunction produces correct rules."""
+        conjunct = ex_factory.Foo & (ex_factory.Omega | ex_factory.Alpha)
+        ex_factory.Bar += conjunct
+
+        _rule_store, _rule_graph, network = setup_rule_store(make_network=True)
+        rules = network.setup_description_logic_programming(
+            ontology_graph,
+            add_pd_semantics=False,
+            construct_network=False,
+            derived_preds=[ex_ns.Bar]
         )
 
-    def testNestedConjunct(self):
-        nestedConj = (EX.Foo & EX.Bar) & EX.Baz
-        EX.Omega += nestedConj
-        ruleStore, ruleGraph, network = SetupRuleStore(makeNetwork=True)
-        rules = network.setupDescriptionLogicProgramming(
-            self.ontGraph, addPDSemantics=False, constructNetwork=False
+        assert len(rules) == 2, f"Expected 2 rules, got {len(rules)}"
+        rules_repr = repr(rules)
+        assert "ex:Bar(?X)" in rules_repr
+        assert "ex:Foo(?X)" in rules_repr
+        assert "ex:Alpha(?X)" in rules_repr
+        assert "ex:Omega(?X)" in rules_repr
+
+
+class TestBasePredicateEquivalence:
+    """Tests for base predicate equivalence."""
+
+    def test_base_predicate_equivalence(self, ontology_graph, ex_ns, ex_factory):
+        """Test that equivalent classes produce bidirectional rules."""
+        ex_factory.Foo.equivalent_class = [ex_factory.Bar]
+
+        class_repr = repr(Class(ex_ns.Foo))
+        assert "Class: ex:Foo" in class_repr
+        assert "EquivalentTo: ex:Bar" in class_repr
+
+        _rule_store, _rule_graph, network = setup_rule_store(make_network=True)
+        rules = network.setup_description_logic_programming(
+            ontology_graph,
+            add_pd_semantics=False,
+            construct_network=False
         )
+
+        assert len(rules) == 2, f"Expected 2 rules, got {len(rules)}"
+        rules_repr = repr(rules)
+        assert "ex:Foo(?X)" in rules_repr
+        assert "ex:Bar(?X)" in rules_repr
+
+
+class TestExistentialRestrictions:
+    """Tests for existential restrictions in GCI."""
+
+    def test_existential_in_right_of_gci(self, ontology_graph, ex_ns, ex_factory):
+        """Test existential restriction on right side of GCI."""
+        some_prop = Property(ex_ns.someProp)
+        existential = some_prop | some | ex_factory.Omega
+        existential += ex_factory.Foo
+
+        class_repr = repr(Class(ex_ns.Foo))
+        assert "Class: ex:Foo" in class_repr
+        assert "SubClassOf" in class_repr
+        assert "ex:someProp" in class_repr
+        assert "SOME" in class_repr
+        assert "ex:Omega" in class_repr
+
+    def test_value_restriction_in_left_of_gci(self, ontology_graph, ex_ns, ex_factory):
+        """Test value restriction on left side of GCI."""
+        some_prop = Property(ex_ns.someProp)
+        left_gci = (some_prop | value | ex_ns.fish) & ex_factory.Bar
+        foo = ex_factory.Foo
+        foo += left_gci
+
+        left_gci_repr = repr(left_gci)
+        assert "ex:Bar" in left_gci_repr
+        assert "ex:someProp" in left_gci_repr
+        assert "VALUE" in left_gci_repr
+        assert "ex:fish" in left_gci_repr
+
+        _rule_store, _rule_graph, network = setup_rule_store(make_network=True)
+        rules = network.setup_description_logic_programming(
+            ontology_graph,
+            add_pd_semantics=False,
+            construct_network=False
+        )
+
+        assert len(rules) == 1, f"Expected 1 rule, got {len(rules)}"
+        rules_repr = repr(rules)
+        assert "ex:Foo(?X)" in rules_repr
+        assert "ex:someProp" in rules_repr
+        assert "ex:Bar(?X)" in rules_repr
+
+
+class TestNestedConjunctions:
+    """Tests for nested conjunction handling."""
+
+    def test_nested_conjunct(self, ontology_graph, ex_ns, ex_factory):
+        """Test nested conjunctions produce correct skolemized rules."""
+        nested_conj = (ex_factory.Foo & ex_factory.Bar) & ex_factory.Baz
+        ex_factory.Omega += nested_conj
+
+        _rule_store, _rule_graph, network = setup_rule_store(
+            make_network=True
+        )
+        rules = network.setup_description_logic_programming(
+            ontology_graph,
+            add_pd_semantics=False,
+            construct_network=False
+        )
+
+        omega_rules = [r for r in rules
+                       if r.formula.head.arg[-1] == ex_ns.Omega]
+        assert len(omega_rules) == 1, (f"Expected 1 rule for Omega, "
+                                       f"got {len(omega_rules)}")
+
+        omega_rule = omega_rules[0]
+        assert len(
+            omega_rule.formula.body) == 2, "Body should have 2 elements"
+
+        skolem_predicates = [
+            term.arg[-1]
+            for term in omega_rule.formula.body
+            if term.arg[-1].find(SKOLEMIZED_CLASS_NS) != -1
+        ]
+        assert len(skolem_predicates) == 1, "Couldn't find skolem unary predicate"
+
+
+class TestComplexClassExpressions:
+    """Tests for complex OWL class expressions."""
+
+    def test_other_form_complex_expression(self,
+                                           ontology_graph,
+                                           ex_ns,
+                                           ex_factory):
+        """Test complex class expression with multiple existentials."""
+        contains = Property(ex_ns.contains)
+        located_in = Property(ex_ns.locatedIn)
+
+        top_conjunct = (
+            ex_factory.Cath
+            & (contains | some | (ex_factory.MajorStenosis &
+                                  (located_in | value | ex_ns.LAD)))
+            & (contains | some | (ex_factory.MajorStenosis &
+                                  (located_in | value | ex_ns.RCA)))
+        )
+        ex_factory.NumDisV2D += top_conjunct
+
+        from fuxi.DLP.DLNormalization import normal_form_reduction
+        normal_form_reduction(ontology_graph)
+
+        _rule_store, _rule_graph, network = setup_rule_store(
+            make_network=True
+        )
+        rules = network.setup_description_logic_programming(
+            ontology_graph,
+            add_pd_semantics=False,
+            construct_network=False,
+            derived_preds=[ex_ns.NumDisV2D]
+        )
+
+        assert len(rules) > 0, "Should produce at least one rule"
+
+        from fuxi.Rete.Magic import pretty_print_rule
         for rule in rules:
-            if rule.formula.head.arg[-1] == EX_NS.Omega:
-                self.assertEqual(len(rule.formula.body), 2)
-                skolemPredicate = [
-                    term.arg[-1]
-                    for term in rule.formula.body
-                    if term.arg[-1].find(SKOLEMIZED_CLASS_NS) != -1
-                ]
-                self.assertEqual(
-                    len(skolemPredicate), 1, "Couldn't find skolem unary predicate!"
-                )
-            else:
-                self.assertEqual(len(rule.formula.body), 2)
-                skolemPredicate = rule.formula.head.arg[-1]
-                self.failUnless(
-                    skolemPredicate.find(SKOLEMIZED_CLASS_NS) != -1,
-                    "Head should be a unary skolem predicate",
-                )
-                skolemPredicate = skolemPredicate[0]
+            pretty_print_rule(rule)
 
-    def testOtherForm(self):
-        contains = Property(EX_NS.contains)
-        locatedIn = Property(EX_NS.locatedIn)
-        topConjunct = (
-            EX.Cath
-            & (contains | some | (EX.MajorStenosis & (locatedIn | value | EX_NS.LAD)))
-            & (contains | some | (EX.MajorStenosis & (locatedIn | value | EX_NS.RCA)))
-        )
-        EX.NumDisV2D += topConjunct
-        from fuxi.DLP.DLNormalization import NormalFormReduction
+    def test_enumerated_class_in_existential(self,
+                                             ontology_graph,
+                                             ex_ns,
+                                             ex_factory):
+        """Test enumerated class used within existential restriction."""
+        has_coronary_bypass_conduit = Property(ex_ns.hasCoronaryBypassConduit)
 
-        NormalFormReduction(self.ontGraph)
-        ruleStore, ruleGraph, network = SetupRuleStore(makeNetwork=True)
-        rules = network.setupDescriptionLogicProgramming(
-            self.ontGraph,
-            derivedPreds=[EX_NS.NumDisV2D],
-            addPDSemantics=False,
-            constructNetwork=False,
-        )
-        from fuxi.Rete.Magic import PrettyPrintRule
+        ita_left = ex_factory.ITALeft
+        members = EnumeratedClass(members=[
+            ex_ns.CoronaryBypassConduit_internal_thoracic_artery_left_insitu,
+            ex_ns.CoronaryBypassConduit_internal_thoracic_artery_left_free])
+        ita_left += has_coronary_bypass_conduit | some | members
 
-        for rule in rules:
-            PrettyPrintRule(rule)
+        from fuxi.DLP.DLNormalization import normal_form_reduction
 
-    def testOtherForm2(self):
-        hasCoronaryBypassConduit = Property(EX_NS.hasCoronaryBypassConduit)
+        initial_repr = repr(Class(first(ita_left.sub_sumptee_ids())))
+        assert "Some Class" in initial_repr
+        assert "SubClassOf" in initial_repr
+        assert "ex:ITALeft" in initial_repr
 
-        ITALeft = EX.ITALeft
-        ITALeft += (
-            hasCoronaryBypassConduit
-            | some
-            | EnumeratedClass(
-                members=[
-                    EX_NS.CoronaryBypassConduit_internal_thoracic_artery_left_insitu,
-                    EX_NS.CoronaryBypassConduit_internal_thoracic_artery_left_free,
-                ]
-            )
-        )
-        from fuxi.DLP.DLNormalization import NormalFormReduction
+        normal_form_reduction(ontology_graph)
 
-        self.assertEquals(
-            repr(Class(first(ITALeft.subSumpteeIds()))),
-            "Some Class SubClassOf: Class: ex:ITALeft ",
-        )
-        NormalFormReduction(self.ontGraph)
-        self.assertEquals(
-            repr(Class(first(ITALeft.subSumpteeIds()))),
-            "Some Class SubClassOf: Class: ex:ITALeft  . EquivalentTo: ( ( ex:hasCoronaryBypassConduit VALUE <http://example.com/CoronaryBypassConduit_internal_thoracic_artery_left_insitu> ) OR ( ex:hasCoronaryBypassConduit VALUE <http://example.com/CoronaryBypassConduit_internal_thoracic_artery_left_free> ) )",
-        )
+        final_repr = repr(Class(first(ita_left.sub_sumptee_ids())))
+        assert "Some Class" in final_repr
+        assert "SubClassOf" in final_repr
+        assert "ex:ITALeft" in final_repr
+        assert "EquivalentTo" in final_repr
+        assert "VALUE" in final_repr
 
 
 if __name__ == "__main__":
-    unittest.main()
+    pytest.main([__file__, "-v"])

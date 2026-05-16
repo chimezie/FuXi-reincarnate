@@ -1,6 +1,5 @@
+from fuxi.Rete.RuleStore import setup_rule_store
 from rdflib import Graph
-
-from fuxi.Rete.RuleStore import SetupRuleStore
 
 # fix for bug in reset method which didn't initialise
 # network.inferredFacts properly if the provided graph
@@ -10,7 +9,7 @@ from fuxi.Rete.RuleStore import SetupRuleStore
 
 
 def test_reset_initializes_inferred_facts():
-    rule_store, rule_graph, network = SetupRuleStore(makeNetwork=True)
+    rule_store, rule_graph, network = setup_rule_store(make_network=True)
     new_inferred_facts = Graph()
     network.reset(new_inferred_facts)
-    assert new_inferred_facts is network.inferredFacts
+    assert new_inferred_facts is network.inferred_facts

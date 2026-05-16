@@ -1,0 +1,4 @@
+@prefix : <http://dev.w3.org/2000/10/swap/test/cwm/fam.n3#>.
+@keywords is, of, a.
+{ ?x begat ?y } => { ?y ancestor ?x }.
+{ ?x ancestor ?y. ?y ancestor ?z } => { ?x ancestor ?z }.

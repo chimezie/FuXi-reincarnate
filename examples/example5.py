@@ -1,123 +1,215 @@
-from rdflib import (
-    Graph,
-    Literal,
-    )
+"""
+Tests for the InfixOWL API demonstrating OWL class construction and operations.
+
+These tests verify:
+- Class creation and subClassOf relationships
+- Boolean class operations (union, intersection)
+- Enumerated classes
+- Restrictions (allValuesFrom, some, max)
+- Manchester OWL syntax infix operators
+"""
+
+import pytest
+from rdflib.namespace import NamespaceManager
+
 from fuxi.Syntax.InfixOWL import (
+    OWL_NS,
     Class,
     EnumeratedClass,
-    OWL_NS,
     Property,
     Restriction,
-    )
-from fuxi.Syntax.InfixOWL import some
-from fuxi.Syntax.InfixOWL import max
+    some,
+)
+from fuxi.Syntax.InfixOWL import max as max_cardinality
+from rdflib import Graph, Literal, Namespace
 
-from rdflib.namespace import (
-    Namespace,
-    NamespaceManager,
-    )
-from pprint import pformat
 
-exNs = Namespace('http://example.com/')
-namespace_manager = NamespaceManager(Graph())
-namespace_manager.bind('ex', exNs, override=False)
-namespace_manager.bind('owl', OWL_NS, override=False)
-g = Graph()
-g.namespace_manager = namespace_manager
+@pytest.fixture
+def ex_ns():
+    """Provide example namespace."""
+    return Namespace("http://example.com/")
 
-# Now we have an empty Graph, we can construct OWL classes in it using the
-# Python classes defined in this module
 
-a = Class(exNs.Opera, graph=g)
+@pytest.fixture
+def namespace_manager(ex_ns):
+    """Provide configured namespace manager with ex and owl prefixes."""
+    nm = NamespaceManager(Graph())
+    nm.bind("ex", ex_ns, override=False)
+    nm.bind("owl", OWL_NS, override=False)
+    return nm
 
-# Now we can assert rdfs:subClassOf and owl:equivalentClass relationships
-# (in the underlying graph) with other classes using the subClassOf and
-# equivalentClass descriptors which can be set to a list of objects for
-# the corresponding predicates.
 
-a.subClassOf = [exNs.MusicalWork]
+@pytest.fixture
+def graph(namespace_manager):
+    """Provide empty graph with pre-configured namespace manager."""
+    g = Graph()
+    g.namespace_manager = namespace_manager
+    return g
 
-# We can then access the rdfs:subClassOf relationships
 
-assert pformat(list(a.subClassOf)) == '[Class: ex:MusicalWork ]'
+class TestClassCreation:
+    """Tests for basic class creation and subClassOf relationships."""
 
-# This can also be used against already populated graphs:
+    def test_class_creation_with_subclassof(self, graph, ex_ns):
+        """Test that a class can be created with subClassOf assertion."""
+        opera = Class(ex_ns.Opera, graph=graph)
+        opera.sub_class_of = [ex_ns.MusicalWork]
 
-owlGraph = Graph().parse(OWL_NS)
-namespace_manager.bind('owl', OWL_NS, override=False)
-owlGraph.namespace_manager = namespace_manager
+        subclasses = list(opera.sub_class_of)
+        assert len(subclasses) == 1
+        assert subclasses[0].identifier == ex_ns.MusicalWork
 
-assert pformat(
-    list(Class(OWL_NS.Class, graph=owlGraph).subClassOf)) == \
-    '[Class: rdfs:Class ]'
+    def test_subclassof_representation_format(self, graph, ex_ns):
+        """Test that subClassOf is correctly formatted in string representation."""
+        opera = Class(ex_ns.Opera, graph=graph)
+        opera.sub_class_of = [ex_ns.MusicalWork]
 
-# Operators are also available. For instance we can add ex:Opera to the
-# extension of the ex:CreativeWork class via the '+=' operator
+        representation = str(opera)
+        assert "Class: ex:Opera" in representation
+        assert "SubClassOf: ex:MusicalWork" in representation
 
-assert str(a) == 'Class: ex:Opera SubClassOf: ex:MusicalWork'
+    def test_adding_class_to_another_class_extension(self, graph, ex_ns):
+        """Test using += operator to add a class to another class's extension."""
+        opera = Class(ex_ns.Opera, graph=graph)
+        opera.sub_class_of = [ex_ns.MusicalWork]
 
-b = Class(exNs.CreativeWork, graph=g)
-b += a
+        creative_work = Class(ex_ns.CreativeWork, graph=graph)
+        creative_work += opera
 
-assert pformat(list(a.subClassOf)) == \
-    '[Class: ex:CreativeWork , Class: ex:MusicalWork ]' or \
-    '[Class: ex:MusicalWork , Class: ex:CreativeWork ]'
+        subclasses = list(opera.sub_class_of)
+        identifiers = [sub.identifier for sub in subclasses]
+        assert ex_ns.MusicalWork in identifiers
+        assert ex_ns.CreativeWork in identifiers
 
-# And we can then remove it from the extension as well
+    def test_removing_class_from_another_class_extension(self, graph, ex_ns):
+        """Test using -= operator to remove a class from another class's extension."""
+        opera = Class(ex_ns.Opera, graph=graph)
+        opera.sub_class_of = [ex_ns.MusicalWork, ex_ns.CreativeWork]
 
-b -= a
-a
+        creative_work = Class(ex_ns.CreativeWork, graph=graph)
+        creative_work -= opera
 
-assert pformat(a) == 'Class: ex:Opera SubClassOf: ex:MusicalWork'
+        subclasses = list(opera.sub_class_of)
+        identifiers = [sub.identifier for sub in subclasses]
+        assert ex_ns.MusicalWork in identifiers
+        assert ex_ns.CreativeWork not in identifiers
 
-# Boolean class constructions can also be created with Python operators
-# For example, The | operator can be used to construct a class consisting
-# of a owl:unionOf the operands:
 
-c = a | b | Class(exNs.Work, graph=g)
+class TestClassWithExistingGraph:
+    """Tests using a pre-populated graph (OWL ontology)."""
 
-assert(pformat(c)) == '( ex:Opera OR ex:CreativeWork OR ex:Work )'
+    def test_access_existing_subclassof_relationships(self, ex_ns, namespace_manager):
+        """Test accessing subClassOf relationships from existing OWL graph."""
+        owl_graph = Graph().parse(OWL_NS)
+        owl_graph.namespace_manager = namespace_manager
 
-# Boolean class expressions can also be operated as lists (natively in python)
+        owl_class = Class(OWL_NS.Class, graph=owl_graph)
+        subclasses = list(owl_class.sub_class_of)
 
-del c[c.index(Class(exNs.Work, graph=g))]
+        assert len(subclasses) > 0, "OWL.Class should have at least one subclass"
 
-assert pformat(c) == '( ex:Opera OR ex:CreativeWork )'
 
-# The '&' operator can be used to construct class intersection:
+class TestBooleanClassOperations:
+    """Tests for boolean class operations (union, intersection, complement)."""
 
-woman = Class(exNs.Female, graph=g) & Class(exNs.Human, graph=g)
-woman.identifier = exNs.Woman
+    def test_union_class_creation(self, graph, ex_ns):
+        """Test creating a union class using | operator."""
+        opera = Class(ex_ns.Opera, graph=graph)
+        creative_work = Class(ex_ns.CreativeWork, graph=graph)
+        work = Class(ex_ns.Work, graph=graph)
 
-assert pformat(woman) == '( ex:Female AND ex:Human )'
+        union_class = opera | creative_work | work
+        representation = str(union_class)
 
-# Enumerated classes can also be manipulated
+        assert "ex:Opera" in representation
+        assert "ex:CreativeWork" in representation
+        assert "ex:Work" in representation
+        assert "OR" in representation
 
-contList = [
-    Class(exNs.Africa, graph=g),
-    Class(exNs.NorthAmerica, graph=g)
-]
+    def test_deleting_class_from_union(self, graph, ex_ns):
+        """Test removing a class from a union using del."""
+        opera = Class(ex_ns.Opera, graph=graph)
+        creative_work = Class(ex_ns.CreativeWork, graph=graph)
+        work = Class(ex_ns.Work, graph=graph)
 
-assert pformat(
-    EnumeratedClass(members=contList, graph=g)) == \
-    '{ ex:Africa ex:NorthAmerica }'
+        union_class = opera | creative_work | work
+        del union_class[union_class.index(work)]
 
-# owl:Restrictions can also be instanciated:
+        representation = str(union_class)
+        assert "ex:Opera" in representation
+        assert "ex:CreativeWork" in representation
+        assert "ex:Work" not in representation
 
-assert pformat(Restriction(
-    exNs.hasParent, graph=g, allValuesFrom=exNs.Human)) == \
-    '( ex:hasParent ONLY ex:Human )'
+    def test_intersection_class_creation(self, graph, ex_ns):
+        """Test creating an intersection class using & operator."""
+        female = Class(ex_ns.Female, graph=graph)
+        human = Class(ex_ns.Human, graph=graph)
 
-# Restrictions can also be created using Manchester OWL syntax in
-# 'colloquial' Python. A Python infix operator recipe was used for
-# this purpose. See below
+        woman = female & human
+        woman.identifier = ex_ns.Woman
 
-assert pformat(
-    exNs.hasParent | some | Class(exNs.Physician, graph=g)) == \
-    '( ex:hasParent SOME ex:Physician )'
+        representation = str(woman)
+        assert "ex:Female" in representation
+        assert "ex:Human" in representation
+        assert "AND" in representation
 
-assert pformat(
-    Property(exNs.hasParent, graph=g) | max | Literal(1)) == \
-    '( ex:hasParent MAX 1 )'
 
-print("Completed")
+class TestEnumeratedClass:
+    """Tests for enumerated classes (oneOf)."""
+
+    def test_enumerated_class_representation(self, graph, ex_ns):
+        """Test that enumerated class is correctly formatted."""
+        continents = [
+            Class(ex_ns.Africa, graph=graph),
+            Class(ex_ns.NorthAmerica, graph=graph),
+        ]
+
+        enumerated = EnumeratedClass(members=continents, graph=graph)
+        representation = str(enumerated)
+
+        assert "ex:Africa" in representation
+        assert "ex:NorthAmerica" in representation
+
+
+class TestRestrictions:
+    """Tests for OWL restrictions (allValuesFrom, someValuesFrom, maxCardinality)."""
+
+    def test_all_values_from_restriction(self, graph, ex_ns):
+        """Test creating an allValuesFrom restriction."""
+        has_parent_prop = Property(ex_ns.hasParent, graph=graph)
+        restriction = Restriction(
+            has_parent_prop,
+            graph=graph,
+            all_values_from=ex_ns.Human
+        )
+
+        representation = str(restriction)
+        assert "ex:hasParent" in representation
+        assert "ex:Human" in representation
+        assert "ONLY" in representation
+
+    def test_some_values_from_using_infix_operator(self, graph, ex_ns):
+        """Test creating someValuesFrom restriction using |some| infix."""
+        has_parent_prop = Property(ex_ns.hasParent, graph=graph)
+        physician = Class(ex_ns.Physician, graph=graph)
+
+        restriction = has_parent_prop | some | physician
+
+        representation = str(restriction)
+        assert "ex:hasParent" in representation
+        assert "ex:Physician" in representation
+        assert "SOME" in representation
+
+    def test_max_cardinality_using_infix_operator(self, graph, ex_ns):
+        """Test creating maxCardinality restriction using |max| infix."""
+        restriction = Property(ex_ns.hasParent,
+                               graph=graph) | max_cardinality | Literal(1)
+
+        representation = str(restriction)
+        assert "ex:hasParent" in representation
+        assert "MAX" in representation
+        assert "1" in representation
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

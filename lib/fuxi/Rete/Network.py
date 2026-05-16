@@ -146,26 +146,62 @@ class HashablePatternList(object):
     def __getslice__(self, beginIdx, endIdx):
         return HashablePatternList(self._l[beginIdx:endIdx])
 
+    def _to_sort_key(self, val: Any) -> tuple:
+        from fuxi.Horn.PositiveConditions import ExternalFunction, Uniterm
+
+        if isinstance(val, (ExternalFunction, Uniterm)):
+            return (type(val).__name__, repr(val))
+        if isinstance(val, BNode):
+            return ("BNode", str(val))
+        if isinstance(val, (list, tuple)):
+            return (type(val).__name__, str(val))
+        if hasattr(val, "__lt__"):
+            try:
+                val < val
+                return ("comparable", val)
+            except TypeError:
+                return (type(val).__name__, str(val))
+        return (type(val).__name__, str(val))
+
+    @staticmethod
+    def _flatten_for_hash(val: Any, skip_b_nodes: bool = False) -> list:
+        if isinstance(val, tuple):
+            result = []
+            for i in val:
+                if skip_b_nodes and isinstance(i, BNode):
+                    continue
+                if isinstance(i, list):
+                    result.append(
+                        tuple(HashablePatternList._flatten_for_hash(i, skip_b_nodes))
+                    )
+                else:
+                    result.append(i)
+            return result
+        if isinstance(val, list):
+            return [
+                tuple(
+                    HashablePatternList._flatten_for_hash(v, skip_b_nodes) for v in val
+                )
+            ]
+        return [val]
+
     def __hash__(self):
-        out = []
+        out: list[Any] = []
         for item in self._l:
             if not item:
                 out.append("None")
             elif isinstance(item, tuple):
-                out.extend(
-                    [
-                        i
-                        for i in item
-                        if not self.skip_b_nodes or not isinstance(i, BNode)
-                    ]
-                )
+                out.extend(self._flatten_for_hash(item, self.skip_b_nodes))
             elif isinstance(item, N3Builtin):
                 out.extend([item.argument, item.result])
             else:
                 raise NotImplementedError("don't know how to hash %r" % item)
 
         # nullify the impact of order in patterns
-        out.sort()
+        try:
+            out.sort()
+        except TypeError:
+            out.sort(key=self._to_sort_key)
         return hash(tuple(out))
 
     def __add__(self, other):

@@ -124,7 +124,18 @@ def _render_rif(
     rule_set: Ruleset,
     network,
     negation: bool,
+    fmt: OutputFormat | None = None,
 ) -> None:
+    if fmt == OutputFormat.RIF_XML:
+        from fuxi.Horn.rif_xml_serializer import serialize_xml
+
+        sys.stdout.buffer.write(serialize_xml(rule_set))
+        return
+    if fmt == OutputFormat.RIF:
+        from fuxi.Horn.rif_presentation_serializer import RIFPresentationSerializer
+
+        sys.stdout.write(RIFPresentationSerializer().serialize(rule_set))
+        return
     for rule in rule_set:
         print(rule)
     if negation:
@@ -164,8 +175,7 @@ def _render_rdf(
             import logging
 
             logging.getLogger(__name__).info(
-                "Time to calculate stratified, stable model "
-                "(inferred %s facts): %s",
+                "Time to calculate stratified, stable model (inferred %s facts): %s",
                 rt,
                 _format_timing(time.time() - _start),
             )
@@ -260,8 +270,8 @@ def render_output(
 
     if fmt == OutputFormat.CONFLICT:
         _render_conflict(options, result, network)
-    elif fmt == OutputFormat.RIF:
-        _render_rif(rule_set, network, options.negation)
+    elif fmt in (OutputFormat.RIF, OutputFormat.RIF_XML):
+        _render_rif(rule_set, network, options.negation, fmt)
     elif fmt == OutputFormat.MAN_OWL:
         _render_man_owl(options, network, fact_graph)
 

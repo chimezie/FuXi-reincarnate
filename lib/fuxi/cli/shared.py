@@ -7,6 +7,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from enum import StrEnum
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rdflib.graph import Graph
@@ -17,6 +18,7 @@ from rdflib.term import Identifier, Variable
 from fuxi.DLP.DLNormalization import normal_form_reduction
 from fuxi.Horn import safety_name_map
 from fuxi.Horn.HornRules import Ruleset, horn_from_n3
+from fuxi.Horn.RIFCore import RIFParser
 from fuxi.Rete.RuleStore import setup_rule_store
 from fuxi.Rete.Util import collapse_dictionary, generate_token_set
 from fuxi.SPARQL.service import SPARQLServiceGraph
@@ -135,6 +137,13 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
         default=[],
         metavar="PATH_OR_URI",
         help="N3 documents to use as rulesets (repeatable)",
+    )
+    parser.add_argument(
+        "--rif-rules",
+        action="append",
+        default=[],
+        metavar="PATH_OR_URI",
+        help="RIF XML/PS documents to use as rulesets (repeatable)",
     )
     parser.add_argument(
         "-d",
@@ -376,6 +385,12 @@ def build_program(
             rs = horn_from_n3(file_n)
         ns_binds.update(rs.ns_mapping)
         rule_set.formulae.extend(rs)
+
+    for file_n in options.rif_rules:
+        content = Path(file_n).read_bytes()
+        parsed = RIFParser.parse_xml(content)
+        rule_set.formulae.extend(parsed.formulae)
+        logger.info("Parsed RIF rules from %s (%d rules)", file_n, len(parsed.formulae))
 
     rule_set.ns_mapping = ns_binds
 

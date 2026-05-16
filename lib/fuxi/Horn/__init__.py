@@ -148,6 +148,12 @@ class ComplementExpansionTestSuite(unittest.TestCase):
         )
 
 
+from fuxi.Horn.RIFCore import RIFParser, RIFXMLParser, RIFCoreParser, RIF_NS, XSD_NS
+from fuxi.Horn.rif_presentation_parser import RIFPresentationParser
+from fuxi.Horn.rif_presentation_serializer import RIFPresentationSerializer
+from fuxi.Horn.rif_validator import RIFValidator, RIFValidationError
+from fuxi.Horn.rif_xml_serializer import serialize_xml, serialize_xml_to_file
+
 if __name__ == "__main__":
     unittest.main()
     sys.exit(1)

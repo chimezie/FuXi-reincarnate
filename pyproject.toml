@@ -19,6 +19,8 @@ classifiers = [
 ]
 dependencies = [
     "frozendict",
+    "lark>=1.2",
+    "lxml>=5.0",
     "pyparsing",
     "rdflib>=7.4",
 ]

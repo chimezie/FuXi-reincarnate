@@ -2,23 +2,22 @@ import io
 from io import StringIO
 
 import pytest
-
-
-from rdflib import Namespace, RDF, RDFS, XSD, BNode, Variable
 from rdflib.graph import Graph
 from rdflib.namespace import NamespaceManager
-from fuxi.Horn.PositiveConditions import BuildUnitermFromTuple
-from fuxi.Syntax.InfixOWL import nsBinds
 
+from fuxi.Horn.HornRules import horn_from_n3
+from fuxi.Horn.PositiveConditions import build_uniterm_from_tuple
+from fuxi.LP.BackwardFixpointProcedure import BFP_NS, BFP_RULE
 from fuxi.SPARQL import EDBQuery
 from fuxi.SPARQL.utilities import owl_entailment_regime_graph
-from fuxi.LP.BackwardFixpointProcedure import BFP_NS, BFP_RULE
-from fuxi.Horn.HornRules import HornFromN3
+from fuxi.Syntax.InfixOWL import nsBinds
+from rdflib import RDF, RDFS, XSD, BNode, Namespace, Variable
+
 from .conftest import (
     OwlTestOptions,
-    _safe_test_id,
     _network_for_goal,
     _render_proof_diagrams,
+    _safe_test_id,
 )
 
 pytestmark = pytest.mark.integration
@@ -69,7 +68,13 @@ def collect_owl_test_cases(manifest_url: str):
     namespace_manager = NamespaceManager(Graph())
     for prefix, uri in nsBinds.items():
         namespace_manager.bind(prefix, uri, override=False)
-    for test, test_id, profile, comment, description, premise_ont, conclusion_ont in rt:
+    for (test,
+         test_id,
+         profile,
+         comment,
+         description,
+         premise_ont,
+         conclusion_ont) in rt:
         yield pytest.param(
             test_id,
             test,
@@ -87,7 +92,8 @@ def pytest_generate_tests(metafunc):
     if "test_id" in metafunc.fixturenames:
         manifest_url = metafunc.config.getoption("--owl2-test-manifest")
         metafunc.parametrize(
-            "test_id, test, profile, comment, description, premise_ont, conclusion_ont, namespace_manager",
+            "test_id, test, profile, comment, description, premise_ont, "
+            "conclusion_ont, namespace_manager",
             collect_owl_test_cases(manifest_url),
         )
 
@@ -104,27 +110,34 @@ def test_owl_2(
     owl_test_options: OwlTestOptions,
 ):
     debug = owl_test_options.debug
-    if owl_test_options.single_test and str(test_id) != owl_test_options.single_test:
+    if (owl_test_options.single_test and
+        str(test_id) != owl_test_options.single_test):
         pytest.skip(f"Skipping {test_id} (--single-test filter active)")
     premise_graph = Graph().parse(io.StringIO(premise_ont), format="xml")
-    for (imported_ontology_url, ) in premise_graph.query(IMPORTS_QUERY, initNs=ns_map):
+    for (imported_ontology_url, ) in premise_graph.query(IMPORTS_QUERY,
+                                                         initNs=ns_map):
         print("Importing", imported_ontology_url)
         premise_graph.parse(imported_ontology_url, format="xml")
-    conclusion_graph = Graph().parse(io.StringIO(conclusion_ont), format="xml")
+    conclusion_graph = Graph().parse(io.StringIO(conclusion_ont),
+                                     format="xml")
     goals = []
     for triple in conclusion_graph:
         s, p, o = triple
         if isinstance(s, BNode):
             if len(list(conclusion_graph.triples((s, None, None)))) > 1:
-                #If the subject is a BNode, and part of a connected BGP then this is a valid goal
-                #and we use the BNode label as a variable to match consistently across BGPs
-                triple = tuple([Variable(t) if isinstance(t, BNode) else t for idx, t in enumerate(triple)])
+                #If the subject is a BNode, and part of a connected BGP then
+                # this is a valid goal and we use the BNode label as a
+                # variable to match consistently across BGPs
+                triple = tuple([Variable(t) if isinstance(t, BNode)
+                                else t for idx, t in enumerate(triple)])
                 goals.append(triple)
         elif isinstance(o, BNode):
             if len(list(conclusion_graph.triples((o, None, None)))) > 1:
-                #If the object is a BNode, and part of a connected BGP then this is a valid goal
-                #and we use the BNode label as a variable to match consistently across BGPs
-                triple = tuple([Variable(t) if isinstance(t, BNode) else t for idx, t in enumerate(triple)])
+                #If the object is a BNode, and part of a connected BGP then
+                # this is a valid goal and we use the BNode label as a
+                # variable to match consistently across BGPs
+                triple = tuple([Variable(t) if isinstance(t, BNode)
+                                else t for idx, t in enumerate(triple)])
                 goals.append(triple)
         elif triple not in premise_graph:
             goals.append(triple)
@@ -139,32 +152,37 @@ def test_owl_2(
         hybrid_predicates=None,
         goals=goals,
         namespace_manager=namespace_manager,
-        extra_rulesets=HornFromN3(StringIO(thing_rule)),
+        extra_rulesets=horn_from_n3(StringIO(thing_rule)),
         verbose=debug,
     )
-    proof_id = _safe_test_id(str(test_id)) if owl_test_options.capture_proofs else None
+    proof_id = _safe_test_id(str(test_id)
+                             ) if owl_test_options.capture_proofs else None
     top_down_store = entailing_graph.store
 
     for goal_index, goal in enumerate(goals, start=1):
-        query_literal = EDBQuery(
-            [BuildUnitermFromTuple(goal, ns_map)],
-            premise_graph,
-            None,
-        )
+        query_literal = EDBQuery([build_uniterm_from_tuple(goal,
+                                                           ns_map)],
+                                 premise_graph,
+                                 None)
         query = query_literal.as_sparql()
         rt = entailing_graph.query(query, initNs=ns_map)
         if debug or not rt.askAnswer:
             print(test_id, "\n", comment, "\n", description, "\n", profile)
             print("## Premise\n", premise_graph.serialize(format="turtle"))
-            print("## Conclusion\n", conclusion_graph.serialize(format="turtle"))
-            print("## Closure graph\n", closure_delta_graph.serialize(format="turtle"))
+            print("## Conclusion\n",
+                  conclusion_graph.serialize(format="turtle"))
+            print("## Closure graph\n",
+                  closure_delta_graph.serialize(format="turtle"))
             print("## Goal\n", query_literal, query)
         assert rt.askAnswer, "Failed top-down problem"
 
         if proof_id and owl_test_options.capture_proofs:
-            network_for_goal = _network_for_goal(top_down_store.queryNetworks, goal)
-            if network_for_goal is None and top_down_store.queryNetworks:
-                network_for_goal = top_down_store.queryNetworks[-1][0]
+            network_for_goal = _network_for_goal(
+                top_down_store.query_networks,
+                goal
+            )
+            if network_for_goal is None and top_down_store.query_networks:
+                network_for_goal = top_down_store.query_networks[-1][0]
             if network_for_goal is not None:
                 _render_proof_diagrams(
                     network_for_goal,

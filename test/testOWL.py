@@ -1,33 +1,33 @@
-from io import StringIO
-from glob import glob
 import os
-import re
 import time
-import pytest
+from io import StringIO
 from pprint import pformat
 
-from fuxi.Rete.Network import ReteNetwork
-from rdflib import BNode, Namespace, RDF, RDFS, URIRef, Literal
+import pytest
 from rdflib.graph import Graph
-from fuxi.DLP import non_DHL_OWL_Semantics
-from fuxi.DLP.ConditionalAxioms import AdditionalRules
-from fuxi.Horn.HornRules import HornFromN3
-from fuxi.Horn.PositiveConditions import BuildUnitermFromTuple
-from fuxi.Syntax.InfixOWL import all_classes, Individual, Variable
-from fuxi.Rete.ReteVocabulary import RETE_NS
-from fuxi.Rete.Util import generateTokenSet
-from fuxi.Rete.Proof import GenerateProof
-from fuxi.Rete.SidewaysInformationPassing import GetOp
-from fuxi.SPARQL.BackwardChainingStore import BFP_METHOD, TopDownSPARQLEntailingStore
-from fuxi.SPARQL import EDBQuery
 from rdflib.term import Identifier
+
+from fuxi.DLP import NON_DHL_OWL_SEMANTICS
+from fuxi.DLP.ConditionalAxioms import additional_rules
+from fuxi.Horn.HornRules import horn_from_n3
+from fuxi.Horn.PositiveConditions import build_uniterm_from_tuple
+from fuxi.Rete.Network import ReteNetwork
+from fuxi.Rete.ReteVocabulary import RETE_NS
+from fuxi.Rete.SidewaysInformationPassing import get_op
+from fuxi.Rete.Util import generate_token_set
+from fuxi.SPARQL import EDBQuery
+from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
+from fuxi.Syntax.InfixOWL import Individual, Variable, all_classes
+from fuxi.types import Triple
+from rdflib import RDF, RDFS, BNode, Literal, Namespace, URIRef
+
 from .conftest import (
     OwlTestOptions,
-    _owl_test_uri_id,
-    _safe_test_id,
     _network_for_goal,
+    _owl_test_uri_id,
     _proof_goal_for_query,
     _render_proof_diagrams,
+    _safe_test_id,
 )
 
 pytestmark = pytest.mark.integration
@@ -43,7 +43,8 @@ FOAF_NS = Namespace("http://xmlns.com/foaf/0.1/")
 OWL_NS = Namespace("http://www.w3.org/2002/07/owl#")
 TEST_NS = Namespace("http://metacognition.info/FuXi/DL-SHIOF-test.n3#")
 LOG = Namespace("http://www.w3.org/2000/10/swap/log#")
-RDF_TEST = Namespace("http://www.w3.org/2000/10/rdf-tests/rdfcore/testSchema#")
+RDF_TEST = Namespace(
+    "http://www.w3.org/2000/10/rdf-tests/rdfcore/testSchema#")
 OWL_TEST = Namespace("http://www.w3.org/2002/03owlt/testOntology#")
 LIST = Namespace("http://www.w3.org/2000/10/swap/list#")
 
@@ -57,7 +58,7 @@ query_ns_mapping = {
     "rdfs": str(RDFS),
 }
 
-nsMap = {
+ns_map = {
     "rdfs": RDFS,
     "rdf": RDF,
     "rete": RETE_NS,
@@ -134,7 +135,7 @@ TESTS_TO_SKIP = [
 PATTERNS_TO_SKIP = ["OWL/cardinality", "OWL/samePropertyAs"]
 
 def triple_to_triple_pattern(graph, triple):
-    return "%s %s %s" % tuple([render_term(graph, term) for term in triple])
+    return " ".join([render_term(graph, term) for term in triple])
 
 
 def render_term(graph, term):
@@ -143,37 +144,44 @@ def render_term(graph, term):
     else:
         try:
             return isinstance(term, BNode) and term.n3() or graph.qname(term)
-        except:
+        except Exception:
             return term.n3()
 
-def calculate_entailments(network, factGraph):
+def calculate_entailments(network, fact_graph):
     start = time.time()
-    network.feedFactsToAdd(generateTokenSet(factGraph))
+    network.feed_facts_to_add(generate_token_set(fact_graph))
     s_time = time.time() - start
     if s_time > 1:
-        s_time_str = "%s seconds" % s_time
+        s_time_str = f"{s_time} seconds"
     else:
         s_time = s_time * 1000
-        s_time_str = "%s milli seconds" % s_time
-    print("Time to calculate closure on working memory: %s" % s_time_str)
+        s_time_str = f"{s_time} milli seconds"
+    print(f"Time to calculate closure on working memory: {s_time_str}")
     print(network)
 
     terminal_node_order = [
-        t_node for t_node in network.terminalNodes if network.instantiations.get(t_node, 0)
+        t_node for t_node in network.terminal_nodes
+        if network.instantiations.get(t_node, 0)
     ]
-    terminal_node_order.sort(key=lambda x: network.instantiations[x], reverse=True)
+    terminal_node_order.sort(key=lambda x: network.instantiations[x],
+                             reverse=True)
     for term_node in terminal_node_order:
         print(term_node)
         print("\t", term_node.rules)
-        print("\t\t%s instantiations" % network.instantiations[term_node])
+        print(f"\t\t{network.instantiations[term_node]} instantiations")
     print("==============")
-    network.inferredFacts.namespace_manager = factGraph.namespace_manager
+    network.inferred_facts.namespace_manager = fact_graph.namespace_manager
     return s_time_str
 
 def _owl_test_id(params):
     if not isinstance(params, tuple):
         return str(params)
-    manifest, premise_file, _conclusion_file, _feature, _description, test_uri = params
+    (manifest,
+     premise_file,
+     _conclusion_file,
+     _feature,
+     _description,
+     test_uri) = params
     short_id = test_uri
     if "http://www.w3.org/2002/03owlt/" in test_uri:
         short_id = test_uri.split("http://www.w3.org/2002/03owlt/")[-1]
@@ -202,8 +210,8 @@ def collect_owl_test_cases():
 
         # Skip based on patterns
         skip = False
-        for pattern2Skip in PATTERNS_TO_SKIP:
-            if manifest_str.find(pattern2Skip) > -1:
+        for pattern_to_skip in PATTERNS_TO_SKIP:
+            if manifest_str.find(pattern_to_skip) > -1:
                 skip = True
                 break
         if skip:
@@ -212,7 +220,7 @@ def collect_owl_test_cases():
         # Parse manifest
         manifest_graph = Graph()
         manifest_graph.parse(open(manifest), format="xml")
-        rt = manifest_graph.query(MANIFEST_QUERY, initNs=nsMap, DEBUG=False)
+        rt = manifest_graph.query(MANIFEST_QUERY, initNs=ns_map, DEBUG=False)
 
         for test_uri, status, premise, conclusion, feature, description in rt:
             # Only process APPROVED tests
@@ -224,14 +232,16 @@ def collect_owl_test_cases():
                 continue
 
             # Extract file names
-            premise = manifest_graph.namespace_manager.compute_qname(premise)[-1]
+            premise = manifest_graph.namespace_manager.compute_qname(
+                premise)[-1]
             conclusion = manifest_graph.namespace_manager.compute_qname(
                 conclusion
             )[-1]
 
             manifest_parent = manifest.parent
             premise_file = str((manifest_parent / premise).relative_to(test_dir))
-            conclusion_file = str((manifest_parent / conclusion).relative_to(test_dir))
+            conclusion_file = str((manifest_parent / conclusion).relative_to(
+                test_dir))
 
             # Check that files exist
             if not (test_dir / f"{premise_file}.rdf").exists():
@@ -254,12 +264,18 @@ def collect_owl_test_cases():
     return test_cases
 
 
-def magic_owl_proof(network, goals, rules, fact_graph, options, proof_id=None):
+def magic_owl_proof(
+        network,
+        goals,
+        rules,
+        fact_graph,
+        options,
+        proof_id=None):
     goal_dict = None
-    for rule in AdditionalRules(fact_graph):
+    for rule in additional_rules(fact_graph):
         rules.append(rule)
     if not options.ground_query:
-        goal_dict: dict[tuple[Variable, Identifier, Identifier], Identifier] = dict(
+        goal_dict: dict[Triple, Identifier] = dict(
             [
                 ((Variable("SUBJECT"),
                   goalP,
@@ -268,60 +284,62 @@ def magic_owl_proof(network, goals, rules, fact_graph, options, proof_id=None):
                 for goalS, goalP, goalO in goals
             ]
         )
-        goals: list[tuple[Variable, Identifier, Identifier]] = list(goal_dict.keys())
+        goals: list[Triple] = list(goal_dict.keys())
     assert goals
 
     if options.strategy == "bfp":
-        reasoning_alg = BFP_METHOD
         top_down_store = TopDownSPARQLEntailingStore(
             fact_graph.store,
             fact_graph,
             idb=rules,
-            DEBUG=options.debug,
-            nsBindings=nsMap,
-            decisionProcedure=reasoning_alg,
-            identifyHybridPredicates=True,
+            debug=options.debug,
+            ns_bindings=ns_map,
+            identify_hybrid_predicates=True
         )
         target_graph = Graph(top_down_store)
-        for pref, nsUri in list(nsMap.items()):
-            target_graph.bind(pref, nsUri)
+        for pref, ns_uri in list(ns_map.items()):
+            target_graph.bind(pref, ns_uri)
         start = time.time()
 
         for goal_index, goal in enumerate(goals, start=1):
             query_literal = EDBQuery(
-                [BuildUnitermFromTuple(goal)],
+                [build_uniterm_from_tuple(goal)],
                 fact_graph,
-                None if options.ground_query else [goal[0]],
+                None if options.ground_query else [goal[0]]
             )
-            query = query_literal.asSPARQL()
+            query = query_literal.as_sparql()
             print("Goal to solve ", query)
-            rt = target_graph.query(query, initNs=nsMap)
+            rt = target_graph.query(query, initNs=ns_map)
             if options.ground_query:
                 assert bool(rt), "Failed top-down problem"
             else:
-                if not any(row[0] == goal_dict[goal] for row in rt) or options.debug:
-                    for network, _goal in top_down_store.queryNetworks:
+                if not any(row[0] == goal_dict[goal]
+                           for row in rt) or options.debug:
+                    for network, _goal in top_down_store.query_networks:
                         print(network, _goal)
-                        network.reportConflictSet(True)
-                    for query in top_down_store.edbQueries:
+                        network.report_conflict_set(True)
+                    for query in top_down_store.edb_queries:
                         print(query)
                 assert any(row[0] == goal_dict[goal] for row in rt), (
                     "Failed top-down problem"
                 )
             if proof_id and options.capture_proofs:
-                network_for_goal = _network_for_goal(top_down_store.queryNetworks, goal)
-                if network_for_goal is None and top_down_store.queryNetworks:
-                    network_for_goal = top_down_store.queryNetworks[-1][0]
+                network_for_goal = _network_for_goal(
+                    top_down_store.query_networks,
+                    goal
+                )
+                if network_for_goal is None and top_down_store.query_networks:
+                    network_for_goal = top_down_store.query_networks[-1][0]
                 if network_for_goal is None:
                     network_for_goal = network
                 proof_goal = _proof_goal_for_query(goal, goal_dict)
 
                 if top_down_store.hybrid_predicates:
-                    lit = BuildUnitermFromTuple(proof_goal)
-                    op = GetOp(lit)
+                    lit = build_uniterm_from_tuple(proof_goal)
+                    op = get_op(lit)
                     if op in top_down_store.hybrid_predicates:
-                        lit.setOperator(URIRef(op + "_derived"))
-                        proof_goal = lit.toRDFTuple()
+                        lit.set_operator(URIRef(op + "_derived"))
+                        proof_goal = lit.to_rdf_tuple()
                 _render_proof_diagrams(
                     network_for_goal,
                     proof_goal,
@@ -331,13 +349,14 @@ def magic_owl_proof(network, goals, rules, fact_graph, options, proof_id=None):
                 )
         s_time = time.perf_counter() - start
         if s_time > 1:
-            s_time_str = "%s seconds" % s_time
+            s_time_str = f"{s_time} seconds"
         else:
             s_time = s_time * 1000
-            s_time_str = "%s milli seconds" % s_time
+            s_time_str = f"{s_time} milli seconds"
         return s_time_str
     else:
-        raise NotImplementedError(f"Unsupported reasoning strategy: {options.strategy}")
+        raise NotImplementedError(
+            f"Unsupported reasoning strategy: {options.strategy}")
 
 @pytest.mark.parametrize(
     "manifest,premise_file,conclusion_file,feature,description,test_uri",
@@ -356,15 +375,20 @@ def test_owl(
     """
     Individual OWL test case.
 
-    Each approved test from the OWL manifest files runs as a separate pytest test.
+    Each approved test from the OWL manifest files runs as a separate pytest
+    test.
     """
     # Apply single test filter
-    if owl_test_options.single_test and premise_file != owl_test_options.single_test:
+    if (owl_test_options.single_test and
+        premise_file != owl_test_options.single_test):
         pytest.skip(f"Skipping {premise_file} (--singleTest filter active)")
 
     # Apply strategy-specific skips
-    if manifest in NON_NAIVE_SKIP or (owl_test_options.strategy == "bfp" and manifest in BFP_TESTS_TO_SKIP):
-        pytest.skip(f"Incompatible with reasoning strategy: {owl_test_options.strategy}")
+    if manifest in NON_NAIVE_SKIP or (owl_test_options.strategy == "bfp" and
+                                      manifest in BFP_TESTS_TO_SKIP):
+        pytest.skip(
+            f"Incompatible with reasoning strategy: "
+            f"{owl_test_options.strategy}")
 
     if feature in TOP_DOWN_TESTS_TO_SKIP:
         pytest.skip(f"Feature {feature} requires skipping for top-down tests")
@@ -376,7 +400,8 @@ def test_owl(
     premise_rdf = base_dir / Path(premise_file + ".rdf")
     conclusion_rdf = base_dir / Path(conclusion_file + ".rdf")
     assert premise_rdf.exists(), f"Premise file not found: {premise_rdf}"
-    assert conclusion_rdf.exists(), f"Conclusion file not found: {conclusion_rdf}"
+    assert conclusion_rdf.exists(), (f"Conclusion file not found: "
+                                     f"{conclusion_rdf}")
 
     print(f"\n{'=' * 60}")
     print(f"Test: {premise_file}")
@@ -389,7 +414,7 @@ def test_owl(
     fact_graph = Graph()
     with premise_rdf.open() as f:
         fact_graph.parse(f, format="xml")
-    nsMap.update(dict([(k, v) for k, v in fact_graph.namespaces()]))
+    ns_map.update(dict([(k, v) for k, v in fact_graph.namespaces()]))
 
     if owl_test_options.debug:
         print("\n## Source Graph ##")
@@ -403,11 +428,12 @@ def test_owl(
                 print(c.__repr__(True))
 
     # Build program
-    program = list(HornFromN3(StringIO(non_DHL_OWL_Semantics)))
+    program = list(horn_from_n3(StringIO(NON_DHL_OWL_SEMANTICS)))
     program.extend(
-        rete_network.setupDescriptionLogicProgramming(
-            fact_graph, addPDSemantics=False, constructNetwork=False
-        )
+        rete_network.setup_description_logic_programming(
+            fact_graph,
+            add_pd_semantics=False,
+            construct_network=False)
     )
 
     if owl_test_options.debug:
@@ -423,15 +449,17 @@ def test_owl(
         expected_facts = Graph()
         with conclusion_rdf.open() as f:
             for triple in expected_facts.parse(f, format="xml"):
-                if triple not in rete_network.inferredFacts and triple not in fact_graph:
+                if (triple not in rete_network.inferred_facts and
+                    triple not in fact_graph):
                     print(f"\nMissing triple: {pformat(triple)}")
                     print(f"Manifest: {manifest}")
                     print(f"Feature: {feature}")
                     print(f"Description: {description}")
                     if owl_test_options.debug:
                         print("\n## Inferred Facts ##")
-                        print(pformat(list(rete_network.inferredFacts)))
-                    pytest.fail(f"Failed test: {feature} - Missing expected triple")
+                        print(pformat(list(rete_network.inferred_facts)))
+                    pytest.fail(f"Failed test: {feature} - "
+                                f"Missing expected triple")
 
         print(f"\n=== PASSED === (Time: {s_time_str})")
     else:

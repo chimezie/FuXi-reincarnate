@@ -2,7 +2,7 @@
 name = "fuxi"
 version = "1.4"
 description = "An OWL / N3-based in-memory, logic reasoning system for RDF"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 license = {text = "Apache"}
 authors = [{name = "Chime Ogbuji", email = "chimezie@gmail.com"}]
 maintainers = [{name = "Chime Ogbuji", email = "chimezie@gmail.com"}]
@@ -25,22 +25,19 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "black",
     "coverage",
-    "mypy",
-    "pylint",
     "graphviz",
+    "mypy",
     "pytest",
     "pytest-cov",
-    "pyupgrade",
     "radon",
     "ruff",
-    "sphinx",
-    "sphinxcontrib-mermaid",
     "vulture",
-    "lizard",
-    "xenon",
-    "wily",
+]
+docs = [
+    "sphinx",
+    "sphinx_rtd_theme",
+    "sphinxcontrib-mermaid",
 ]
 
 [project.scripts]
@@ -76,15 +73,11 @@ markers = [
 owl_cli = "uv run --active pytest test/testOWL.py"
 owl_strategy_default = "bfp"
 
-[tool.pyupgrade]
-target-version = "py313"
-
 [tool.ruff]
 target-version = "py313"
 line-length = 88
 
 [tool.ruff.lint]
-exclude = ["docs/*"]
 select = ["E", "W", "F", "I", "N", "FA", "UP"]
 ignore = [
 #    "E501",
@@ -97,6 +90,25 @@ ignore = [
 "lib/fuxi/DLP/__init__.py" = ["N802"]
 "lib/fuxi/SPARQL/service.py" = ["N803"]
 "test/SPARQL/*" = ["E501"]
+
+[tool.coverage.run]
+source = ["lib"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+branch = true
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
 
 [tool.ruff.lint.isort]
 known-first-party = ["fuxi"]

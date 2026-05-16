@@ -168,7 +168,7 @@ wheels = [
 
 [[package]]
 name = "fuxi"
-version = "1.4"
+version = "2.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "frozendict" },

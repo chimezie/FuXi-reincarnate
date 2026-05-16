@@ -1,8 +1,9 @@
 from typing import TYPE_CHECKING
+
 from pyparsing import ParseResults
-from rdflib.plugins.sparql.parser import parseQuery
 from rdflib.graph import Graph
 from rdflib.namespace import NamespaceManager
+from rdflib.plugins.sparql.parser import parseQuery
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import SPARQLResult
 from rdflib.query import Result
@@ -13,6 +14,7 @@ from rdflib import RDF, URIRef
 
 if TYPE_CHECKING:
     from fuxi.Horn.HornRules import Ruleset
+    from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
 
 
 def owl_entailment_regime_graph(
@@ -111,7 +113,6 @@ def owl_entailment_regime_graph(
     from fuxi.Horn.HornRules import horn_from_n3
     from fuxi.Rete.RuleStore import setup_rule_store
     from fuxi.SPARQL.BackwardChainingStore import (
-        BFP_METHOD,
         TopDownSPARQLEntailingStore,
     )
 

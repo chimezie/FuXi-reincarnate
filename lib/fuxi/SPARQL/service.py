@@ -5,7 +5,7 @@ from typing import Any
 from rdflib.plugins.sparql.parser import parseQuery
 from rdflib.plugins.sparql.sparql import Query
 from rdflib.query import Processor, Result
-from rdflib.term import Identifier, Variable
+from rdflib.term import Identifier
 
 from fuxi.Horn.PositiveConditions import build_uniterm_from_tuple
 from fuxi.Rete.SidewaysInformationPassing import get_variables

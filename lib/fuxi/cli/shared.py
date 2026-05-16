@@ -20,11 +20,10 @@ from fuxi.Horn.HornRules import Ruleset, horn_from_n3
 from fuxi.Rete.RuleStore import setup_rule_store
 from fuxi.Rete.Util import collapse_dictionary, generate_token_set
 from fuxi.SPARQL.service import SPARQLServiceGraph
-
 from fuxi.SPARQL.utilities import (
     extract_triples_from_query,
     owl_entailment_regime_graph,
-    sparql_interlocution
+    sparql_interlocution,
 )
 from fuxi.Syntax.InfixOWL import (
     OWL_NS,

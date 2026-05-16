@@ -8,6 +8,8 @@ import itertools
 import os
 import pickle
 from functools import lru_cache, wraps
+from typing import Tuple
+
 from rdflib import (
     BNode,
     Namespace,
@@ -15,6 +17,7 @@ from rdflib import (
 from rdflib.graph import Graph
 from rdflib.collection import Collection
 from rdflib.namespace import NamespaceManager
+from rdflib.term import Identifier
 
 
 def format_doctest_out(doc):

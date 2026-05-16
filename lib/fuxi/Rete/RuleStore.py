@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import pathlib
 # -*- coding: utf-8 -*-
 # flake8: noqa
 
 from functools import reduce
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, IO, TextIO, Callable
 
 from rdflib import (
     BNode,
@@ -14,9 +15,11 @@ from rdflib import (
     URIRef,
     Variable,
 )
+from rdflib.parser import InputSource
 from rdflib.store import Store
 from rdflib.graph import QuotedGraph, Graph
 from rdflib.namespace import NamespaceManager
+from rdflib.term import Identifier
 
 from .BuiltinPredicates import FILTERS
 from fuxi.types import MutableBindings, RDFNode, RDFTerm, Triple
@@ -56,32 +59,32 @@ class N3Builtin(object):
             arg for arg in [self.argument, self.result] if isinstance(arg, Variable)
         ]
 
-    def isSecondOrder(self) -> bool:
+    def is_second_order(self) -> bool:
         return False
 
-    def ground(self, varMapping: "Mapping[RDFTerm, RDFTerm]") -> set[RDFTerm]:
-        appliedKeys = set([self.argument, self.result]).intersection(
-            list(varMapping.keys())
+    def ground(self, var_mapping: "Mapping[RDFTerm, RDFTerm]") -> set[RDFTerm]:
+        applied_keys = set([self.argument, self.result]).intersection(
+            list(var_mapping.keys())
         )
-        self.argument = varMapping.get(self.argument, self.argument)
-        self.result = varMapping.get(self.result, self.result)
-        return appliedKeys
+        self.argument = var_mapping.get(self.argument, self.argument)
+        self.result = var_mapping.get(self.result, self.result)
+        return applied_keys
 
-    def isGround(self) -> bool:
+    def is_ground(self) -> bool:
         for term in [self.result, self.argument]:
             if isinstance(term, Variable):
                 return False
         return True
 
-    def renameVariables(self, varMapping: "Mapping[RDFTerm, RDFTerm]") -> None:
-        if varMapping:
-            self.argument = varMapping.get(self.argument, self.argument)
-            self.result = varMapping.get(self.result, self.result)
+    def rename_variables(self, var_mapping: "Mapping[RDFTerm, RDFTerm]") -> None:
+        if var_mapping:
+            self.argument = var_mapping.get(self.argument, self.argument)
+            self.result = var_mapping.get(self.result, self.result)
 
     def binds(self, var: Variable) -> bool:
         return True
 
-    def toRDFTuple(self) -> tuple[RDFTerm, RDFTerm, RDFTerm]:
+    def to_rdf_tuple(self) -> tuple[RDFTerm, RDFTerm, RDFTerm]:
         return (self.argument, self.uri, self.result)
 
     def render(self, argument, result):
@@ -136,15 +139,17 @@ class Rule(object):
     An N3 Rule.  consists of two formulae associated via log:implies
     """
 
-    def __init__(self, LHS, RHS):
-        self.lhs = LHS
-        self.rhs = RHS
+    def __init__(self, lhs, rhs):
+        self.lhs = lhs
+        self.rhs = rhs
 
     def __repr__(self):
         return "{%s} => {%s}" % (self.lhs, self.rhs)
 
 
-def SetupRuleStore(n3Stream=None, additionalBuiltins=None, makeNetwork=False):
+def setup_rule_store(n3_stream: IO[bytes] | TextIO | InputSource | str | bytes | pathlib.PurePath | None = None,
+                     additional_builtins: Mapping[Identifier, Callable] = None,
+                     make_network: bool = False):
     """
     Create a N3RuleStore and a backing Graph, optionally a ReteNetwork.
 
@@ -152,33 +157,33 @@ def SetupRuleStore(n3Stream=None, additionalBuiltins=None, makeNetwork=False):
     rules. When ``n3Stream`` is provided, the graph is populated from the
     source before the store is finalized.
 
-    :param n3Stream: N3 source to parse (path, URL, or file-like).
-    :param additionalBuiltins: Optional mapping of builtin predicates to
+    :param n3_stream: N3 source to parse (path, URL, or file-like).
+    :param additional_builtins: Optional mapping of builtin predicates to
         Python callables.
-    :param makeNetwork: If True, also create and return a ReteNetwork with
+    :param make_network: If True, also create and return a ReteNetwork with
         an empty inferred-facts graph.
     :return: ``(rule_store, rule_graph)`` or
         ``(rule_store, rule_graph, rete_network)`` when ``makeNetwork`` is
         True.
 
     Example:
-    >>> from fuxi.Horn.HornRules import HornFromN3
-    >>> store, graph, net = SetupRuleStore(makeNetwork=True)
-    >>> for rule in HornFromN3('test/sameAsTestRules.n3'):
-    ...     net.buildNetworkFromClause(rule)
+    >>> from fuxi.Horn.HornRules import horn_from_n3
+    >>> store, graph, net = setup_rule_store(make_network=True)
+    >>> for rule in horn_from_n3('test/sameAsTestRules.n3'):
+    ...     net.build_network_from_clause(rule)
     """
-    ruleStore = N3RuleStore(additionalBuiltins=additionalBuiltins)
-    nsMgr = NamespaceManager(Graph(ruleStore))
-    ruleGraph = Graph(ruleStore, namespace_manager=nsMgr)
-    if n3Stream:
-        ruleGraph.parse(n3Stream, format="n3")
-    if makeNetwork:
+    rule_store = N3RuleStore(additional_builtins=additional_builtins)
+    ns_mgr = NamespaceManager(Graph(rule_store))
+    rule_graph = Graph(rule_store, namespace_manager=ns_mgr)
+    if n3_stream:
+        rule_graph.parse(n3_stream, format="n3")
+    if make_network:
         from .Network import ReteNetwork
 
-        closureDeltaGraph = Graph()
-        network = ReteNetwork(ruleStore, inferredTarget=closureDeltaGraph)
-        return ruleStore, ruleGraph, network
-    return ruleStore, ruleGraph
+        closure_delta_graph = Graph()
+        network = ReteNetwork(rule_store, inferred_target=closure_delta_graph)
+        return rule_store, rule_graph, network
+    return rule_store, rule_graph
 
 
 class N3RuleStore(Store):
@@ -312,58 +317,58 @@ BuiltIn used out of order
     graph_aware = True
     formula_aware = True
 
-    def __init__(self, identifier=None, additionalBuiltins=None):
+    def __init__(self, identifier=None, additional_builtins=None):
         self.formulae = {}
         self.facts = []
-        self.rootFormula = None
+        self.root_formula = None
         self._lists = {}
-        self.currentList = None
-        self._listBuffer = []
+        self.current_list = None
+        self._list_buffer = []
         self.rules = []
-        self.referencedVariables = set()
-        self.nsMgr = {
+        self.referenced_variables = set()
+        self.ns_mgr = {
             "skolem": URIRef("http://code.google.com/p/python-dlp/wiki/SkolemTerm#")
         }
         self.filters = {}
         self.filters.update(FILTERS)
-        if additionalBuiltins:
-            self.filters.update(additionalBuiltins)
+        if additional_builtins:
+            self.filters.update(additional_builtins)
 
     def namespace(self, prefix):
-        return self.nsMgr.get(prefix)
+        return self.ns_mgr.get(prefix)
 
     def bind(self, prefix, namespace, override=True):
-        if override or prefix not in self.nsMgr:
-            self.nsMgr[prefix] = namespace
+        if override or prefix not in self.ns_mgr:
+            self.ns_mgr[prefix] = namespace
 
     def prefix(self, namespace):
-        return dict([(v, k) for k, v in list(self.nsMgr.items())]).get(namespace)
+        return dict([(v, k) for k, v in list(self.ns_mgr.items())]).get(namespace)
 
-    def _unrollList(self, l, listName):
-        listTriples = []
-        lastItemName = None
-        for linkItem in l:
-            linkName = l.index(linkItem) == 0 and listName or BNode()
-            if lastItemName:
-                listTriples.append((lastItemName, RDF.rest, linkName))
-            listTriples.append((linkName, RDF.first, linkItem))
-            lastItemName = linkName
-        listTriples.append((lastItemName, RDF.rest, RDF.nil))
-        return listTriples
+    def _unroll_list(self, l, list_name):
+        list_triples = []
+        last_item_name = None
+        for link_item in l:
+            link_name = l.index(link_item) == 0 and list_name or BNode()
+            if last_item_name:
+                list_triples.append((last_item_name, RDF.rest, link_name))
+            list_triples.append((link_name, RDF.first, link_item))
+            last_item_name = link_name
+        list_triples.append((last_item_name, RDF.rest, RDF.nil))
+        return list_triples
 
     def _finalize(self):
-        def unrollFunc(left, right):
-            leftListsToUnroll = []
-            rightListsToUnroll = []
+        def unroll_func(left, right):
+            left_lists_to_unroll = []
+            right_lists_to_unroll = []
             if isinstance(left, tuple):
                 s, p, o = left
-                leftListsToUnroll = [term for term in [s, o] if term in self._lists]
-                if leftListsToUnroll:
-                    leftListsToUnroll = reduce(
+                left_lists_to_unroll = [term for term in [s, o] if term in self._lists]
+                if left_lists_to_unroll:
+                    left_lists_to_unroll = reduce(
                         lambda x, y: x + y,
                         [
-                            self._unrollList(self._lists[l], l)
-                            for l in leftListsToUnroll
+                            self._unroll_list(self._lists[l], l)
+                            for l in left_lists_to_unroll
                         ],
                     )
                 left = [left]
@@ -371,48 +376,48 @@ BuiltIn used out of order
                 left = [left]
             if isinstance(right, tuple):
                 s, p, o = right
-                rightListsToUnroll = [term for term in [s, o] if term in self._lists]
-                if rightListsToUnroll:
-                    rightListsToUnroll = reduce(
+                right_lists_to_unroll = [term for term in [s, o] if term in self._lists]
+                if right_lists_to_unroll:
+                    right_lists_to_unroll = reduce(
                         lambda x, y: x + y,
                         [
-                            self._unrollList(self._lists[l], l)
-                            for l in rightListsToUnroll
+                            self._unroll_list(self._lists[l], l)
+                            for l in right_lists_to_unroll
                         ],
                     )
                 right = [right]
             elif isinstance(right, N3Builtin):
                 right = [right]
-            return left + leftListsToUnroll + right + rightListsToUnroll
+            return left + left_lists_to_unroll + right + right_lists_to_unroll
 
         if len(self.facts) == 1:
             s, p, o = self.facts[0]
-            listsToUnroll = [term for term in [s, o] if term in self._lists]
-            if listsToUnroll:
+            lists_to_unroll = [term for term in [s, o] if term in self._lists]
+            if lists_to_unroll:
                 self.facts.extend(
                     reduce(
                         lambda x, y: x + y,
-                        [self._unrollList(self._lists[l], l) for l in listsToUnroll],
+                        [self._unroll_list(self._lists[l], l) for l in lists_to_unroll],
                     )
                 )
         elif self.facts:
-            self.facts = reduce(unrollFunc, self.facts)
+            self.facts = reduce(unroll_func, self.facts)
         for formula in list(self.formulae.values()):
             if len(formula) == 1:
                 if isinstance(formula[0], tuple):
                     s, p, o = formula[0]
-                    listsToUnroll = [term for term in [s, o] if term in self._lists]
-                    if listsToUnroll:
-                        listTriples = reduce(
+                    lists_to_unroll = [term for term in [s, o] if term in self._lists]
+                    if lists_to_unroll:
+                        list_triples = reduce(
                             lambda x, y: x + y,
                             [
-                                self._unrollList(self._lists[l], l)
-                                for l in listsToUnroll
+                                self._unroll_list(self._lists[l], l)
+                                for l in lists_to_unroll
                             ],
                         )
-                        formula.extend(listTriples)
+                        formula.extend(list_triples)
             elif len(formula):
-                formula.triples = reduce(unrollFunc, [i for i in formula])
+                formula.triples = reduce(unroll_func, [i for i in formula])
         for lhs, rhs in self.rules:
             for item in self.formulae.get(rhs, []):
                 assert isinstance(item, tuple), (
@@ -423,12 +428,12 @@ BuiltIn used out of order
             for lhs, rhs in self.rules
         ]
 
-    def _checkVariableReferences(self, referencedVariables, terms, funcObj):
+    def _check_variable_references(self, referenced_variables, terms, func_obj):
         for term in [i for i in terms if isinstance(i, Variable)]:
-            if term not in referencedVariables:
+            if term not in referenced_variables:
                 raise Exception(
                     "Builtin refers to variables without previous reference (%s)"
-                    % funcObj
+                    % func_obj
                 )
 
     def add(self, triple, context=None, quoted=False):
@@ -438,23 +443,23 @@ BuiltIn used out of order
             and not isinstance(subject, Variable)
             and not isinstance(object, Variable)
         ):
-            if not self.currentList:
-                self._listBuffer.append(obj)
-                self.currentList = subject
+            if not self.current_list:
+                self._list_buffer.append(obj)
+                self.current_list = subject
             else:
-                self._listBuffer.append(obj)
+                self._list_buffer.append(obj)
         elif (
             predicate == RDF.rest
             and not isinstance(subject, Variable)
             and not isinstance(object, Variable)
         ):
             if obj == RDF.nil:
-                self._lists[self.currentList] = [item for item in self._listBuffer]
-                self._listBuffer = []
-                self.currentList = None
+                self._lists[self.current_list] = [item for item in self._list_buffer]
+                self._list_buffer = []
+                self.current_list = None
         elif not isinstance(context, QuotedGraph):
-            if not self.rootFormula:
-                self.rootFormula = context.identifier
+            if not self.root_formula:
+                self.root_formula = context.identifier
             if predicate == LOG.implies:
                 self.rules.append(
                     (
@@ -467,13 +472,13 @@ BuiltIn used out of order
         else:
             formula = self.formulae.get(context.identifier, Formula(context.identifier))
             if predicate in self.filters:
-                newFilter = N3Builtin(
+                new_filter = N3Builtin(
                     predicate, self.filters[predicate](subject, obj), subject, obj
                 )
                 # @attention: The non-deterministic parse order of an RDF graph makes this
                 # check hard to enforce
-                # self._checkVariableReferences(self.referencedVariables, [subject, obj], newFilter)
-                formula.append(newFilter)
+                # self._checkVariableReferences(self.referencedVariables, [subject, obj], new_filter)
+                formula.append(new_filter)
             else:
                 # print("(%s, %s, %s) pattern in %s"%(subject, predicate, obj, context.identifier))
                 variables = [
@@ -481,7 +486,7 @@ BuiltIn used out of order
                     for arg in [subject, predicate, obj]
                     if isinstance(arg, Variable)
                 ]
-                self.referencedVariables.update(variables)
+                self.referenced_variables.update(variables)
                 formula.append((subject, predicate, obj))
             self.formulae[context.identifier] = formula
 
@@ -491,8 +496,8 @@ BuiltIn used out of order
     def __len__(self, context=None):
         return 0
 
-    def optimizeRules(self):
-        patternDict = {}
+    def optimize_rules(self):
+        pattern_dict = {}
         for lhs, rhs in self.rules:
             for pattern in lhs:
                 if not isinstance(pattern, N3Builtin):
@@ -500,10 +505,10 @@ BuiltIn used out of order
                         isinstance(term, (Variable, BNode)) and "\t" or term
                         for term in pattern
                     ]
-                    patternDict.setdefault(
+                    pattern_dict.setdefault(
                         reduce(lambda x, y: x + y, _hashList), set()
                     ).add(pattern)
-        for key, vals in list(patternDict.items()):
+        for key, vals in list(pattern_dict.items()):
             if len(vals) > 1:
                 print("###### Similar Patterns ######")
                 for val in vals:
@@ -534,11 +539,3 @@ def test2():
 
 if __name__ == "__main__":
     test()
-    # test2()
-
-
-# from fuxi.Rete.RuleStore import Formula
-# from fuxi.Rete.RuleStore import N3Builtin
-# from fuxi.Rete.RuleStore import N3RuleStore
-# from fuxi.Rete.RuleStore import Rule
-# from fuxi.Rete.RuleStore import SetupRuleStore

@@ -18,77 +18,77 @@ DATALOG_SAFETY_NONE = 0
 DATALOG_SAFETY_STRICT = 1
 DATALOG_SAFETY_LOOSE = 2
 
-safetyNameMap = {
+safety_name_map = {
     "none": DATALOG_SAFETY_NONE,
     "strict": DATALOG_SAFETY_STRICT,
     "loose": DATALOG_SAFETY_LOOSE,
 }
 
 
-def SubSumptionExpansion(owlClass):
-    owlClass = cast_class(owlClass)
-    if isinstance(owlClass, BooleanClass) and owlClass._operator == OWL_NS.unionOf:
-        for member in owlClass:
+def sub_sumption_expansion(owl_class):
+    owl_class = cast_class(owl_class)
+    if isinstance(owl_class, BooleanClass) and owl_class._operator == OWL_NS.unionOf:
+        for member in owl_class:
             expanded = False
-            for innerMember in SubSumptionExpansion(Class(member)):
+            for innerMember in sub_sumption_expansion(Class(member)):
                 expanded = True
                 yield innerMember
             if not expanded:
                 yield member
     else:
-        for member in owlClass.sub_sumptee_ids():
+        for member in owl_class.sub_sumptee_ids():
             expanded = False
-            for innerMember in SubSumptionExpansion(Class(member)):
+            for innerMember in sub_sumption_expansion(Class(member)):
                 expanded = True
                 yield innerMember
             if not expanded:
                 yield member
 
 
-def ComplementExpansion(owlClass, debug=False):
+def complement_expansion(owl_class, debug=False):
     """
     For binary conjunctions of a positive conjunction concept and a negative atomic concept
     """
-    owlClass = cast_class(owlClass.identifier, owlClass.graph)
+    owl_class = cast_class(owl_class.identifier, owl_class.graph)
     if (
-        isinstance(owlClass, BooleanClass)
-        and len(owlClass) == 2
-        and owlClass._operator == OWL_NS.intersectionOf
+        isinstance(owl_class, BooleanClass)
+        and len(owl_class) == 2
+        and owl_class._operator == OWL_NS.intersectionOf
     ):
-        oldRepr = owlClass.__repr__()
+        old_repr = owl_class.__repr__()
         # A boolean-constructed class
-        negativeClasses = set()
-        otherClasses = set()
-        for member in owlClass:
+        negative_classes = set()
+        other_classes = set()
+        for member in owl_class:
             member = Class(member)
             if member.complement_of:
                 # A negative class, expand it and add to bucket of classes to
                 # 'remove'
-                for expandedClass in SubSumptionExpansion(member.complement_of):
-                    negativeClasses.add(expandedClass)
+                for expanded_class in sub_sumption_expansion(member.complement_of):
+                    negative_classes.add(expanded_class)
             else:
                 # A positive class, expand it and add to bucket of base classes
                 expanded = False
-                for expandedClass in SubSumptionExpansion(member):
+                for expanded_class in sub_sumption_expansion(member):
                     expanded = True
-                    otherClasses.add(expandedClass)
+                    other_classes.add(expanded_class)
                 if not expanded:
-                    otherClasses.add(member.identifier)
+                    other_classes.add(member.identifier)
 
-        if negativeClasses:
+        if negative_classes:
             # Delete the old list of operands for the boolean class
-            oldList = owlClass._rdfList
-            oldList.clear()
+            old_list = owl_class._rdfList
+            old_list.clear()
 
             # Recreate the list of operands, exluding the expanded negative
             # classes
-            for allowedClasses in otherClasses.difference(negativeClasses):
-                oldList.append(class_or_identifier(allowedClasses))
-            owlClass.change_operator(OWL_NS.unionOf)
+            for allowed_classes in other_classes.difference(negative_classes):
+                old_list.append(class_or_identifier(allowed_classes))
+            owl_class.change_operator(OWL_NS.unionOf)
             if debug:
-                print("Incoming boolean class: ", oldRepr)
-                print("Expanded boolean class: ", owlClass.__repr__())
-            return owlClass
+                print("Incoming boolean class: ", old_repr)
+                print("Expanded boolean class: ", owl_class.__repr__())
+            return owl_class
         else:
             if debug:
                 print("There were no negative classes.")
@@ -129,7 +129,7 @@ class ComplementExpansionTestSuite(unittest.TestCase):
 
         testClass = human & ~female
         self.assertEquals(repr(testClass), "ex:Human THAT ( NOT ex:Female )")
-        newtestClass = ComplementExpansion(testClass, debug=True)
+        newtestClass = complement_expansion(testClass, debug=True)
         self.assertTrue(
             repr(newtestClass) in ["( ex:Boy or ex:Man )", "( ex:Man or ex:Boy )"],
             repr(newtestClass),
@@ -140,7 +140,7 @@ class ComplementExpansionTestSuite(unittest.TestCase):
             repr(testClass2),
             "( ( ex:Cat or ex:Dog or ex:Human ) and ( not ( ex:Male or ex:Female ) ) )",
         )
-        newtestClass2 = ComplementExpansion(testClass2, debug=True)
+        newtestClass2 = complement_expansion(testClass2, debug=True)
         testClass2Repr = repr(newtestClass2)
         self.assertTrue(
             testClass2Repr in ["( ex:Cat or ex:Dog )", "( ex:Dog or ex:Cat )"],
@@ -151,48 +151,3 @@ class ComplementExpansionTestSuite(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
     sys.exit(1)
-    from optparse import OptionParser
-
-    parser = OptionParser()
-
-    parser.add_option(
-        "--verbose",
-        action="store_true",
-        default=False,
-        help="Output debug print statements or not",
-    )
-    parser.add_option(
-        "--format", default="xml", help="The RDF serialization syntax to parse with"
-    )
-
-    (options, args) = parser.parse_args()
-
-    owlGraph = Graph()
-    for input in args[0:]:
-        if options.verbose:
-            print("Parsing ", input, " as ", options.format)
-        owlGraph.parse(input, format=options.format)
-
-    Individual.factoryGraph = owlGraph
-
-    def topList(node, g):
-        for s in g.subjects(RDF.rest, node):
-            yield s
-
-    for negativeClass in owlGraph.subjects(predicate=OWL_NS.complementOf):
-        containingList = first(owlGraph.subjects(RDF.first, negativeClass))
-        prevLink = None
-        while containingList:
-            prevLink = containingList
-            containingList = first(owlGraph.subjects(RDF.rest, containingList))
-        for s, p, o in owlGraph.triples_choices(
-            (None, [OWL_NS.intersectionOf, OWL_NS.unionOf], prevLink)
-        ):
-            _class = Class(s)
-            # print(_class.__repr__(True,True))
-            ComplementExpansion(_class, debug=options.verbose)
-
-
-# from fuxi.Horn import ComplementExpansion
-# from fuxi.Horn import SubSumptionExpansion
-# from fuxi.Horn import ComplementExpansionTestSuite

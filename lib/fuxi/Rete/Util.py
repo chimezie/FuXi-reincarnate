@@ -21,12 +21,13 @@ def format_doctest_out(doc):
     return doc
 
 
-try:
-    from pydot import Node, Edge, Dot
-except:
-    import warnings
+def _get_graphviz():
+    try:
+        import graphviz
+    except Exception as exc:
+        raise ImportError("graphviz is required for RETE network rendering") from exc
+    return graphviz
 
-    warnings.warn("Missing pydot library", ImportWarning)
 
 LOG = Namespace("http://www.w3.org/2000/10/swap/log#")
 
@@ -79,7 +80,7 @@ def permu(xs):
 
 
 @format_doctest_out
-def CollapseDictionary(mapping):
+def collapse_dictionary(mapping):
     """
     Takes a dictionary mapping prefixes to URIs
     and removes prefix mappings that begin with _ and
@@ -92,13 +93,13 @@ def CollapseDictionary(mapping):
     2
     >>> a.values()
     [rdflib.term.URIRef(%(u)s'http://example.com/'), rdflib.term.URIRef(%(u)s'http://example.com/')]
-    >>> CollapseDictionary(a)
+    >>> collapse_dictionary(a)
     {'ex': rdflib.term.URIRef(%(u)s'http://example.com/')}
     >>> a
     {'ex': rdflib.term.URIRef(%(u)s'http://example.com/'), '_1': rdflib.term.URIRef(%(u)s'http://example.com/')}
     """
 
-    def originalPrefixes(item):
+    def original_prefixes(item):
         return item.find("_") + 1 == 1
 
     revDict = {}
@@ -110,7 +111,7 @@ def CollapseDictionary(mapping):
         dupePrefixes = []
         # group prefixes for a single URI by whether or not
         # they have a _ prefix
-        for rt, items in itertools.groupby(v, originalPrefixes):
+        for rt, items in itertools.groupby(v, original_prefixes):
             if rt:
                 dupePrefixes.extend(items)
             else:
@@ -231,7 +232,7 @@ class InformedLazyGenerator(object):
             yield item
 
 
-def lazyGeneratorPeek(iterable, firstN=1):
+def lazy_generator_peek(iterable, firstN=1):
     """
     Lazily peeks into an iterable and returns None if it has less than N items
     or returns another generator over *all* content if it isn't
@@ -243,17 +244,17 @@ def lazyGeneratorPeek(iterable, firstN=1):
     >>> list(a)
     [2, 3]
     >>> a=(i for i in [1,2,3])
-    >>> result = lazyGeneratorPeek(a)
+    >>> result = lazy_generator_peek(a)
     >>> result  # doctest:+ELLIPSIS
     <fuxi.Rete.Util.InformedLazyGenerator object at ...>
     >>> result = list(result)
     >>> result
     [1, 2, 3]
-    >>> lazyGeneratorPeek((i for i in [])) # doctest:+ELLIPSIS
+    >>> lazy_generator_peek((i for i in [])) # doctest:+ELLIPSIS
     <fuxi.Rete.Util.InformedLazyGenerator object at ...>
-    >>> lazyGeneratorPeek(result,4) # doctest:+ELLIPSIS
+    >>> lazy_generator_peek(result,4) # doctest:+ELLIPSIS
     <fuxi.Rete.Util.InformedLazyGenerator object at ...>
-    >>> lazyGeneratorPeek(result,3) # doctest:+ELLIPSIS
+    >>> lazy_generator_peek(result,3) # doctest:+ELLIPSIS
     <fuxi.Rete.Util.InformedLazyGenerator object at ...>
     """
     cnt = firstN
@@ -327,18 +328,24 @@ def call_with_filtered_args(args, _callable):
     return _callable(**args)
 
 
-def generateTokenSet(graph, debugTriples=[], skipImplies=True):
+def generate_token_set(
+    graph: Graph,
+    debug_triples: Tuple[Identifier, Identifier, Identifier] = None,
+    skip_implies=True,
+):
     """
     Takes an rdflib graph and generates a corresponding Set of ReteTokens
     Note implication statements are excluded from the realm of facts by default
     """
+    if debug_triples is None:
+        debug_triples = []
     from fuxi.Rete import ReteToken
 
     rt = set()
     intern_terms = _env_flag("FUXI_RETE_TERM_INTERN")
     term_cache = {} if intern_terms else None
 
-    def normalizeGraphTerms(term):
+    def normalize_graph_terms(term):
         if isinstance(term, Collection):
             return term.uri
         else:
@@ -353,12 +360,12 @@ def generateTokenSet(graph, debugTriples=[], skipImplies=True):
             return term
 
     for s, p, o in graph:
-        if not skipImplies or p != LOG.implies:
+        if not skip_implies or p != LOG.implies:
             # print(s, p, o)
-            debug = debugTriples and (s, p, o) in debugTriples
-            s = maybe_intern(normalizeGraphTerms(s))
-            p = maybe_intern(normalizeGraphTerms(p))
-            o = maybe_intern(normalizeGraphTerms(o))
+            debug = debug_triples and (s, p, o) in debug_triples
+            s = maybe_intern(normalize_graph_terms(s))
+            p = maybe_intern(normalize_graph_terms(p))
+            o = maybe_intern(normalize_graph_terms(o))
             rt.add(
                 ReteToken(
                     (
@@ -372,30 +379,30 @@ def generateTokenSet(graph, debugTriples=[], skipImplies=True):
     return rt
 
 
-def generateBGLNode(dot, node, namespace_manager, identifier):
+def _add_rete_node(dot, node, namespace_manager, identifier):
     from fuxi.Rete import ReteNetwork, BetaNode, BuiltInAlphaNode, AlphaNode
     from .BetaNode import LEFT_MEMORY, RIGHT_MEMORY
 
-    vertex = Node(identifier)
-
     shape = "circle"
     root = False
+    rhs_name = None
     if isinstance(node, ReteNetwork):
         root = True
         peripheries = "3"
+        label = "ReteNetwork"
     elif isinstance(node, BetaNode) and not node.consequent:
         peripheries = "1"
-        if node.fedByBuiltin:
-            label = "Built-in pass-thru\\n"
-        elif node.aPassThru:
-            label = "Pass-thru Beta node\\n"
-        elif node.commonVariables:
+        if node.fed_by_builtin:
+            label = "Built-in pass-thru"
+        elif node.a_pass_thru:
+            label = "Pass-thru Beta node"
+        elif node.common_variables:
             label = "Beta node\\n(%s)" % (
-                ",".join(["?%s" % i for i in node.commonVariables])
+                ",".join(["?%s" % i for i in node.common_variables])
             )
         else:
             label = "Beta node"
-        if not node.fedByBuiltin:
+        if not node.fed_by_builtin:
             leftLen = (
                 node.memories[LEFT_MEMORY] and len(node.memories[LEFT_MEMORY]) or 0
             )
@@ -403,7 +410,6 @@ def generateBGLNode(dot, node, namespace_manager, identifier):
             label += "\\n %s in left, %s in right memories" % (leftLen, rightLen)
 
     elif isinstance(node, BetaNode) and node.consequent:
-        # rootMap[vertex] = 'true'
         peripheries = "2"
         stmts = []
         for s, p, o in node.consequent:
@@ -417,18 +423,18 @@ def generateBGLNode(dot, node, namespace_manager, identifier):
                 )
             )
 
-        rhsVertex = Node(
-            BNode(), label='"' + "\\n".join(stmts) + '"', shape="plaintext"
+        rhs_name = str(BNode())
+        dot.node(
+            rhs_name,
+            label="\\n".join(stmts),
+            shape="plaintext",
         )
-        edge = Edge(vertex, rhsVertex)
-        # edge.color = 'red'
-        dot.add_edge(edge)
-        dot.add_node(rhsVertex)
-        if node.commonVariables:
+        dot.edge(identifier, rhs_name)
+        if node.common_variables:
             inst = node.network.instantiations.get(node, 0)
-            label = str(
-                "Terminal node\\n(%s)\\n%d instantiations"
-                % (",".join(["?%s" % i for i in node.commonVariables]), inst)
+            label = "Terminal node\\n(%s)\\n%d instantiations" % (
+                ",".join(["?%s" % i for i in node.common_variables]),
+                inst,
             )
         else:
             label = "Terminal node"
@@ -442,8 +448,6 @@ def generateBGLNode(dot, node, namespace_manager, identifier):
     elif isinstance(node, BuiltInAlphaNode):
         peripheries = "1"
         shape = "plaintext"
-        # label = '..Builtin Source..'
-        label = repr(node.n3builtin)
         canonicalFunc = namespace_manager.normalizeUri(node.n3builtin.uri)
         canonicalArg1 = namespace_manager.normalizeUri(node.n3builtin.argument)
         canonicalArg2 = namespace_manager.normalizeUri(node.n3builtin.result)
@@ -452,68 +456,69 @@ def generateBGLNode(dot, node, namespace_manager, identifier):
     elif isinstance(node, AlphaNode):
         peripheries = "1"
         shape = "plaintext"
-        # widthMap[vertex] = '50em'
         label = " ".join(
             [
                 isinstance(i, BNode)
                 and i.n3()
                 or str(namespace_manager.normalizeUri(i))
-                for i in node.triplePattern
+                for i in node.triple_pattern
             ]
         )
+    else:
+        peripheries = "1"
+        label = repr(node)
 
-    vertex.set_shape(shape)
-    vertex.set_label('"%s"' % label)
-    vertex.set_peripheries(peripheries)
+    node_attrs = dict(
+        label=label,
+        shape=shape,
+        peripheries=peripheries,
+    )
     if root:
-        vertex.set_root("true")
-    return vertex
+        node_attrs["root"] = "true"
+    dot.node(identifier, **node_attrs)
+    return identifier
 
 
-def renderNetwork(network, nsMap={}):
+def render_network(network, ns_map=None, format="png"):
     """
-    Takes an instance of a compiled ReteNetwork and a namespace mapping (for constructing QNames
-    for rule pattern terms) and returns a BGL Digraph instance representing the Rete network
-    #(from which GraphViz diagrams can be generated)
+    Takes an instance of a compiled ReteNetwork and a namespace mapping
+    (for constructing QNames for rule pattern terms) and returns a
+    graphviz.Digraph instance representing the Rete network.
     """
-    # from fuxi.Rete import BuiltInAlphaNode
-    # from BetaNode import LEFT_MEMORY, RIGHT_MEMORY, LEFT_UNLINKING
-    dot = Dot(graph_type="digraph")
+    if ns_map is None:
+        ns_map = {}
+    graphviz = _get_graphviz()
+    dot = graphviz.Digraph("RETE Network", format=format)
     namespace_manager = NamespaceManager(Graph())
-    for prefix, uri in list(nsMap.items()):
+    for prefix, uri in list(ns_map.items()):
         namespace_manager.bind(prefix, uri, override=False)
 
-    visitedNodes = {}
+    visited_nodes = {}
     edges = []
     idx = 0
     for node in list(network.nodes.values()):
-        if node not in visitedNodes:
+        if node not in visited_nodes:
             idx += 1
-            visitedNodes[node] = generateBGLNode(dot, node, namespace_manager, str(idx))
-            dot.add_node(visitedNodes[node])
-    nodeIdxs = {}
+            visited_nodes[node] = _add_rete_node(dot, node, namespace_manager, str(idx))
     for node in list(network.nodes.values()):
-        for mem in node.descendentMemory:
+        for mem in node.descendent_memory:
             if not mem:
                 continue
             bNode = mem.successor
-        for bNode in node.descendentBetaNodes:
-            for idx, otherNode in enumerate([bNode.leftNode, bNode.rightNode]):
+        for bNode in node.descendent_beta_nodes:
+            for i, otherNode in enumerate([bNode.left_node, bNode.right_node]):
                 if node == otherNode and (node, otherNode) not in edges:
-                    for i in [node, bNode]:
-                        if i not in visitedNodes:
+                    for item in [node, bNode]:
+                        if item not in visited_nodes:
                             idx += 1
-                            nodeIdxs[i] = idx
-                            visitedNodes[i] = generateBGLNode(
-                                dot, i, namespace_manager, str(idx)
+                            visited_nodes[item] = _add_rete_node(
+                                dot, item, namespace_manager, str(idx)
                             )
-                            dot.add_node(visitedNodes[i])
-                    edge = Edge(
-                        visitedNodes[node],
-                        visitedNodes[bNode],
-                        label=idx == 0 and "left" or "right",
+                    dot.edge(
+                        visited_nodes[node],
+                        visited_nodes[bNode],
+                        label="left" if i == 0 else "right",
                     )
-                    dot.add_edge(edge)
                     edges.append((node, bNode))
 
     return dot

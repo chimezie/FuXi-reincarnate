@@ -19,12 +19,12 @@ nsBindings = {"bfp": BFP_NS, "rule": BFP_RULE}
 class testSeralizationOfEvalTests(unittest.TestCase):
     def testSerializingEvalPred(self):
         evaluateTerm = Uniterm(
-            BFP_NS.evaluate, [BFP_RULE[str(1)], Literal(1)], newNss=nsBindings
+            BFP_NS.evaluate, [BFP_RULE[str(1)], Literal(1)], new_nss=nsBindings
         )
         self.failUnless(repr(evaluateTerm), "bfp:evaluate(rule:1 1)")
         xVar = Variable("X")
         yVar = Variable("Y")
-        bodyTerm = Uniterm(RDF.rest, [xVar, yVar], newNss=nsBindings)
+        bodyTerm = Uniterm(RDF.rest, [xVar, yVar], new_nss=nsBindings)
         rule = Rule(Clause(bodyTerm, evaluateTerm), declare=[xVar, yVar])
         self.assertEqual(
             repr(rule), "Forall ?X ?Y ( bfp:evaluate(rule:1 1) :- rdf:rest(?X ?Y) )"

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import rdflib
 
 rdflib.plugin.register(
@@ -35,7 +34,8 @@ FUNCTIONAL_SEMANTICS = """
 
 #Inverse functional semantics
 {?P a owl:FunctionalProperty. ?S ?P ?O. ?S ?P ?Y. ?O log:notEqualTo ?Y } => {?O = ?Y}.
-{?P a owl:InverseFunctionalProperty. ?S ?P ?O. ?Y ?P ?O. ?S log:notEqualTo ?Y } => {?S = ?Y}.
+{?P a owl:InverseFunctionalProperty. ?S ?P ?O. ?Y ?P ?O.
+ ?S log:notEqualTo ?Y } => {?S = ?Y}.
 
 #owl:sameAs is symmetric, transitive and supports "smushing."
 {?T1 = ?T2} => {?T2 = ?T1}.
@@ -48,7 +48,9 @@ DIFFERENT_FROM_SEMANTICS = """
 @prefix log: <http://www.w3.org/2000/10/swap/log#>.
 @prefix list: <http://www.w3.org/2000/10/swap/list#>.
 
-{ ?ANY a owl:AllDifferent; owl:distinctMembers ?L. ?L1 list:in ?L. ?L2 list:in ?L. ?L1 log:notEqualTo ?L2 } => { ?L1 owl:differentFrom ?L2 }.
+{ ?ANY a owl:AllDifferent; owl:distinctMembers ?L.
+  ?L1 list:in ?L.
+  ?L2 list:in ?L. ?L1 log:notEqualTo ?L2 } => { ?L1 owl:differentFrom ?L2 }.
 """
 
 FUNCTIONAL_PROPERTIES = """
@@ -61,45 +63,35 @@ ASK {
 }"""
 
 
-def AdditionalRules(tBox):
+def additional_rules(t_box):
     """
     Only include list and oneOf semantics if oneOf axiom is detected in graph
 
     reduce computational complexity.  Same with other conditional axioms
 
     """
-    from fuxi.Horn.HornRules import HornFromN3
     from io import StringIO
 
-    from rdflib import RDF
+    from fuxi.Horn.HornRules import horn_from_n3
     from fuxi.Syntax.InfixOWL import OWL_NS
+    from rdflib import RDF
 
-    ruleSrc = set()
-    addListSemantics = False
+    rule_src = set()
+    add_list_semantics = False
 
-    if tBox.query(FUNCTIONAL_PROPERTIES, initNs={"owl": OWL_NS}).askAnswer:
-        ruleSrc.add(FUNCTIONAL_SEMANTICS)
+    if t_box.query(FUNCTIONAL_PROPERTIES, initNs={"owl": OWL_NS}).askAnswer:
+        rule_src.add(FUNCTIONAL_SEMANTICS)
 
-    if (None, OWL_NS.oneOf, None) in tBox:
-        ruleSrc.add(NOMINAL_SEMANTICS)
-        addListSemantics = True
+    if (None, OWL_NS.oneOf, None) in t_box:
+        rule_src.add(NOMINAL_SEMANTICS)
+        add_list_semantics = True
 
-    if (None, RDF.type, OWL_NS.AllDifferent) in tBox:
-        ruleSrc.add(DIFFERENT_FROM_SEMANTICS)
-        addListSemantics = True
+    if (None, RDF.type, OWL_NS.AllDifferent) in t_box:
+        rule_src.add(DIFFERENT_FROM_SEMANTICS)
+        add_list_semantics = True
 
-    if addListSemantics:
-        ruleSrc.add(LIST_MEMBERSHIP_SEMANTICS)
+    if add_list_semantics:
+        rule_src.add(LIST_MEMBERSHIP_SEMANTICS)
 
-    for src in ruleSrc:
-        for rule in HornFromN3(StringIO(src)):
-            yield rule
-
-
-# from fuxi.DLP.ConditionalAxioms import DIFFERENT_FROM_SEMANTICS
-# from fuxi.DLP.ConditionalAxioms import FUNCTIONAL_PROPERTIES
-# from fuxi.DLP.ConditionalAxioms import FUNCTIONAL_SEMANTICS
-# from fuxi.DLP.ConditionalAxioms import LIST_MEMBERSHIP_SEMANTICS
-# from fuxi.DLP.ConditionalAxioms import NOMINAL_SEMANTICS
-
-# from fuxi.DLP.ConditionalAxioms import AdditionalRules
+    for src in rule_src:
+        yield from horn_from_n3(StringIO(src))

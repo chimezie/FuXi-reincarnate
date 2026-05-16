@@ -531,6 +531,7 @@ class TopDownSPARQLEntailingStore(Store):
         Strategy overview
         -----------------
         1. Partition ``triples`` into two groups:
+
            - ``ground_conjunct``: patterns whose predicate is an EDB (base) predicate,
              answerable directly from the RDF store.
            - ``derived_conjunct``: patterns whose predicate is a derived (IDB) predicate,

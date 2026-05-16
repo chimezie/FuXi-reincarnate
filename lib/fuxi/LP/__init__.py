@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import doctest
 
 from rdflib import RDF
@@ -9,7 +8,7 @@ def format_doctest_out(obj):
 
 
 @format_doctest_out
-def IdentifyHybridPredicates(graph, derivedPredicates):
+def identify_hybrid_predicates(graph, derived_predicates):
     """
     Takes an RDF graph and a list of derived predicates and return
     those predicates that are both EDB (extensional) and IDB (intensional)
@@ -21,16 +20,16 @@ def IdentifyHybridPredicates(graph, derivedPredicates):
     >>> g.add((rdflib.BNode(),EX.predicate1,rdflib.Literal(1)))
     >>> g.add((rdflib.BNode(),rdflib.RDF.type,EX.Class1))
     >>> g.add((rdflib.BNode(),rdflib.RDF.type,EX.Class2))
-    >>> rt = IdentifyHybridPredicates(g,[EX.predicate1,EX.Class1,EX.Class3])
+    >>> rt = identify_hybrid_predicates(g,[EX.predicate1,EX.Class1,EX.Class3])
     >>> sorted(rt)
     [rdflib.term.URIRef(%(u)s'http://example.com/Class1'), rdflib.term.URIRef(%(u)s'http://example.com/predicate1')]
     """
-    derivedPredicates = (
-        derivedPredicates
-        if isinstance(derivedPredicates, set)
-        else set(derivedPredicates)
+    derived_predicates = (
+        derived_predicates
+        if isinstance(derived_predicates, set)
+        else set(derived_predicates)
     )
-    return derivedPredicates.intersection(
+    return derived_predicates.intersection(
         [o if p == RDF.type else p for s, p, o in graph]
     )
 
@@ -38,4 +37,3 @@ def IdentifyHybridPredicates(graph, derivedPredicates):
 if __name__ == "__main__":
     doctest.testmod()
 
-# from fuxi.LP import IdentifyHybridPredicates

@@ -158,7 +158,7 @@ class RIFCoreParser(object):
                 if debug:
                     _debug("Extracted rules from RIF in RDF document")
 
-    def getRuleset(self):
+    def get_ruleset(self):
         """
         >>> parser = RIFCoreParser('http://www.w3.org/2005/rules/test/repository/tc/Frames/Frames-premise.rif')
         >>> for rule in parser.getRuleset(): print(rule)
@@ -214,31 +214,31 @@ class RIFCoreParser(object):
             col = Collection(self.graph, sentenceCollection)
             for sentence in col:
                 if RIF_NS.Implies in self.graph.objects(sentence, RDF.type):
-                    rt.append(self.extractImp(sentence))
+                    rt.append(self.extract_imp(sentence))
                 elif RIF_NS.Forall in self.graph.objects(sentence, RDF.type):
-                    rt.append(self.extractRule(sentence))
+                    rt.append(self.extract_rule(sentence))
         return rt
 
-    def extractImp(self, impl):
+    def extract_imp(self, impl):
         body, bodyType, head, headType = self.implications[impl]
-        head = first(self.extractPredication(head, headType))
+        head = first(self.extract_predication(head, headType))
         if bodyType == RIF_NS.And:
             raise
         else:
-            body = self.extractPredication(body, bodyType)
+            body = self.extract_predication(body, bodyType)
 
         body = And([first(body)]) if len(body) == 1 else And(body)
         return Rule(Clause(body, head), declare=[])
 
-    def extractRule(self, rule):
+    def extract_rule(self, rule):
         vars, impl = self.rules[rule]
         body, bodyType, head, headType = self.implications[impl]
-        allVars = map(self.extractTerm, Collection(self.graph, vars))
-        head = first(self.extractPredication(head, headType))
+        allVars = map(self.extract_term, Collection(self.graph, vars))
+        head = first(self.extract_predication(head, headType))
         if bodyType == RIF_NS.And:
             body = [
                 first(
-                    self.extractPredication(i, first(self.graph.objects(i, RDF.type)))
+                    self.extract_predication(i, first(self.graph.objects(i, RDF.type)))
                 )
                 for i in Collection(
                     self.graph, first(self.graph.objects(body, RIF_NS.formulas))
@@ -246,47 +246,45 @@ class RIFCoreParser(object):
             ]
 
         else:
-            body = self.extractPredication(body, bodyType)
+            body = self.extract_predication(body, bodyType)
 
         body = And([first(body)]) if len(body) == 1 else And(body)
         return Rule(
-            Clause(body, head), declare=allVars, nsMapping=dict(self.graph.namespaces())
+            Clause(body, head), declare=allVars, ns_mapping=dict(self.graph.namespaces())
         )
 
-    def extractPredication(self, predication, predType):
-        if predType == RIF_NS.Frame:
-            return self.extractFrame(predication)
-        elif predType == RIF_NS.Atom:
-            return [self.extractAtom(predication)]
+    def extract_predication(self, predication, pred_type):
+        if pred_type == RIF_NS.Frame:
+            return self.extract_frame(predication)
+        elif pred_type == RIF_NS.Atom:
+            return [self.extract_atom(predication)]
         else:
-            assert predType == RIF_NS.External
-            # from fuxi.Rete.RuleStore import N3Builtin
-            # N3Builtin(self, uri, func, argument, result)
+            assert pred_type == RIF_NS.External
             args, op = self.externals[predication]
-            args = list(map(self.extractTerm, Collection(self.graph, args)))
-            op = self.extractTerm(op)
+            args = list(map(self.extract_term, Collection(self.graph, args)))
+            op = self.extract_term(op)
             return [ExternalFunction(Uniterm(op, args))]
 
-    def extractAtom(self, atom):
+    def extract_atom(self, atom):
         args, op = self.atoms[atom]
-        op = self.extractTerm(op)
-        args = list(map(self.extractTerm, Collection(self.graph, args)))
+        op = self.extract_term(op)
+        args = list(map(self.extract_term, Collection(self.graph, args)))
         if len(args) > 2:
             raise NotImplementedError(
                 "FuXi RIF Core parsing only supports subset involving binary/unary Atoms"
             )
         return Uniterm(op, args)
 
-    def extractFrame(self, frame):
+    def extract_frame(self, frame):
         obj, slots = self.frames[frame]
         rt = []
         for slot in Collection(self.graph, slots):
-            k = self.extractTerm(first(self.graph.objects(slot, RIF_NS.slotkey)))
-            v = self.extractTerm(first(self.graph.objects(slot, RIF_NS.slotvalue)))
-            rt.append(Uniterm(k, [self.extractTerm(obj), v]))
+            k = self.extract_term(first(self.graph.objects(slot, RIF_NS.slotkey)))
+            v = self.extract_term(first(self.graph.objects(slot, RIF_NS.slotvalue)))
+            rt.append(Uniterm(k, [self.extract_term(obj), v]))
         return rt
 
-    def extractTerm(self, term):
+    def extract_term(self, term):
         if (term, RDF.type, RIF_NS.Var) in self.graph:
             return Variable(first(self.graph.objects(term, RIF_NS.varname)))
         elif (term, RIF_NS.constIRI, None) in self.graph:
@@ -308,7 +306,7 @@ if __name__ == "__main__":
     parser = RIFCoreParser(
         "http://www.w3.org/2005/rules/test/repository/tc/Guards_and_subtypes/Guards_and_subtypes-premise.rif"
     )
-    for rule in parser.getRuleset():
+    for rule in parser.get_ruleset():
         _debug(rule)
 
 # from fuxi.Horn.RIFCore import RIFCoreParser

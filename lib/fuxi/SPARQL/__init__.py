@@ -2,6 +2,7 @@
 # flake8: noqa
 import copy
 from itertools import takewhile
+from typing import Iterable
 
 from rdflib import (
     BNode,
@@ -12,6 +13,7 @@ from rdflib import (
     Variable,
     Graph,
 )
+from rdflib.term import Identifier
 from rdflib.util import first
 from rdflib.namespace import split_uri
 
@@ -29,9 +31,9 @@ from fuxi.Rete.Magic import AdornedUniTerm
 from frozendict import frozendict
 from fuxi.Rete.RuleStore import N3Builtin
 from fuxi.Rete.SidewaysInformationPassing import (
-    GetOp,
-    GetVariables,
-    iterCondition,
+    get_op,
+    get_variables,
+    iter_condition,
 )
 from fuxi.Rete.Util import selective_memoize
 from functools import reduce
@@ -53,7 +55,7 @@ def normalize_bindings_and_query(vars, bindings, conjunct):
     if bindings:
         # Apply a priori substitutions
         for lit in conjunct:
-            substituted_vars = binding_domain.intersection(lit.toRDFTuple())
+            substituted_vars = binding_domain.intersection(lit.to_rdf_tuple())
             lit.ground(bindings)
             if substituted_vars:
                 applied_bindings = True
@@ -73,7 +75,7 @@ def triple_to_triple_pattern(graph, term):
         return "%s %s %s" % tuple(
             [
                 render_term(graph, trm, pred_term=idx == 1)
-                for idx, trm in enumerate(term.toRDFTuple())
+                for idx, trm in enumerate(term.to_rdf_tuple())
             ]
         )
 
@@ -170,7 +172,7 @@ def rdf_tuples_to_sparql(
             prefix = "%s a ?KIND" % var.n3()
         else:
             prefix = "%s a ?KIND" % first(
-                [first(iterCondition(lit)).arg[0].n3() for lit in conjunct]
+                [first(iter_condition(lit)).arg[0].n3() for lit in conjunct]
             )
         conjunct = (i.formulae[0] if isinstance(i, And) else i for i in conjunct)
 
@@ -180,7 +182,7 @@ def rdf_tuples_to_sparql(
             % (
                 prefix,
                 " ||\n".join(
-                    ["?KIND = %s" % edb.qname(GetOp(lit)) for lit in conjunct]
+                    ["?KIND = %s" % edb.qname(get_op(lit)) for lit in conjunct]
                 ),
             ),
         )
@@ -298,7 +300,7 @@ def edb_query_from_body_iterator(
     hybrid_predicates = hybrid_predicates if hybrid_predicates is not None else []
 
     def sparql_resolvable(literal):
-        pred_term = GetOp(literal)
+        pred_term = get_op(literal)
         if not isinstance(literal, AdornedUniTerm) and isinstance(literal, Uniterm):
             return not literal.naf and (
                 pred_term not in derived_preds
@@ -314,7 +316,7 @@ def edb_query_from_body_iterator(
             )
 
     def sparql_resolvable_no_templates(literal):
-        pred_term = GetOp(literal)
+        pred_term = get_op(literal)
         if isinstance(literal, Uniterm):
             return not literal.naf and (
                 pred_term not in derived_preds
@@ -403,18 +405,12 @@ class EDBQuery(QNameManager, SetOperator, Condition):
 
     """
 
-    def __init__(
-        self,
-        lst,
-        fact_graph,
-        return_vars=None,
-        bindings=None,
-        var_map=None,
-        sym_inc_ax_map=None,
-        symm_atomic_inclusion=False,
-    ):
-        if sym_inc_ax_map is None:
-            sym_inc_ax_map = {}
+    def __init__(self,
+                 lst: Iterable[Uniterm],
+                 fact_graph: Graph,
+                 return_vars: Iterable[Variable] | None = None,
+                 bindings: dict[Variable, Identifier] | None = None, var_map: dict[Variable, Variable] | None = None,
+                 symm_atomic_inclusion: bool = False):
         if var_map is None:
             var_map = {}
         if bindings is None:
@@ -461,18 +457,12 @@ class EDBQuery(QNameManager, SetOperator, Condition):
         """
         A shallow copy of an EDB query
         """
-        return EDBQuery(
-            [copy.deepcopy(t) for t in self.formulae],
-            self.fact_graph,
-            self.return_vars,
-            self.bindings.copy(),
-            self.var_map.copy(),
-            symm_atomic_inclusion=self.symm_atomic_inclusion,
-        )
+        return EDBQuery([copy.deepcopy(t) for t in self.formulae], self.fact_graph, self.return_vars,
+                        self.bindings.copy(), self.var_map.copy(), symm_atomic_inclusion=self.symm_atomic_inclusion)
 
     def rename_variables(self, var_map):
         for item in self.formulae:
-            item.renameVariables(var_map)
+            item.rename_variables(var_map)
 
     def ground(self, mapping):
         applied_vars = set()
@@ -496,7 +486,7 @@ class EDBQuery(QNameManager, SetOperator, Condition):
                 reduce(
                     lambda x, y: x + y,
                     [
-                        list(GetVariables(arg, secondOrder=True))
+                        list(get_variables(arg, second_order=True))
                         for arg in self.formulae
                     ],
                 )
@@ -505,7 +495,7 @@ class EDBQuery(QNameManager, SetOperator, Condition):
 
     def apply_mgu(self, substitutions):
         for term in self.formulae:
-            term.renameVariables(substitutions)
+            term.rename_variables(substitutions)
         self.bindings = dict(
             [(substitutions.get(k, k), v) for k, v in list(self.bindings.items())]
         )
@@ -533,9 +523,6 @@ class EDBQuery(QNameManager, SetOperator, Condition):
             service_url=service_url,
         )
 
-    def asSPARQL(self, service_url: str = None):
-        return self.as_sparql(service_url=service_url)
-
     def __len__(self):
         return len(self.formulae)
 
@@ -546,8 +533,8 @@ class EDBQuery(QNameManager, SetOperator, Condition):
         """
         >>> g = Graph()
         >>> lit1 = (Variable('X'), RDF.type, Variable('Y'))
-        >>> q1 = EDBQuery([BuildUnitermFromTuple(lit1)], g)
-        >>> q2 = EDBQuery([BuildUnitermFromTuple(lit1)], g)
+        >>> q1 = EDBQuery([build_uniterm_from_tuple(lit1)],g)
+        >>> q2 = EDBQuery([build_uniterm_from_tuple(lit1)],g)
         >>> q1 == q2
         True
         >>> d = {q1:True}
@@ -558,7 +545,7 @@ class EDBQuery(QNameManager, SetOperator, Condition):
         from fuxi.Rete.Network import HashablePatternList
 
         conj = HashablePatternList(
-            [term.toRDFTuple() for term in self.formulae], skipBNodes=True
+            [term.to_rdf_tuple() for term in self.formulae], skip_b_nodes=True
         )
         return hash(conj)
 

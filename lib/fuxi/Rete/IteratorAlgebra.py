@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/492216
 
@@ -26,66 +25,68 @@ def identity(x):
     return x
 
 
-def inner(X):
+def inner(x):
     """
     >>> X = [1, 2, 3, 4, 5]
     >>> list(inner(X))
     [1, 2, 3, 4, 5]
     """
-    for x in X:
-        yield x
-
+    yield from x
 
 # The original hash_join
 # throughout, we assume S is the smaller relation of R and S.
-def hash_join(R, S, predicate=identity, join=inner, combine=operator.concat):
+def hash_join(r, s, predicate=identity, join=inner, combine=operator.concat):
     hashed = {}
-    for s in S:
+    for s in s:
         hashed.setdefault(predicate(s), []).append(s)
-    for r in R:
+    for r in r:
         for s in join(hashed.get(predicate(r), ())):
             yield combine(r, s)
 
 
 def nested_loops_join(
-    R, S, predicate=identity, join=inner, combine=operator.concat, theta=operator.eq
+    r,
+    s,
+    predicate=identity,
+    join=inner,
+    combine=operator.concat,
+    theta=operator.eq
 ):
-    Sp = [(predicate(s), s) for s in S]
-    for r in R:
+    sp = [(predicate(s), s) for s in s]
+    for r in r:
         rp = predicate(r)
-        for s in join(s for sp, s in Sp if theta(rp, sp)):
+        for s in join(s for sp, s in sp if theta(rp, sp)):
             yield combine(r, s)
 
 
-def bisect_join(R, S, predicate=identity, join=inner, combine=operator.concat):
+def bisect_join(r, s, predicate=identity, join=inner, combine=operator.concat):
     """
     I have not found discussion of this variant on the sort-merge
     join anywhere.
     """
 
     from bisect import bisect_left
-
-    def consume(Sp, si, rp):
+    length = len(s)
+    def consume(sp, si, rp):
         """This needs a better name..."""
-        length = len(S)
         while si < length:
-            sp, s = Sp[si]
+            sp, _s = sp[si]
             if rp == sp:
-                yield s
+                yield _s
             else:
                 break
             si += 1
 
-    Rp = sorted((predicate(r), r) for r in R)
-    Sp = sorted((predicate(s), s) for s in S)
+    rp = sorted((predicate(r), r) for r in r)
+    sp = sorted((predicate(s), s) for s in s)
 
-    for rp, r in Rp:
-        si = bisect_left(Sp, (rp,))
-        for s in join(consume(Sp, si, rp)):
+    for rp, r in rp:
+        si = bisect_left(sp, (rp,))
+        for s in join(consume(sp, si, rp)):
             yield combine(r, s)
 
 
-def merge_join(R, S, predicate=identity, join=inner, combine=operator.concat):
+def merge_join(r, s, predicate=identity, join=inner, combine=operator.concat):
     """
     For obvious reasons, we depend on the predicate providing a
     sortable relation.
@@ -97,41 +98,33 @@ def merge_join(R, S, predicate=identity, join=inner, combine=operator.concat):
 
     from itertools import groupby
 
-    def advancer(Xp):
+    def advancer(xp):
         """A simple wrapper of itertools.groupby, we simply need
         to follow our convention that Xp -> (xp0, x0), (xp1, x1), ...
         """
 
-        for k, g in groupby(Xp, key=operator.itemgetter(0)):
+        for k, g in groupby(xp, key=operator.itemgetter(0)):
             yield k, list(g)
 
-    R_grouped = advancer(sorted((predicate(r), r) for r in R))
-    S_grouped = advancer(sorted((predicate(s), s) for s in S))
+    r_grouped = advancer(sorted((predicate(r), r) for r in r))
+    s_grouped = advancer(sorted((predicate(s), s) for s in s))
 
     # in the join we need to distinguish rp from rk in the unpack, so
     # just use rk, sk
-    rk, R_matched = next(R_grouped)
-    sk, S_matched = next(S_grouped)
+    rk, r_matched = next(r_grouped)
+    sk, s_matched = next(s_grouped)
 
-    while R_grouped and S_grouped:
+    while r_grouped and s_grouped:
         comparison = (rk > sk) - (rk < sk)
         if comparison == 0:
             # standard Cartesian join here on the matched tuples, as
             # subsetted by the join method
-            for rp, r in R_matched:
-                for sp, s in join(S_matched):
+            for rp, r in r_matched:
+                for sp, s in join(s_matched):
                     yield combine(r, s)
-            rk, R_matched = next(R_grouped)
-            sk, S_matched = next(S_grouped)
+            rk, r_matched = next(r_grouped)
+            sk, s_matched = next(s_grouped)
         elif comparison > 0:
-            sk, S_matched = next(S_grouped)
+            sk, s_matched = next(s_grouped)
         else:
-            rk, R_matched = next(R_grouped)
-
-
-# from fuxi.Rete.IteratorAlgebra import identity
-# from fuxi.Rete.IteratorAlgebra import inner
-# from fuxi.Rete.IteratorAlgebra import hash_join
-# from fuxi.Rete.IteratorAlgebra import nested_loops_join
-# from fuxi.Rete.IteratorAlgebra import bisect_join
-# from fuxi.Rete.IteratorAlgebra import merge_join
+            rk, r_matched = next(r_grouped)

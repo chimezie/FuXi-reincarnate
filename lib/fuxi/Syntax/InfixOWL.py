@@ -176,13 +176,44 @@ nsBinds = {
 
 
 class GraphContext:
+    """
+    A context manager for configuring an RDFLib Graph for OWL ontology construction.
+
+    Sets up the InfixOWL API environment by temporarily configuring the graph's
+    namespace manager and the global factory graph used by Class, Property, and
+    Individual. On exit, the previous state is restored.
+
+    Usage:
+        >>> from rdflib import Graph, URIRef
+        >>> from fuxi.Syntax.InfixOWL import GraphContext, Class, Property
+        >>> ns_bindings = {"ex": URIRef("http://example.org/")}
+        >>> g = Graph()
+        >>> with GraphContext(g, ns_bindings):
+        ...     movie = Class(URIRef("http://example.org/Movie"))
+        ...     person = Class(URIRef("http://example.org/Person"))
+        ...     directed = Property(URIRef("http://example.org/directedBy"))
+        ...     directed.domain = [movie]
+        ...     directed.range = [person]
+
+    Args:
+        graph: The RDFLib Graph to configure for OWL ontology construction.
+        namespace_bindings: Optional dict mapping prefix strings to URIRef namespaces.
+        set_factory_graph: If True, sets Individual.factoryGraph for the context.
+        declare_common_annotations: If True, declares rdfs/skos/iao annotation properties.
+        common_annotation_sets: Tuple of annotation set names ("rdfs", "skos", "iao").
+
+    Example:
+        >>> g = Graph()
+        >>> with GraphContext(g, {"ex": EX_NS}, declare_common_annotations=True):
+        ...     pass  # rdfs:label, rdfs:comment, skos:* etc. are now declared
+    """
     def __init__(
         self,
-        graph,
-        namespace_bindings=None,
-        set_factory_graph=True,
-        declare_common_annotations=False,
-        common_annotation_sets=("rdfs", "skos", "iao"),
+        graph: Graph,
+        namespace_bindings: dict[Variable, Identifier] | None,
+        set_factory_graph: bool = True,
+        declare_common_annotations: bool = False,
+        common_annotation_sets: tuple[str, ...] = ("rdfs", "skos", "iao"),
     ):
         self.graph = graph
         self.namespace_bindings = namespace_bindings or {}
@@ -203,7 +234,7 @@ class GraphContext:
             for prefix, uri in self.namespace_bindings.items():
                 self.graph.namespace_manager.bind(prefix, uri, override=False)
         if self.declare_common_annotations:
-            declare_common_annotations(self.graph, include=self.common_annotation_sets)
+            declare_common_annotations_fn(self.graph, include=self.common_annotation_sets)
         return self.graph
 
     def __exit__(self, exc_type, exc, tb):
@@ -281,12 +312,12 @@ def manchester_syntax(thing, store, boolean=None, transient_list=False):
                     childList.append(child)
             if named:
 
-                def castToQName(x):
-                    prefix, uri, localName = store.compute_qname(x)
-                    return ":".join([prefix, localName])
+                def cast_to_q_name(x):
+                    prefix, uri, local_name = store.compute_qname(x)
+                    return ":".join([prefix, local_name])
 
                 if len(named) > 1:
-                    prefix = "( " + " AND ".join(map(castToQName, named)) + " )"
+                    prefix = "( " + " AND ".join(map(cast_to_q_name, named)) + " )"
                 else:
                     prefix = manchester_syntax(named[0], store)
                 if childList:
@@ -367,11 +398,11 @@ def get_identified_classes(graph):
 
 
 def term_deletion_decorator(prop):
-    def someFunc(func):
+    def some_func(func):
         func.property = prop
         return func
 
-    return someFunc
+    return some_func
 
 
 class TermDeletionHelper:
@@ -511,7 +542,7 @@ IAO_NS = Namespace("http://purl.obolibrary.org/obo/IAO_")
 SKOS_NS = Namespace("http://www.w3.org/2004/02/skos/core#")
 
 
-def declare_common_annotations(graph, include=("rdfs", "skos", "iao")):
+def declare_common_annotations_fn(graph, include=("rdfs", "skos", "iao")):
     include_set = {item.lower() for item in include or ()}
     predicates = []
     if "rdfs" in include_set:
@@ -1653,17 +1684,17 @@ class BooleanClass(OWLRDFListProxy, Class):
 
     @BooleanClassExtentHelper(OWL_NS.intersectionOf)
     @Callable
-    def getIntersections():
+    def _get_intersections():
         pass
 
-    getIntersections = Callable(getIntersections)
+    get_intersections = Callable(_get_intersections)
 
     @BooleanClassExtentHelper(OWL_NS.unionOf)
     @Callable
-    def getUnions():
+    def _get_unions():
         pass
 
-    getUnions = Callable(getUnions)
+    get_unions = Callable(_get_unions)
 
     def __init__(
         self, identifier=None, operator=OWL_NS.intersectionOf, members=None, graph=None
@@ -2282,15 +2313,15 @@ class Property(AnnotatibleTerms):
             ):
                 rt.append("   Functional")
 
-        def canonicalName(term, g):
-            normalizedName = class_or_identifier(term)
-            if isinstance(normalizedName, BNode):
+        def canonical_name(term, g):
+            normalized_name = class_or_identifier(term)
+            if isinstance(normalized_name, BNode):
                 return term
-            elif normalizedName.startswith(_XSD_NS):
+            elif normalized_name.startswith(_XSD_NS):
                 return str(term)
             elif first(
                 g.triples_choices(
-                    (normalizedName, [OWL_NS.unionOf, OWL_NS.intersectionOf], None)
+                    (normalized_name, [OWL_NS.unionOf, OWL_NS.intersectionOf], None)
                 )
             ):
                 return repr(term)
@@ -2300,7 +2331,7 @@ class Property(AnnotatibleTerms):
         rt.append(
             " ".join(
                 [
-                    "   super( %s )" % canonicalName(superP, self.graph)
+                    "   super( %s )" % canonical_name(superP, self.graph)
                     for superP in self.sub_property_of
                 ]
             )
@@ -2308,7 +2339,7 @@ class Property(AnnotatibleTerms):
         rt.append(
             " ".join(
                 [
-                    "   domain( %s )" % canonicalName(domain, self.graph)
+                    "   domain( %s )" % canonical_name(domain, self.graph)
                     for domain in self.domain
                 ]
             )
@@ -2316,7 +2347,7 @@ class Property(AnnotatibleTerms):
         rt.append(
             " ".join(
                 [
-                    "   range( %s )" % canonicalName(range, self.graph)
+                    "   range( %s )" % canonical_name(range, self.graph)
                     for range in self.range
                 ]
             )

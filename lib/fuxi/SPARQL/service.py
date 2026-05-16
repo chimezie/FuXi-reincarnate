@@ -1,13 +1,16 @@
+from collections.abc import Mapping
 from itertools import chain
-from typing import Union, Optional, Mapping, Any
+from typing import Any
 
-from fuxi.Horn.PositiveConditions import BuildUnitermFromTuple
-from fuxi.Rete.SidewaysInformationPassing import GetVariables
+from rdflib.plugins.sparql.parser import parseQuery
+from rdflib.plugins.sparql.sparql import Query
+from rdflib.query import Processor, Result
+from rdflib.term import Identifier, Variable
+
+from fuxi.Horn.PositiveConditions import build_uniterm_from_tuple
+from fuxi.Rete.SidewaysInformationPassing import get_variables
 from fuxi.SPARQL import EDBQuery
 from rdflib import Graph
-from rdflib.plugins.sparql.parser import Query, parseQuery
-from rdflib.query import Processor, Result
-from rdflib.term import Identifier
 
 
 class SPARQLServiceGraph(Graph):
@@ -37,13 +40,15 @@ class SPARQLServiceGraph(Graph):
     - RIF (RIF Core entailment)
     - D Entailment
 
-    FuXi supports rule-based entailment by providing an intensional database (IDB)
-    of rules and derived predicates. ``SPARQLServiceGraph`` provides the extensional database (EDB) access
-    layer for data living behind a SPARQL service.
+    FuXi supports rule-based entailment by providing an intensional
+    database (IDB)
+    of rules and derived predicates. ``SPARQLServiceGraph`` provides the
+    extensional database (EDB) access layer for data living behind a
+    SPARQL service.
 
     ## Example
     ```python
-    from rdflib import Graph
+from rdflib import Graph, Variable
     from rdflib.plugins.sparql.parser import parseQuery
     from fuxi.SPARQL import TopDownSPARQLEntailingStore
     from fuxi.SPARQL.utilities import extract_triples_from_query
@@ -61,7 +66,7 @@ class SPARQLServiceGraph(Graph):
         hybrid_predicates=None,
         goals=goals,
         namespace_manager=namespace_manager,
-        extra_rulesets=HornFromN3(StringIO(thing_rule)),
+        extra_rulesets=horn_from_n3(StringIO(thing_rule)),
         verbose=debug,
     )
 
@@ -69,9 +74,9 @@ class SPARQLServiceGraph(Graph):
         service_graph.store,
         service_graph,
         idb=program,
-        derivedPredicates=derived_predicates,
-        identifyHybridPredicates=False,
-        hybridPredicates=[..],
+        derived_predicates=derived_predicates,
+        identify_hybrid_predicates=False,
+        hybrid_predicates=[..],
     )
 
     result = Graph(store=top_down_store).query(parsed_query, [..])
@@ -92,11 +97,7 @@ class SPARQLServiceGraph(Graph):
 
     def triples(self, triple, context=None):
         ns_map = {prefix: uri for prefix, uri in self.namespace_manager.namespaces()}
-        query_literal = EDBQuery(
-            [BuildUnitermFromTuple(triple, ns_map)],
-            self,
-            None,
-        )
+        query_literal = EDBQuery([build_uniterm_from_tuple(triple, ns_map)], self, None)
         mediated_query = query_literal.as_sparql(service_url=self.service_url)
         response = Graph().query(
             mediated_query, init_ns=ns_map
@@ -108,24 +109,26 @@ class SPARQLServiceGraph(Graph):
 
     def query(
         self,
-        query_object: Union[str, Query],
-        processor: Optional[Union[str, Processor]] = "sparql",
-        result: Optional[Union[str, type[Result]]] = "sparql",
-        initNs: dict[str, Identifier] | None = None,  # noqa: N803
-        initBindings: Mapping[str, Identifier] | None = None,  # noqa: N803
+        query_object: str | Query,
+        processor: str | Processor | None = "sparql",
+        result: str | type[Result] | None = "sparql",
+        initNs: dict[str, Identifier] | None = None,
+        initBindings: Mapping[str, Identifier] | None = None,
         use_store_provided: bool = True,
         **kwargs: Any,
     ) -> Result:
         """
-        Executes a SPARQL query against the remote service, extracting the graph pattern,
-        converting them to an EDBQuery for a SPARQL service query
+        Executes a SPARQL query against the remote service, extracting
+        the graph pattern, converting them to an EDBQuery for a
+        SPARQL service query
 
         :param query_object: The SPARQL query string or parsed Query object.
         :param processor: The query processor to use, defaults to 'sparql'.
         :param result: The result format, defaults to 'sparql'.
         :param initNs: Initial namespace bindings, defaults to None.
         :param initBindings: Initial variable bindings, defaults to None.
-        :param use_store_provided: Whether to use store-provided results, defaults to True.
+        :param use_store_provided: Whether to use store-provided results,
+               defaults to True.
         :param kwargs: Additional keyword arguments for query execution.
         :return: The query result.
         """
@@ -133,22 +136,18 @@ class SPARQLServiceGraph(Graph):
 
         _, parsed_query = parseQuery(query_object)
         _service_url, triples = extract_triples_from_query(parsed_query, initNs)
-        uniterms = [BuildUnitermFromTuple(triple, initNs) for triple in triples]
+        uniterms = [build_uniterm_from_tuple(triple, initNs) for triple in triples]
         vars = [
             *set(
                 chain(
                     *map(
-                        lambda uniterm: GetVariables(uniterm, secondOrder=True),
+                        lambda uniterm: get_variables(uniterm, second_order=True),
                         uniterms,
                     )
                 )
             )
         ]
-        conjunct = EDBQuery(
-            uniterms,
-            self,  # closure,
-            vars,
-        )
+        conjunct = EDBQuery(uniterms, self, vars)
         mediated_query = conjunct.as_sparql(service_url=self.service_url)
         response = Graph().query(
             mediated_query, initNs=initNs, initBindings=initBindings
@@ -156,11 +155,10 @@ class SPARQLServiceGraph(Graph):
         self.num_queries += 1
         return response
 
-
-class ServiceGraphPatternException(Exception):
+class ServiceGraphPatternError(Exception):
     """
-    Utility, parse-time exception for help with extracting SPARQL service request URLs and
-    their graph pattern for later reference
+    Utility, parse-time exception for help with extracting SPARQL service
+    request URLs and their graph pattern for later reference
     """
 
     def __init__(self, service_url, graph_pattern):

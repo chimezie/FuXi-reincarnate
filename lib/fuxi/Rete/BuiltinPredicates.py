@@ -236,7 +236,7 @@ class NonEqualityPredicatesTestSuite(unittest.TestCase):
     def setUp(self):
         from fuxi.Rete.RuleStore import N3RuleStore
         from fuxi.Rete import ReteNetwork
-        from fuxi.Rete.Util import generateTokenSet
+        from fuxi.Rete.Util import generate_token_set
 
         self.testGraph = Graph()
         self.ruleStore = N3RuleStore()
@@ -246,9 +246,9 @@ class NonEqualityPredicatesTestSuite(unittest.TestCase):
         self.closureDeltaGraph = Graph()
         self.network = ReteNetwork(
             self.ruleStore,
-            initialWorkingMemory=generateTokenSet(self.testGraph),
-            inferredTarget=self.closureDeltaGraph,
-            nsMap={},
+            initial_working_memory=generate_token_set(self.testGraph),
+            inferred_target=self.closureDeltaGraph,
+            ns_map={},
         )
 
     def testParseBuiltIns(self):
@@ -256,7 +256,7 @@ class NonEqualityPredicatesTestSuite(unittest.TestCase):
         from fuxi.Rete.AlphaNode import BuiltInAlphaNode
 
         self.failUnless(self.ruleStore.rules > 0, "No rules parsed out from N3.")
-        for alphaNode in self.network.alphaNodes:
+        for alphaNode in self.network.alpha_nodes:
             if isinstance(alphaNode, BuiltInAlphaNode):
                 self.failUnless(
                     alphaNode.n3builtin.uri == MATH_NS.greaterThan,

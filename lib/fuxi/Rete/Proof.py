@@ -7,11 +7,13 @@ A set of Python objects which create a PML instance in order to serialize as
 OWL/RDF
 
 """
+
 from collections.abc import Mapping
 from typing import Any, Optional, Tuple, Union, Iterable, List
 
 from frozendict import frozendict
 from rdflib.term import Identifier
+
 
 def _get_graphviz():
     try:
@@ -22,12 +24,13 @@ def _get_graphviz():
 
 
 from fuxi.Horn.PositiveConditions import (
-    buildUniTerm,
+    build_uniTerm,
     Exists,
     SetOperator,
     Uniterm,
 )
-from fuxi.Horn.PositiveConditions import BuildUnitermFromTuple
+from fuxi.Horn.PositiveConditions import build_uniterm_from_tuple
+from fuxi.types import Triple
 from .BetaNode import project, BetaNode, PartialInstantiation
 from fuxi.Rete.RuleStore import N3Builtin
 from fuxi.Rete.AlphaNode import ReteToken
@@ -48,6 +51,7 @@ def fill_bindings(terms, bindings):
             yield bindings[term]
         else:
             yield term
+
 
 def term_iterator(term):
     if isinstance(term, (Exists, SetOperator)):
@@ -81,9 +85,9 @@ def _clause_from_justification(justification):
 
 def _body_term_tuples(body_term):
     """Normalize a body term into RDF tuple(s) for binding checks."""
-    if hasattr(body_term, "toRDFTuple"):
-        return [body_term.toRDFTuple()]
-    return [term.toRDFTuple() for term in term_iterator(body_term)]
+    if hasattr(body_term, "to_rdf_tuple"):
+        return [body_term.to_rdf_tuple()]
+    return [term.to_rdf_tuple() for term in term_iterator(body_term)]
 
 
 def fetch_rete_justifications(goal, nodeset, builder, antecedent=None):
@@ -98,38 +102,39 @@ def fetch_rete_justifications(goal, nodeset, builder, antecedent=None):
     if antecedent:
         yielded = False
         # might not be a valid justification
-        for reteJustification in justification_for_goal:
+        for rete_justification in justification_for_goal:
             valid_justification = True
-            clause = _clause_from_justification(reteJustification)
-            for bodyTerm in clause.body:
+            clause = _clause_from_justification(rete_justification)
+            for body_term in clause.body:
                 # is the premise already proven?
                 failed_check = True
                 try:
                     failed_check = any(
                         fill_bindings(term_tuple, antecedent.bindings) in builder.goals
-                        for term_tuple in _body_term_tuples(bodyTerm)
+                        for term_tuple in _body_term_tuples(body_term)
                     )
                 except KeyError:
                     failed_check = False
                 valid_justification = not failed_check
             if valid_justification:
                 yielded = True
-                yield reteJustification
+                yield rete_justification
         if not yielded:
-            for tNode in nodeset.network.terminalNodes:
-                if tNode not in justification_for_goal:
+            for t_node in nodeset.network.terminal_nodes:
+                if t_node not in justification_for_goal:
                     try:
-                        clause = _clause_from_justification(tNode)
+                        clause = _clause_from_justification(t_node)
                         if any(
-                            tuple(fill_bindings(x.toRDFTuple(), antecedent.bindings)) == goal
+                            tuple(fill_bindings(x.to_rdf_tuple(), antecedent.bindings))
+                            == goal
                             for x in term_iterator(clause.head)
                         ):
-                            yield tNode
+                            yield t_node
                     except Exception:
                         pass
     else:
-        for tNode in justification_for_goal:
-            yield tNode
+        for t_node in justification_for_goal:
+            yield t_node
 
 
 PML = Namespace("http://inferenceweb.stanford.edu/2004/07/iw.owl#")
@@ -138,12 +143,12 @@ FUXI = URIRef("http://purl.org/net/chimezie/FuXi")
 GMP_NS = Namespace("http://inferenceweb.stanford.edu/registry/DPR/GMP.owl#")
 
 
-def GenerateProof(network, goal, topDownStore=None):
+def generate_proof(network, goal, top_down_store=None):
     builder = ProofBuilder(network)
-    proof = builder.buildNodeSet(goal, topDownStore=topDownStore, proof=True)
+    proof = builder.build_node_set(goal, proof=True, top_down_store=top_down_store)
     issues = []
-    proof.traverse_and_check(topDownStore.edb.ns_map, issues=issues)
-    assert goal in network.inferredFacts
+    proof.traverse_and_check(top_down_store.edb.ns_map, issues=issues)
+    assert goal in network.inferred_facts
     return builder, proof
 
 
@@ -204,9 +209,9 @@ class ProofBuilder(object):
                   and workingMemory are consulted during proof construction.
         trace:  A human-readable log of proof-construction decisions (useful for
                 debugging).
-        serializedNodeSets:  Tracks which NodeSets have already been serialized to
+        serialized_node_sets:  Tracks which NodeSets have already been serialized to
                              RDF to avoid duplicates.
-        queryPredicates:  Predicates that originated from top-level queries (used
+        query_predicates:  Predicates that originated from top-level queries (used
                           during serialization).
     """
 
@@ -214,10 +219,10 @@ class ProofBuilder(object):
         self.goals = {}
         self.network = network
         self.trace = []
-        self.serializedNodeSets = set()
-        self.queryPredicates = set()
+        self.serialized_node_sets = set()
+        self.query_predicates = set()
 
-    def extractGoalsFromNode(self, node):
+    def extract_goals_from_node(self, node):
         """Walk an existing proof tree and register every NodeSet in ``self.goals``.
 
         This is used to import a previously-built (sub-)proof into the builder so
@@ -235,25 +240,27 @@ class ProofBuilder(object):
             if node.conclusion not in self.goals:
                 self.goals[node.conclusion] = node
                 for step in node.steps:
-                    self.extractGoalsFromNode(step)
+                    self.extract_goals_from_node(step)
         else:
-            self.extractGoalsFromNode(node.parent)
+            self.extract_goals_from_node(node.parent)
             for ant in node.antecedents:
-                self.extractGoalsFromNode(ant)
+                self.extract_goals_from_node(ant)
 
     def serialize(self, proof, proofGraph):
         proof.serialize(self, proofGraph)
 
-    def renderProof(self, proof, nsMap={}):
-        """Render the proof tree as a pydot directed graph (Digraph).
+    def render_proof(self, proof, ns_map=None, format="png"):
+        """Render the proof tree as a graphviz directed graph (Digraph).
 
         Args:
             proof: The root NodeSet (the original query goal).  Used to mark the
                    root node specially in the graph.
-            nsMap: Optional namespace mapping for constructing QNames in node labels.
+            ns_map: Optional namespace mapping for constructing QNames in node labels.
+            format: Output format for the graphviz Digraph (e.g. 'png', 'svg').
+                    Defaults to 'png'.
 
         Returns:
-            A ``pydot.Dot`` digraph with two kinds of edges:
+            A ``graphviz.Digraph`` with two kinds of edges:
 
             - **Red "is the consequence of"** edges from a NodeSet to each of its
               InferenceStep justifications.
@@ -262,74 +269,79 @@ class ProofBuilder(object):
               assertion the edge direction is reversed (antecedent -> nodeset) to
               visually distinguish base facts.
         """
+        if ns_map is None:
+            ns_map = {}
         graphviz = _get_graphviz()
-        dot = graphviz.Digraph("Proof graph",
-                               comment=f"Proof graph for {proof}",
-                               format='png')
-        visitedNodes = {}
+        dot = graphviz.Digraph(
+            "Proof graph", comment=f"Proof graph for {proof}", format=format
+        )
+        visited_nodes = {}
         idx = 0
         binding_info = {}
 
         # --- Pass 1: create graph nodes for every NodeSet, InferenceStep, and
         #     antecedent NodeSet reachable from self.goals. ---
         for nodeset in list(self.goals.values()):
-            if nodeset not in visitedNodes:
+            if nodeset not in visited_nodes:
                 idx += 1
-                nodeset.generateGraphNode(dot,idx, nodeset is proof, nsMap=nsMap)
-                visitedNodes[nodeset] = idx
+                nodeset.generate_graph_node(dot, idx, nodeset is proof, ns_map=ns_map)
+                visited_nodes[nodeset] = idx
             for justification in nodeset.steps:
-                if justification not in visitedNodes:
+                if justification not in visited_nodes:
                     idx += 1
-                    #Inference Step
-                    binding_info[idx] = justification.generateGraphNode(dot, idx, nsMap=nsMap)
-                    visitedNodes[justification] = idx
+                    # Inference Step
+                    binding_info[idx] = justification.generate_graph_node(
+                        dot, idx, ns_map=ns_map
+                    )
+                    visited_nodes[justification] = idx
                     for ant in justification.antecedents:
-                        if ant not in visitedNodes:
+                        if ant not in visited_nodes:
                             idx += 1
-                            ant.generateGraphNode(dot, idx, nsMap=nsMap)
-                            visitedNodes[ant] = idx
+                            ant.generate_graph_node(dot, idx, ns_map=ns_map)
+                            visited_nodes[ant] = idx
 
         # --- Pass 2: create edges. ---
         for nodeset in list(self.goals.values()):
             for justification in nodeset.steps:
                 # NodeSet --[is the consequence of]--> InferenceStep
                 dot.edge(
-                    str(visitedNodes[nodeset]),
-                    str(visitedNodes[justification]),
-                    label=binding_info[visitedNodes[justification]],
+                    str(visited_nodes[nodeset]),
+                    str(visited_nodes[justification]),
+                    label=binding_info[visited_nodes[justification]],
                     color="red",
                 )
                 for ant in justification.antecedents:
                     if justification.source == "some RDF graph":
                         # Assertion-backed justification: draw antecedent -> nodeset
                         dot.edge(
-                            str(visitedNodes[ant.steps[0]]),
-                            str(visitedNodes[nodeset]),
+                            str(visited_nodes[ant.steps[0]]),
+                            str(visited_nodes[nodeset]),
                             label="has antecedent",
                             color="blue",
                         )
                     else:
                         # Inferred justification: draw justification -> antecedent
                         dot.edge(
-                            str(visitedNodes[justification]),
-                            str(visitedNodes[ant]),
+                            str(visited_nodes[justification]),
+                            str(visited_nodes[ant]),
                             label="has antecedent",
                             color="blue",
                         )
         return dot
 
-    def extract_meta_interpreter_actions(self,
-                                         action_propagation_info: Mapping[
-                                             Any,
-                                             Mapping[BetaNode, Iterable[Tuple[BetaNode, PartialInstantiation]]],
-                                         ],
-                                         bindings: Mapping[Variable, Identifier],
-                                         action: Optional[Any] = None,
-                                         action_types: Optional[Tuple[type, ...]] = None,
-                                         rule_index: Optional[int] = None,
-                                         body_index: Optional[int] = None,
-                                         terminal_node: Optional[BetaNode] = None,
-                                         ):
+    def extract_meta_interpreter_actions(
+        self,
+        action_propagation_info: Mapping[
+            Any,
+            Mapping[BetaNode, Iterable[Tuple[BetaNode, PartialInstantiation]]],
+        ],
+        bindings: Mapping[Variable, Identifier],
+        action: Optional[Any] = None,
+        action_types: Optional[Tuple[type, ...]] = None,
+        rule_index: Optional[int] = None,
+        body_index: Optional[int] = None,
+        terminal_node: Optional[BetaNode] = None,
+    ):
         """
         Extracts and yields meta-interpreter actions with their associated data.
 
@@ -347,9 +359,9 @@ class ProofBuilder(object):
         :param action_types: Optional. A tuple of action types to filter the
             propagation information. Defaults to (EvaluateExecution, QueryExecution).
         :param rule_index: Optional. The specific rule index to match against the
-            action's `ruleNo` attribute. If None, this filter is ignored.
+            action's `rule_no` attribute. If None, this filter is ignored.
         :param body_index: Optional. The specific body index to match against the
-            action's `bodyIdx` attribute. If None, this filter is ignored.
+            action's `body_idx` attribute. If None, this filter is ignored.
         :param terminal_node: Optional. A BetaNode that acts as a terminal node.
             If provided, only actions referencing the terminal node are considered.
         :return: A generator yielding tuples containing fired node, instantiations,
@@ -357,6 +369,7 @@ class ProofBuilder(object):
             Yields no items if no matches are found or the filtering criteria are unmet.
         """
         from ..LP.BackwardFixpointProcedure import QueryExecution, EvaluateExecution
+
         def compatible(tokens: PartialInstantiation) -> bool:
             return not any(
                 bindings.get(key, value) != value
@@ -377,7 +390,10 @@ class ProofBuilder(object):
         for stored_action, fired_node_info in items:
             if not isinstance(stored_action, action_types):
                 continue
-            if rule_index is not None and (stored_action.ruleNo != rule_index or stored_action.bodyIdx != body_index):
+            if rule_index is not None and (
+                stored_action.rule_no != rule_index
+                or stored_action.body_idx != body_index
+            ):
                 continue
             if terminal_node is not None and terminal_node not in fired_node_info:
                 continue
@@ -391,7 +407,9 @@ class ProofBuilder(object):
                     if compatible(instantiations):
                         yield fired_node, instantiations, antecedent_node, stored_action
 
-    def buildInferenceStep(self, parent, terminalNode, goal, topDownStore=None, bindings=None):
+    def build_inference_step(
+        self, parent, terminal_node, goal, top_down_store=None, bindings=None
+    ):
         """Build an InferenceStep that justifies *parent* (a NodeSet) via *terminalNode*.
 
         This is the core recursive method of proof construction.  Given a goal triple
@@ -410,10 +428,10 @@ class ProofBuilder(object):
 
         Args:
             parent:        The NodeSet whose ``steps`` list this step will be added to.
-            terminalNode:  The terminal BetaNode (from ``network.justifications``) whose
+            terminal_node:  The terminal BetaNode (from ``network.justifications``) whose
                            associated rule derived *goal*.
             goal:          The RDF triple ``(s, p, o)`` being justified.
-            topDownStore:  The ``BFPAlgorithm`` instance holding BFP runtime state
+            top_down_store:  The ``BFPAlgorithm`` instance holding BFP runtime state
                            (``actionPropagationInfo``, ``meta_evaluation``,
                            ``meta_interpretation_seeds``).
             bindings:      Optional pre-existing variable bindings (a dict or list of
@@ -424,29 +442,38 @@ class ProofBuilder(object):
             The constructed ``InferenceStep``, with its ``antecedents`` list populated
             by recursively proven NodeSets for each body term.
         """
-        from fuxi.LP.BackwardFixpointProcedure import BFPQueryTerm, EvaluateExecution, BFP_NS, BFP_RULE
+        from fuxi.LP.BackwardFixpointProcedure import (
+            BFPQueryTerm,
+            EvaluateExecution,
+            BFP_NS,
+            BFP_RULE,
+        )
         from fuxi.Horn.PositiveConditions import And, Uniterm
 
         # --- Resolve the clause (rule) for this terminal node. ---
         # When the terminal node carries multiple rules (uncommon), pick the one
         # whose head matches the goal being proven.
-        if len(terminalNode.rules) > 1:
-            for clause in [r.formula for r in terminalNode.rules if r.formula.head.toRDFTuple() == goal]:
+        if len(terminal_node.rules) > 1:
+            for clause in [
+                r.formula
+                for r in terminal_node.rules
+                if r.formula.head.to_rdf_tuple() == goal
+            ]:
                 pass
         else:
-            clause = _clause_from_justification(terminalNode)
+            clause = _clause_from_justification(terminal_node)
 
         # --- Collect bindings. ---
         # Start with any caller-supplied bindings, then merge in the bindings that
         # the RETE network recorded when it originally inferred this goal (stored in
         # proofTracers).  The result is a dict {Variable -> ground value}.
         bindings = {} if bindings is None else bindings
-        for _dict in self.network.proofTracers.get(goal, []):
+        for _dict in self.network.proof_tracers.get(goal, []):
             bindings.update(_dict)
         step = InferenceStep(parent, clause, bindings=bindings)
 
         # --- Base case: goal was asserted (present in working memory). ---
-        if ReteToken(goal) in self.network.workingMemory:
+        if ReteToken(goal) in self.network.working_memory:
             step.source = "some RDF graph"
             self.trace.append("Marking justification from assertion for " + repr(goal))
             return step
@@ -465,7 +492,11 @@ class ProofBuilder(object):
             return step
 
         # Normalize the clause body into a list of Uniterm / BFPQueryTerm literals.
-        body_terms = [clause.body] if isinstance(clause.body, (BFPQueryTerm, Uniterm)) else list(clause.body)
+        body_terms = (
+            [clause.body]
+            if isinstance(clause.body, (BFPQueryTerm, Uniterm))
+            else list(clause.body)
+        )
 
         # =====================================================================
         # Identify non-evaluate body terms that immediately follow an evaluate
@@ -486,17 +517,18 @@ class ProofBuilder(object):
         # right-activation firings.
         # =====================================================================
         derived_right_activating_antecedents = [
-            t for i, t in enumerate(body_terms) if
-            hasattr(t, 'op') and
-            t.op != BFP_NS.evaluate and
-            any(self.network.inferredFacts.triples((None, t.op, None))) and
-            (i > 0 and getattr(body_terms[i - 1], 'op', None) == BFP_NS.evaluate)
+            t
+            for i, t in enumerate(body_terms)
+            if hasattr(t, "op")
+            and t.op != BFP_NS.evaluate
+            and any(self.network.inferred_facts.triples((None, t.op, None)))
+            and (i > 0 and getattr(body_terms[i - 1], "op", None) == BFP_NS.evaluate)
         ]
 
         for term in derived_right_activating_antecedents:
             # Ground the right-activating body term by substituting variables
             # using the bindings already collected from proofTracers / the caller.
-            term_triples = term.toRDFTuple()
+            term_triples = term.to_rdf_tuple()
             if isinstance(step.bindings, Mapping):
                 grounded = tuple([step.bindings.get(arg, arg) for arg in term_triples])
             else:
@@ -508,7 +540,7 @@ class ProofBuilder(object):
             if any(isinstance(t, Variable) for t in grounded):
                 continue
             # Skip if the grounded triple was never actually inferred.
-            if not any(self.network.inferredFacts.triples(grounded)):
+            if not any(self.network.inferred_facts.triples(grounded)):
                 continue
 
             # The grounded triple is confirmed as an inferred fact that
@@ -518,17 +550,19 @@ class ProofBuilder(object):
             new_rule_goal = grounded
             self.trace.append(
                 "Right-activation confirmed: building nodeset for ground antecedent %s"
-                % BuildUnitermFromTuple(new_rule_goal)
+                % build_uniterm_from_tuple(new_rule_goal)
             )
             self.trace.append("Bindings: %s" % str(step.bindings))
             step.antecedents.append(
-                self.buildNodeSet(new_rule_goal, antecedent=step, topDownStore=topDownStore)
+                self.build_node_set(
+                    new_rule_goal, antecedent=step, top_down_store=top_down_store
+                )
             )
-            eval_goal = [t for t in body_terms if t != term][0].toRDFTuple()
+            eval_goal = [t for t in body_terms if t != term][0].to_rdf_tuple()
             step.antecedents.append(
-                self.buildNodeSet(eval_goal,
-                                  antecedent=step,
-                                  topDownStore=topDownStore)
+                self.build_node_set(
+                    eval_goal, antecedent=step, top_down_store=top_down_store
+                )
             )
             return step
 
@@ -536,7 +570,9 @@ class ProofBuilder(object):
         # Dispatch based on the shape of the rule and the goal predicate.
         # =====================================================================
 
-        if p == BFP_NS.evaluate and any(getattr(t, 'op', None) == BFP_NS.evaluate for t in body_terms):
+        if p == BFP_NS.evaluate and any(
+            getattr(t, "op", None) == BFP_NS.evaluate for t in body_terms
+        ):
             # -----------------------------------------------------------------
             # Case (a): evaluate(rule:M N) :- And( evaluate(rule:M K) ... )
             #
@@ -547,18 +583,33 @@ class ProofBuilder(object):
             # produced this evaluation step, then recurse into the preceding
             # evaluation goal.
             # -----------------------------------------------------------------
-            eval_index = tuple([i.value if isinstance(i, Literal) else int(i.split("Rule#")[-1]) for i in [s, o]])
+            eval_index = tuple(
+                [
+                    i.value if isinstance(i, Literal) else int(i.split("Rule#")[-1])
+                    for i in [s, o]
+                ]
+            )
             rule_index, body_index = (eval_index[0], eval_index[1] - 1)
-            new_rule_goal = getattr(BFP_RULE, str(rule_index)), BFP_NS.evaluate, Literal(body_index)
+            new_rule_goal = (
+                getattr(BFP_RULE, str(rule_index)),
+                BFP_NS.evaluate,
+                Literal(body_index),
+            )
 
-            matches = list(self.extract_meta_interpreter_actions(topDownStore.actionPropagationInfo,
-                                                                 bindings,
-                                                                 action_types=(EvaluateExecution,),
-                                                                 rule_index=rule_index,
-                                                                 body_index=body_index))
+            matches = list(
+                self.extract_meta_interpreter_actions(
+                    top_down_store.action_propagation_info,
+                    bindings,
+                    action_types=(EvaluateExecution,),
+                    rule_index=rule_index,
+                    body_index=body_index,
+                )
+            )
             if matches:
                 for fired_node, instantiations, antecedent_node, eval_action in matches:
-                    self.trace.append(f"Building nodeset around intermediate meta evaluation goal({rule_index} {body_index})")
+                    self.trace.append(
+                        f"Building nodeset around intermediate meta evaluation goal({rule_index} {body_index})"
+                    )
                     token_bindings = list(instantiations.bindings)
                     merged_bindings = {}
                     for binding_dict in token_bindings:
@@ -567,23 +618,34 @@ class ProofBuilder(object):
                     ns = self.goals.get(new_rule_goal)
                     if ns is None:
                         idx = BNode()
-                        ns = NodeSet(new_rule_goal,
-                                     network=self.network,
-                                     identifier=idx)
+                        ns = NodeSet(
+                            new_rule_goal, network=self.network, identifier=idx
+                        )
                         self.goals[new_rule_goal] = ns
-                        new_step = self.buildInferenceStep(ns, antecedent_node, new_rule_goal, topDownStore,
-                                                                 bindings=merged_bindings)
+                        new_step = self.build_inference_step(
+                            ns,
+                            antecedent_node,
+                            new_rule_goal,
+                            top_down_store,
+                            bindings=merged_bindings,
+                        )
                         ns.steps.append(new_step)
                     step.antecedents.append(ns)
                     return step
 
             # Fallback: if no matching EvaluateExecution was found, ground the first non-evaluate body term
             # and treat it as a regular (non-evaluate) derivation.
-            for term in [t for t in body_terms if getattr(t, 'op', None) != BFP_NS.evaluate]:
-                term_triples = term.toRDFTuple()
-                term_triples = tuple([step.bindings.get(arg, arg) for arg in term_triples])
+            for term in [
+                t for t in body_terms if getattr(t, "op", None) != BFP_NS.evaluate
+            ]:
+                term_triples = term.to_rdf_tuple()
+                term_triples = tuple(
+                    [step.bindings.get(arg, arg) for arg in term_triples]
+                )
                 goal = term_triples
-                return self.build_non_evaluation_step(goal, parent, step, bindings, topDownStore)
+                return self.build_non_evaluation_step(
+                    goal, parent, step, bindings, top_down_store
+                )
 
         else:
             # -----------------------------------------------------------------
@@ -599,17 +661,23 @@ class ProofBuilder(object):
                 # whether the resulting triple is a meta-interpretation seed or
                 # needs further proving.
                 for term in body_terms:
-                    self.trace.append(f"Building nodeset around intermediate goal ({term})")
+                    self.trace.append(
+                        f"Building nodeset around intermediate goal ({term})"
+                    )
                     self.trace.append("Bindings: %s" % step.bindings)
-                    term_triples = term.toRDFTuple()
-                    term_triples = tuple([step.bindings.get(arg, arg) for arg in term_triples])
+                    term_triples = term.to_rdf_tuple()
+                    term_triples = tuple(
+                        [step.bindings.get(arg, arg) for arg in term_triples]
+                    )
 
                     self.trace.append("Building inference step for %s" % parent)
                     self.trace.append("Inferred from RETE node via %s" % (clause))
                     self.trace.append("Bindings: %s" % step.bindings)
 
                     step.antecedents.append(
-                        self.buildNodeSet(term_triples, antecedent=step, topDownStore=topDownStore)
+                        self.build_node_set(
+                            term_triples, antecedent=step, top_down_store=top_down_store
+                        )
                     )
                 return step
 
@@ -617,7 +685,7 @@ class ProofBuilder(object):
             # Meta-interpretation seeds are the original query goals injected
             # by the BFP algorithm; they are axiomatically true and need no
             # further justification.
-            if goal in topDownStore.meta_interpretation_seeds:
+            if goal in top_down_store.meta_interpretation_seeds:
                 idx = BNode()
                 ns = self.goals.get(goal, None)
                 if ns is None:
@@ -630,7 +698,10 @@ class ProofBuilder(object):
                 )
                 return step
 
-            elif any(getattr(t, 'op', None) == BFP_NS.evaluate for t in body_terms) and len(body_terms) == 1:
+            elif (
+                any(getattr(t, "op", None) == BFP_NS.evaluate for t in body_terms)
+                and len(body_terms) == 1
+            ):
                 # -------------------------------------------------------------
                 # Case (b): p_derived(...) :- evaluate(rule:M N)
                 #
@@ -639,44 +710,74 @@ class ProofBuilder(object):
                 # actionPropagationInfo.  If found, recurse into the evaluation
                 # chain.  Otherwise fall through to build_non_evaluation_step.
                 # -------------------------------------------------------------
-                s, p, o = body_terms[0].toRDFTuple()
-                eval_index = tuple([i.value if isinstance(i, Literal) else int(i.split("Rule#")[-1]) for i in [s, o]])
+                s, p, o = body_terms[0].to_rdf_tuple()
+                eval_index = tuple(
+                    [
+                        i.value if isinstance(i, Literal) else int(i.split("Rule#")[-1])
+                        for i in [s, o]
+                    ]
+                )
                 rule_index, body_index = eval_index[0], eval_index[1]
-                new_rule_goal = getattr(BFP_RULE, str(rule_index)), BFP_NS.evaluate, Literal(body_index)
+                new_rule_goal = (
+                    getattr(BFP_RULE, str(rule_index)),
+                    BFP_NS.evaluate,
+                    Literal(body_index),
+                )
 
-                matches = list(self.extract_meta_interpreter_actions(topDownStore.actionPropagationInfo,
-                                                                     bindings,
-                                                                     action_types=(EvaluateExecution,),
-                                                                     rule_index=rule_index,
-                                                                     body_index=body_index))
+                matches = list(
+                    self.extract_meta_interpreter_actions(
+                        top_down_store.action_propagation_info,
+                        bindings,
+                        action_types=(EvaluateExecution,),
+                        rule_index=rule_index,
+                        body_index=body_index,
+                    )
+                )
                 if matches:
-                    for fired_node, instantiations, antecedent_node, eval_action in matches:
+                    for (
+                        fired_node,
+                        instantiations,
+                        antecedent_node,
+                        eval_action,
+                    ) in matches:
                         self.trace.append(
-                            f"Building nodeset around intermediate meta evaluation goal({rule_index} {body_index})")
+                            f"Building nodeset around intermediate meta evaluation goal({rule_index} {body_index})"
+                        )
                         token_bindings = list(instantiations.bindings)
                         self.trace.append("Bindings: %s" % token_bindings)
                         ns = self.goals.get(new_rule_goal)
                         if ns is None:
                             idx = BNode()
-                            ns = NodeSet(new_rule_goal,
-                                         network=self.network,
-                                         identifier=idx)
+                            ns = NodeSet(
+                                new_rule_goal, network=self.network, identifier=idx
+                            )
                             self.goals[new_rule_goal] = ns
                             merged_bindings = {}
                             for binding_dict in token_bindings:
                                 merged_bindings.update(binding_dict)
-                            new_step = self.buildInferenceStep(ns, antecedent_node, new_rule_goal, topDownStore,
-                                                               bindings=merged_bindings)
+                            new_step = self.build_inference_step(
+                                ns,
+                                antecedent_node,
+                                new_rule_goal,
+                                top_down_store,
+                                bindings=merged_bindings,
+                            )
                             ns.steps.append(new_step)
                         step.antecedents.append(ns)
                         return step
 
                 # Fallback: ground the non-evaluate body terms and delegate.
-                for term in [t for t in body_terms if getattr(t, 'op', None) != BFP_NS.evaluate]:
-                    term_triples = term.toRDFTuple()
-                    term_triples = tuple([step.bindings.get(arg, arg) for arg in term_triples])
+                for term in [
+                    t for t in body_terms if getattr(t, "op", None) != BFP_NS.evaluate
+                ]:
+                    term_triples = term.to_rdf_tuple()
+                    term_triples = tuple(
+                        [step.bindings.get(arg, arg) for arg in term_triples]
+                    )
                     goal = term_triples
-                    return self.build_non_evaluation_step(goal, parent, step, bindings, topDownStore)
+                    return self.build_non_evaluation_step(
+                        goal, parent, step, bindings, top_down_store
+                    )
 
             else:
                 # -------------------------------------------------------------
@@ -686,15 +787,22 @@ class ProofBuilder(object):
                 # Delegate entirely to build_non_evaluation_step which handles
                 # ordinary RETE-justified body terms.
                 # -------------------------------------------------------------
-                return self.build_non_evaluation_step(goal, parent, step, bindings, topDownStore)
+                return self.build_non_evaluation_step(
+                    goal, parent, step, bindings, top_down_store
+                )
 
-        raise SyntaxError(f"Unable to build inference step for {BuildUnitermFromTuple(goal)}")
+        raise SyntaxError(
+            f"Unable to build inference step for {build_uniterm_from_tuple(goal)}"
+        )
 
-    def build_non_evaluation_step(self, goal: Tuple[Identifier, Identifier, Identifier],
-                                  parent: NodeSet,
-                                  step: InferenceStep,
-                                  bindings: Mapping[Variable, Identifier],
-                                  topDownStore):
+    def build_non_evaluation_step(
+        self,
+        goal: Tuple[Identifier, Identifier, Identifier],
+        parent: NodeSet,
+        step: InferenceStep,
+        bindings: Mapping[Variable, Identifier],
+        top_down_store,
+    ):
         """Build proof antecedents for a goal derived by ordinary (non-evaluate) RETE rules.
 
         This method handles goals that were inferred through standard RETE network
@@ -728,20 +836,20 @@ class ProofBuilder(object):
             parent:        The NodeSet this step belongs to.
             step:          The InferenceStep being constructed (antecedents will be
                            appended to ``step.antecedents``).
-            topDownStore:  The ``BFPAlgorithm`` instance with BFP runtime state.
+            top_down_store:  The ``BFPAlgorithm`` instance with BFP runtime state.
 
         Returns:
             The populated ``InferenceStep`` if at least one antecedent was proven,
             or ``None`` if no justification could be established.
         """
         from fuxi.LP.BackwardFixpointProcedure import QueryExecution, BFP_NS
-        from fuxi.Rete.SidewaysInformationPassing import GetOp
+        from fuxi.Rete.SidewaysInformationPassing import get_op
         from fuxi.SPARQL import normalize_bindings_and_query, rdf_tuples_to_sparql
 
-        for tNode in fetch_rete_justifications(goal, parent, self, step):
-            clause = _clause_from_justification(tNode)
+        for t_node in fetch_rete_justifications(goal, parent, self, step):
+            clause = _clause_from_justification(t_node)
 
-            if not self.network.instantiations.get(tNode):
+            if not self.network.instantiations.get(t_node):
                 # This terminal node has no recorded instantiations for the goal;
                 # skip it and try the next justifying node.
                 continue
@@ -749,8 +857,8 @@ class ProofBuilder(object):
             # The goal was instantiated directly from this terminal node.
             # Walk each body term to build its antecedent proof.
             body_terms = list(clause.body)
-            for bodyTerm in body_terms:
-                triple = bodyTerm.toRDFTuple()
+            for body_term in body_terms:
+                triple = body_term.to_rdf_tuple()
 
                 if triple[1] == BFP_NS.evaluate:
                     # -------------------------------------------------------
@@ -760,28 +868,56 @@ class ProofBuilder(object):
                     # token in actionPropagationInfo that fired it.
                     # -------------------------------------------------------
                     eval_index = tuple(
-                        [i.value if isinstance(i, Literal) else int(i.split("Rule#")[-1]) for i in bodyTerm.arg])
-                    for eval_action in topDownStore.meta_evaluation.get(eval_index, set()):
-                        matches = list(self.extract_meta_interpreter_actions(topDownStore.actionPropagationInfo,
-                                                                             bindings,
-                                                                             action=eval_action))
+                        [
+                            i.value
+                            if isinstance(i, Literal)
+                            else int(i.split("Rule#")[-1])
+                            for i in body_term.arg
+                        ]
+                    )
+                    for eval_action in top_down_store.meta_evaluation.get(
+                        eval_index, set()
+                    ):
+                        matches = list(
+                            self.extract_meta_interpreter_actions(
+                                top_down_store.action_propagation_info,
+                                bindings,
+                                action=eval_action,
+                            )
+                        )
                         if matches:
-                            for fired_node, token, antecedent_node, eval_action in matches:
-                                self.trace.append("Building inference step for %s" % parent)
-                                self.trace.append("Inferred from RETE via meta-evaluation rule %s" % (
-                                    _clause_from_justification(antecedent_node)))
+                            for (
+                                fired_node,
+                                token,
+                                antecedent_node,
+                                eval_action,
+                            ) in matches:
+                                self.trace.append(
+                                    "Building inference step for %s" % parent
+                                )
+                                self.trace.append(
+                                    "Inferred from RETE via meta-evaluation rule %s"
+                                    % (_clause_from_justification(antecedent_node))
+                                )
                                 token_bindings = list(token.bindings)
                                 self.trace.append("Bindings: %s" % token_bindings)
                                 ns = self.goals.get(triple)
                                 if ns is None:
                                     idx = BNode()
-                                    ns = NodeSet(triple, network=self.network, identifier=idx)
+                                    ns = NodeSet(
+                                        triple, network=self.network, identifier=idx
+                                    )
                                     self.goals[triple] = ns
                                     merged_bindings = {}
                                     for binding_dict in token_bindings:
                                         merged_bindings.update(binding_dict)
-                                    new_step = self.buildInferenceStep(ns, antecedent_node, triple, topDownStore,
-                                                                       bindings=merged_bindings)
+                                    new_step = self.build_inference_step(
+                                        ns,
+                                        antecedent_node,
+                                        triple,
+                                        top_down_store,
+                                        bindings=merged_bindings,
+                                    )
                                     ns.steps.append(new_step)
                                 step.antecedents.append(ns)
                 else:
@@ -791,44 +927,68 @@ class ProofBuilder(object):
                     # or through plain RETE pattern matching.
                     # -------------------------------------------------------
 
-                    matches = list(self.extract_meta_interpreter_actions(topDownStore.actionPropagationInfo,
-                                                                         bindings,
-                                                                         action_types=(QueryExecution,),
-                                                                         terminal_node=tNode))
+                    matches = list(
+                        self.extract_meta_interpreter_actions(
+                            top_down_store.action_propagation_info,
+                            bindings,
+                            action_types=(QueryExecution,),
+                            terminal_node=t_node,
+                        )
+                    )
                     if matches:
-                        for fired_node, instantiations, antecedent_node, action in matches:
+                        for (
+                            fired_node,
+                            instantiations,
+                            antecedent_node,
+                            action,
+                        ) in matches:
                             # ---------------------------------------------------
                             # EDB query path: a QueryExecution action propagated
-                            # bindings through tNode.  Ground the body term using
+                            # bindings through t_node.  Ground the body term using
                             # those bindings.  If magic-set rewriting caused the
                             # grounded predicate to differ from the antecedent
                             # node's head, re-target to the correct goal.
                             # ---------------------------------------------------
                             self.trace.append(
-                                f"Adding EDB query ({action}) solutions as bypassing antecedent {bodyTerm}")
+                                f"Adding EDB query ({action}) solutions as bypassing antecedent {body_term}"
+                            )
                             token_bindings = list(instantiations.bindings)
-                            term_triples = bodyTerm.toRDFTuple()
+                            term_triples = body_term.to_rdf_tuple()
                             step_bindings = {}
-                            for bindings in token_bindings+[clause.head.unify_with(BuildUnitermFromTuple(goal))]:
+                            for bindings in token_bindings + [
+                                clause.head.unify_with(build_uniterm_from_tuple(goal))
+                            ]:
                                 step_bindings.update(bindings)
-                                term_triples = tuple([bindings.get(arg, arg) for arg in term_triples])
+                                term_triples = tuple(
+                                    [bindings.get(arg, arg) for arg in term_triples]
+                                )
                             self.trace.append("Bindings: %s" % token_bindings)
                             idx = BNode()
-                            antecedent_clause = _clause_from_justification(antecedent_node)
+                            antecedent_clause = _clause_from_justification(
+                                antecedent_node
+                            )
                             # If the grounded body term's predicate doesn't
                             # match the antecedent rule's head predicate
                             # (e.g. due to magic-set adorned rewriting),
                             # re-ground using the antecedent's head instead.
-                            if GetOp(BuildUnitermFromTuple(term_triples)) != GetOp(antecedent_clause.head):
-                                new_goal = tuple([step_bindings.get(arg, arg)
-                                                  for arg in antecedent_clause.head.toRDFTuple()])
+                            if get_op(build_uniterm_from_tuple(term_triples)) != get_op(
+                                antecedent_clause.head
+                            ):
+                                new_goal = tuple(
+                                    [
+                                        step_bindings.get(arg, arg)
+                                        for arg in antecedent_clause.head.to_rdf_tuple()
+                                    ]
+                                )
                                 term_triples = new_goal
                             ns = self.goals.get(term_triples)
 
                             # [({f"?{k}": v.split('#')[-1] for k, v in bindings.items()}, literal) for bindings, literal
                             #  in action.fired_grounded_queries.items()]
 
-                            def compatible_query_bindings(query_bindings: Mapping[Variable, Identifier]) -> bool:
+                            def compatible_query_bindings(
+                                query_bindings: Mapping[Variable, Identifier],
+                            ) -> bool:
                                 return not any(
                                     bindings.get(key, value) != value
                                     for key, value in query_bindings.items()
@@ -837,16 +997,23 @@ class ProofBuilder(object):
                             edb_query_literal = None
                             q_bindings = None
                             vars = []
-                            for query_bindings, literal in action.fired_grounded_queries.items():
+                            for (
+                                query_bindings,
+                                literal,
+                            ) in action.fired_grounded_queries.items():
                                 if compatible_query_bindings(query_bindings):
                                     edb_query_literal = literal
                                     q_bindings = query_bindings
                                     break
-                            assert edb_query_literal is not None, "No compatible query bindings found"
+                            assert edb_query_literal is not None, (
+                                "No compatible query bindings found"
+                            )
 
                             if bool(q_bindings):
-                                open_vars, conj_ground_literals, bindings = normalize_bindings_and_query(
-                                    set(vars), bindings, edb_query_literal
+                                open_vars, conj_ground_literals, bindings = (
+                                    normalize_bindings_and_query(
+                                        set(vars), bindings, edb_query_literal
+                                    )
                                 )
                                 vars = list(open_vars)
                             else:
@@ -854,20 +1021,31 @@ class ProofBuilder(object):
                             is_ground = not vars
                             subquery = rdf_tuples_to_sparql(
                                 conj_ground_literals,
-                                topDownStore.edb,
+                                top_down_store.edb,
                                 is_ground,
-                                [v for v in vars]
+                                [v for v in vars],
                             )
                             step.source = f"{subquery}"
                             if ns is None:
-                                ns = NodeSet(term_triples, network=self.network, identifier=idx)
+                                ns = NodeSet(
+                                    term_triples, network=self.network, identifier=idx
+                                )
                                 self.goals[term_triples] = ns
                                 self.trace.append("Building inference step for %s" % ns)
-                                self.trace.append("Inferred from RETE node via %s" % (clause))
+                                self.trace.append(
+                                    "Inferred from RETE node via %s" % (clause)
+                                )
                                 self.trace.append("Bindings: %s" % step.bindings)
-                                self.trace.append(f"Triggered by query action {action} triggered by {antecedent_clause}")
-                                new_step = self.buildInferenceStep(ns, antecedent_node, term_triples, topDownStore,
-                                                                   bindings=step_bindings)
+                                self.trace.append(
+                                    f"Triggered by query action {action} triggered by {antecedent_clause}"
+                                )
+                                new_step = self.build_inference_step(
+                                    ns,
+                                    antecedent_node,
+                                    term_triples,
+                                    top_down_store,
+                                    bindings=step_bindings,
+                                )
                                 ns.steps.append(new_step)
                             step.antecedents.append(ns)
                     else:
@@ -881,25 +1059,22 @@ class ProofBuilder(object):
 
                         # Identify variables in this body term that are not
                         # yet bound in step.bindings.
-                        for termVar in term_iterator(bodyTerm):
+                        for termVar in term_iterator(body_term):
                             assert isinstance(termVar, (Uniterm, N3Builtin))
                             a = [
                                 x
-                                for x in termVar.toRDFTuple()
+                                for x in termVar.to_rdf_tuple()
                                 if isinstance(x, Variable) and x not in step.bindings
                             ]
 
                         # Project the missing variable bindings out of the
                         # terminal node's instantiating tokens.
                         binds = []
-                        for t in tNode.instanciatingTokens:
-                            binds.extend([project(binding, a) for binding in t.bindings])
-                        binds = set(
-                            [
-                                frozendict(bind)
-                                for bind in binds
-                            ]
-                        )
+                        for t in t_node.instanciating_tokens:
+                            binds.extend(
+                                [project(binding, a) for binding in t.bindings]
+                            )
+                        binds = set([frozendict(bind) for bind in binds])
                         # There should be at most one consistent binding set;
                         # multiple would indicate ambiguity.
                         assert len(binds) < 2
@@ -909,30 +1084,34 @@ class ProofBuilder(object):
                         # Verify that all variables in the body term are now
                         # bound (every variable must appear in step.bindings,
                         # every non-variable is already ground).
-                        for termVar in term_iterator(bodyTerm):
+                        for termVar in term_iterator(body_term):
                             assert isinstance(termVar, (N3Builtin, Uniterm))
                             assert all(
                                 isinstance(x, Variable)
                                 and x in step.bindings
                                 or not isinstance(x, Variable)
-                                for x in termVar.toRDFTuple()
+                                for x in termVar.to_rdf_tuple()
                             )
 
                         # Produce the fully ground antecedent triple and
                         # recursively build its proof via buildNodeSet.
-                        groundAntecedentAssertion = tuple(
+                        ground_antecedent_assertion = tuple(
                             fill_bindings(triple, step.bindings)
                         )
                         self.trace.append("Building inference step for %s" % parent)
                         self.trace.append("Inferred from RETE node via %s" % (clause))
                         self.trace.append("Bindings: %s" % step.bindings)
                         step.antecedents.append(
-                            self.buildNodeSet(groundAntecedentAssertion, antecedent=step, topDownStore=topDownStore)
+                            self.build_node_set(
+                                ground_antecedent_assertion,
+                                antecedent=step,
+                                top_down_store=top_down_store,
+                            )
                         )
 
         return step if step.antecedents else None
 
-    def buildNodeSet(self, goal, antecedent=None, proof=False, topDownStore=None):
+    def build_node_set(self, goal, antecedent=None, proof=False, top_down_store=None):
         """Create or retrieve the NodeSet that proves *goal*.
 
         This is the main entry point for recursively building the proof tree.  It
@@ -961,14 +1140,15 @@ class ProofBuilder(object):
                            justifications).
             proof:         If ``True``, this is the root call (the original query
                            goal); affects only trace messages.
-            topDownStore:  The ``BFPAlgorithm`` instance with BFP runtime state.
+            top_down_store:  The ``BFPAlgorithm`` instance with BFP runtime state.
 
         Returns:
             The NodeSet for *goal*, with its ``steps`` list populated.
         """
         from fuxi.LP.BackwardFixpointProcedure import BFPQueryTerm
-        from fuxi.Rete.SidewaysInformationPassing import GetOp
-        goal_uniterm = buildUniTerm(goal, self.network.nsMap)
+        from fuxi.Rete.SidewaysInformationPassing import get_op
+
+        goal_uniterm = build_uniTerm(goal, self.network.ns_map)
 
         if goal not in self.network.justifications:
             # ---------------------------------------------------------------
@@ -983,7 +1163,7 @@ class ProofBuilder(object):
                     str(goal_uniterm),
                 )
             )
-            if goal in topDownStore.meta_interpretation_seeds:
+            if goal in top_down_store.meta_interpretation_seeds:
                 # The goal was injected by the BFP algorithm as one of the
                 # original query goals.
                 idx = BNode()
@@ -1027,13 +1207,13 @@ class ProofBuilder(object):
                 ns = NodeSet(goal, network=self.network, identifier=idx)
                 # Register early so recursive calls see it and avoid cycles.
                 self.goals[goal] = ns
-                self.topDownStore = topDownStore
+                self.top_down_store = top_down_store
 
                 # Build an InferenceStep for each terminal node that derived
                 # this goal.  fetchRETEJustifications filters out nodes whose
                 # body terms would create circular proofs.
                 ns.steps = [
-                    self.buildInferenceStep(ns, tNode, goal, topDownStore)
+                    self.build_inference_step(ns, tNode, goal, top_down_store)
                     for tNode in fetch_rete_justifications(goal, ns, self)
                 ]
                 assert ns.steps
@@ -1064,17 +1244,19 @@ class NodeSet(object):
             self.network = network
         else:
             self.network = self
-            self.network.nsMap = {}
+            self.network.ns_map = {}
         self.identifier = identifier
         self.conclusion = conclusion
         self.language = None
         self.naf = naf
         self.steps = steps and steps or []
 
-    def traverse_and_check(self,
-                           namespaces_dict: dict,
-                           goals: dict[tuple[Identifier, ...],Identifier] = None,
-                           issues: list[str] = None):
+    def traverse_and_check(
+        self,
+        namespaces_dict: dict,
+        goals: dict[Triple, Identifier] = None,
+        issues: list[str] = None,
+    ):
         """
         Recursively traverse the node set and the inference steps they are associated with to identify
         issues of the following kind:
@@ -1092,45 +1274,55 @@ class NodeSet(object):
         if extant_id is not None:
             if extant_id != self.identifier:
                 issues.append(
-                    f"Goal {BuildUnitermFromTuple(self.conclusion,
-                                                  newNss=namespaces_dict)} is already proven "
-                    f"{self.identifier} v.s. {extant_id}")
+                    f"Goal {
+                        build_uniterm_from_tuple(
+                            self.conclusion, new_nss=namespaces_dict
+                        )
+                    } is already proven "
+                    f"{self.identifier} v.s. {extant_id}"
+                )
             # else: same NodeSet reached via two proof paths — legitimate DAG sharing, skip
         else:
             goals[self.conclusion] = self.identifier
             for step in self.steps:
                 step.traverse_and_check(namespaces_dict, goals, issues)
 
-    def serialize(self, builder, proofGraph):
-        conclusionPrefix = self.naf and "not " or ""
-        proofGraph.add(
+    def serialize(self, builder, proof_graph):
+        conclusion_prefix = self.naf and "not " or ""
+        proof_graph.add(
             (
                 self.identifier,
                 PML.hasConclusion,
                 Literal(
                     "%s%s"
                     % (
-                        conclusionPrefix,
-                        repr(buildUniTerm(self.conclusion, self.network.nsMap)),
+                        conclusion_prefix,
+                        repr(build_uniTerm(self.conclusion, self.network.ns_map)),
                     )
                 ),
             )
         )
         # proofGraph.add((self.identifier, PML.hasLanguage, URIRef('http://inferenceweb.stanford.edu/registry/LG/RIF.owl')))
-        proofGraph.add((self.identifier, RDF.type, PML.NodeSet))
+        proof_graph.add((self.identifier, RDF.type, PML.NodeSet))
         for step in self.steps:
-            proofGraph.add((self.identifier, PML.isConsequentOf, step.identifier))
-            builder.serializedNodeSets.add(self.identifier)
-            step.serialize(builder, proofGraph)
+            proof_graph.add((self.identifier, PML.isConsequentOf, step.identifier))
+            builder.serialized_node_sets.add(self.identifier)
+            step.serialize(builder, proof_graph)
 
-    def generateGraphNode(self, dot, idx, proofRoot=False, nsMap=None):
-        nsMap = nsMap if nsMap is not None else (self.network and self.network.nsMap or {})
-        dot.node(str(idx),
-                 label=str(buildUniTerm(self.conclusion, nsMap)),
-                 shape="component",
-                 root = 'true' if proofRoot else 'false')
+    def generate_graph_node(self, dot, idx, proof_root=False, ns_map=None):
+        ns_map = (
+            ns_map
+            if ns_map is not None
+            else (self.network and self.network.ns_map or {})
+        )
+        dot.node(
+            str(idx),
+            label=str(build_uniTerm(self.conclusion, ns_map)),
+            shape="component",
+            root="true" if proof_root else "false",
+        )
         for step in self.steps:
-            step.generateGraphNode(dot, idx + 1, nsMap=nsMap)
+            step.generate_graph_node(dot, idx + 1, ns_map=ns_map)
         # vertex.shape = 'plaintext'
         # vertex.width = '5em'
         # vertex.peripheries = '1'
@@ -1138,10 +1330,10 @@ class NodeSet(object):
     def __repr__(self):
         # rt = "Proof step for %s with %s justifications" % (
         #    buildUniTerm(self.conclusion), len(self.steps))
-        conclusionPrefix = self.naf and "not " or ""
+        conclusion_prefix = self.naf and "not " or ""
         rt = "Proof step for %s%s" % (
-            conclusionPrefix,
-            buildUniTerm(self.conclusion, self.network and self.network.nsMap or {}),
+            conclusion_prefix,
+            build_uniTerm(self.conclusion, self.network and self.network.ns_map or {}),
         )
         return rt
 
@@ -1192,12 +1384,14 @@ class InferenceStep(object):
         self.bindings = {} if bindings is None else bindings
         self.rule = rule
         self.antecedents: List[NodeSet] = []
-        self.groundQuery = None
+        self.ground_query = None
 
-    def traverse_and_check(self,
-                           namespaces_dict: dict,
-                           goals: dict[tuple[Identifier, ...],Identifier] = None,
-                           issues: list[str] = None):
+    def traverse_and_check(
+        self,
+        namespaces_dict: dict,
+        goals: dict[Triple, Identifier] = None,
+        issues: list[str] = None,
+    ):
         """
         Recursively traverse the inference step and the node set it is associated with to identify
         issues of the following kind:
@@ -1210,60 +1404,66 @@ class InferenceStep(object):
         """
         issues = [] if issues is None else issues
         antecedent_goals = [n.conclusion for n in self.antecedents]
-        if len(set(antecedent_goals)) !=  len(antecedent_goals):
+        if len(set(antecedent_goals)) != len(antecedent_goals):
             issues.append(f"{self} has redundant antecedents")
         for antecedent in self.antecedents:
             antecedent.traverse_and_check(namespaces_dict, goals, issues)
 
-    def propagateBindings(self, bindings):
+    def propagate_bindings(self, bindings):
         self.bindings.update(bindings)
 
-    def serialize(self, builder, proofGraph):
+    def serialize(self, builder, proof_graph):
         if self.rule and not self.source:
-            proofGraph.add(
+            proof_graph.add(
                 (self.identifier, PML.englishDescription, Literal(repr(self)))
             )
-        if self.groundQuery and (self.identifier, None, None) not in proofGraph:
+        if self.ground_query and (self.identifier, None, None) not in proof_graph:
             query = BNode()
             info = BNode()
-            proofGraph.add((self.identifier, PML.fromQuery, query))
-            proofGraph.add((query, RDF.type, PML.Query))
-            proofGraph.add((query, PML_P.hasContent, info))
-            proofGraph.add((info, RDF.type, PML_P.Information))
-            proofGraph.add((info, PML_P.hasRawString, Literal(self.groundQuery)))
+            proof_graph.add((self.identifier, PML.fromQuery, query))
+            proof_graph.add((query, RDF.type, PML.Query))
+            proof_graph.add((query, PML_P.hasContent, info))
+            proof_graph.add((info, RDF.type, PML_P.Information))
+            proof_graph.add((info, PML_P.hasRawString, Literal(self.ground_query)))
         elif self.source:
-            someDoc = BNode()
-            proofGraph.add((self.identifier, PML_P.hasSource, someDoc))
-            proofGraph.add((someDoc, RDF.type, PML_P.Document))
+            some_doc = BNode()
+            proof_graph.add((self.identifier, PML_P.hasSource, some_doc))
+            proof_graph.add((some_doc, RDF.type, PML_P.Document))
 
         # proofGraph.add((self.identifier, PML.hasLanguage, URIRef('http://inferenceweb.stanford.edu/registry/LG/RIF.owl')))
-        proofGraph.add((self.identifier, RDF.type, PML.InferenceStep))
-        proofGraph.add((self.identifier, PML.hasInferenceEngine, FUXI))
-        proofGraph.add((self.identifier, PML.hasRule, GMP_NS.GMP))
-        proofGraph.add((self.identifier, PML.consequent, self.parent.identifier))
+        proof_graph.add((self.identifier, RDF.type, PML.InferenceStep))
+        proof_graph.add((self.identifier, PML.hasInferenceEngine, FUXI))
+        proof_graph.add((self.identifier, PML.hasRule, GMP_NS.GMP))
+        proof_graph.add((self.identifier, PML.consequent, self.parent.identifier))
         for ant in self.antecedents:
-            proofGraph.add((self.identifier, PML.hasAntecedent, ant.identifier))
-            ant.serialize(builder, proofGraph)
+            proof_graph.add((self.identifier, PML.hasAntecedent, ant.identifier))
+            ant.serialize(builder, proof_graph)
         for k, v in list(self.bindings.items()):
             mapping = BNode()
-            proofGraph.add((self.identifier, PML.hasVariableMapping, mapping))
-            proofGraph.add((mapping, RDF.type, PML.Mapping))
-            proofGraph.add((mapping, PML.mapFrom, k))
-            proofGraph.add((mapping, PML.mapTo, v))
+            proof_graph.add((self.identifier, PML.hasVariableMapping, mapping))
+            proof_graph.add((mapping, RDF.type, PML.Mapping))
+            proof_graph.add((mapping, PML.mapFrom, k))
+            proof_graph.add((mapping, PML.mapTo, v))
 
-    def generateGraphNode(self, dot, idx, nsMap=None):
-        longest_var_name = max(len(str(k)) for k in self.bindings.keys()) if self.bindings else 0
-        binding_info = ''.join([f"\\l{' ' * (longest_var_name - len(str(k)))}?{k} -> {v.split('#')[-1]}"
-                                    for k, v in self.bindings.items()])
-        label = self._render_label(nsMap) if nsMap is not None else repr(self)
+    def generate_graph_node(self, dot, idx, ns_map=None):
+        longest_var_name = (
+            max(len(str(k)) for k in self.bindings.keys()) if self.bindings else 0
+        )
+        binding_info = "".join(
+            [
+                f"\\l{' ' * (longest_var_name - len(str(k)))}?{k} -> {v.split('#')[-1]}"
+                for k, v in self.bindings.items()
+            ]
+        )
+        label = self._render_label(ns_map) if ns_map is not None else repr(self)
         dot.node(str(idx), label=label, shape="box")
         return binding_info
 
-    def iterCondition(self, condition):
+    def iter_condition(self, condition):
         return isinstance(condition, SetOperator) and condition or iter([condition])
 
-    def prettyPrintRule(self):
-        if len(list(self.iterCondition(self.rule.body))) > 2:
+    def pretty_print_rule(self):
+        if len(list(self.iter_condition(self.rule.body))) > 2:
             return (
                 "And(%s)" % repr(self.rule.head)
                 + ":-"
@@ -1271,21 +1471,22 @@ class InferenceStep(object):
             )
         return repr(self.rule)
 
-    def _render_label(self, nsMap):
-        if self.groundQuery:
-            return self.groundQuery
+    def _render_label(self, ns_map):
+        if self.ground_query:
+            return self.ground_query
         elif self.source:
             return self.source
         elif self.rule:
-            if isinstance(self.rule.head, AdornedUniTerm) and self.rule.head.isMagic:
-                head_str = repr(buildUniTerm(self.rule.head.toRDFTuple(), nsMap))
+            if isinstance(self.rule.head, AdornedUniTerm) and self.rule.head.is_magic:
+                head_str = repr(build_uniTerm(self.rule.head.to_rdf_tuple(), ns_map))
                 return f"magic predicate justification\\n{head_str}"
             else:
-                head_str = repr(buildUniTerm(self.rule.head.toRDFTuple(), nsMap))
+                head_str = repr(build_uniTerm(self.rule.head.to_rdf_tuple(), ns_map))
                 body_terms = list(term_iterator(self.rule.body))
                 body_strs = [
-                    repr(buildUniTerm(t.toRDFTuple(), nsMap))
-                    if hasattr(t, "toRDFTuple") else repr(t)
+                    repr(build_uniTerm(t.to_rdf_tuple(), ns_map))
+                    if hasattr(t, "to_rdf_tuple")
+                    else repr(t)
                     for t in body_terms
                 ]
                 if len(body_strs) == 1:
@@ -1294,12 +1495,12 @@ class InferenceStep(object):
         return repr(self)
 
     def __repr__(self):
-        if self.groundQuery:
-            return self.groundQuery
+        if self.ground_query:
+            return self.ground_query
         elif self.source:
             return self.source
         elif self.rule:
-            if isinstance(self.rule.head, AdornedUniTerm) and self.rule.head.isMagic:
+            if isinstance(self.rule.head, AdornedUniTerm) and self.rule.head.is_magic:
                 return "magic predicate justification\\n%s" % (self.rule)
             else:
                 return repr(self.rule)  # self.prettyPrintRule()

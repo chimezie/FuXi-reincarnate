@@ -1,13 +1,15 @@
-from typing import List, Optional, TYPE_CHECKING
-
+from typing import TYPE_CHECKING
+from pyparsing import ParseResults
+from rdflib.plugins.sparql.parser import parseQuery
+from rdflib.graph import Graph
 from rdflib.namespace import NamespaceManager
 from rdflib.plugins.sparql.parserutils import CompValue
-from pyparsing import ParseResults
-from rdflib import RDF, URIRef
-from rdflib.query import Result
-from rdflib.graph import Graph
 from rdflib.plugins.sparql.processor import SPARQLResult
-from rdflib.term import Identifier, Literal
+from rdflib.query import Result
+from rdflib.term import Identifier, Literal, Variable
+
+from fuxi.types import Triple
+from rdflib import RDF, URIRef
 
 if TYPE_CHECKING:
     from fuxi.Horn.HornRules import Ruleset
@@ -18,10 +20,10 @@ def owl_entailment_regime_graph(
     ns_map: dict[str, Identifier],
     reasoning_method: int = -1,
     identify_hybrid_predicates: bool = True,
-    hybrid_predicates: List[URIRef] = None,
-    derived_predicates: List[Identifier] = None,
-    goals: List[tuple[Identifier, Identifier, Identifier]] = None,
-    extra_rulesets: Optional[List["Ruleset"]] = None,
+    hybrid_predicates: list[URIRef] = None,
+    derived_predicates: list[Identifier] = None,
+    goals: list[Triple] = None,
+    extra_rulesets: list["Ruleset"] | None = None,
     verbose: bool = False,
     namespace_manager: NamespaceManager = None,
     add_pd_semantics: bool = False,
@@ -69,7 +71,7 @@ def owl_entailment_regime_graph(
         ``p == RDF.type``; otherwise it is ``p``. When provided without
         ``derived_predicates``, the goal-derived predicates are used as the IDB
         predicate set.
-    :type goals: List[tuple[Identifier, Identifier, Identifier]], optional
+    :type goals: List[Triple], optional
     :param extra_rulesets: Additional Ruleset instances to append to the OWL/DLP
         rules before building the SPARQL entailment store.
     :type extra_rulesets: List[Ruleset], optional
@@ -81,7 +83,8 @@ def owl_entailment_regime_graph(
     :param add_non_dhl_owl_rules: Enables additional OWL rules beyond those used in
         the Description Logic Horn (DLH) fragment.
     :type add_non_dhl_owl_rules: bool, optional
-    :param tbox_only_graph: If provided, only the TBox (ontology) part of the graph will be used for entailment.
+    :param tbox_only_graph: If provided, only the TBox (ontology) part of
+           the graph will be used for entailment.
     :type tbox_only_graph: Graph, optional
 
     :return: Tuple of (entailment graph, closure delta graph).
@@ -97,19 +100,21 @@ def owl_entailment_regime_graph(
     >>> entail_graph, _ = owl_entailment_regime_graph(fact_graph, ns_map)
     >>> # Queries against entail_graph are mediated and may use derived predicates.
     >>> list(entail_graph.triples((ex.alice, ex.parentOf, None)))
-    [(rdflib.term.URIRef('http://example.org/alice'), rdflib.term.URIRef('http://example.org/parentOf'), rdflib.term.URIRef('http://example.org/bob'))]
+    [(rdflib.term.URIRef('http://example.org/alice'),
+      rdflib.term.URIRef('http://example.org/parentOf'),
+      rdflib.term.URIRef('http://example.org/bob'))]
     """
-    from fuxi.Horn.HornRules import HornFromN3
     from io import StringIO
-    from fuxi.DLP import non_DHL_OWL_Semantics
-    from fuxi.Rete.RuleStore import SetupRuleStore
-    from fuxi.DLP.ConditionalAxioms import AdditionalRules
+
+    from fuxi.DLP import NON_DHL_OWL_SEMANTICS
+    from fuxi.DLP.ConditionalAxioms import additional_rules
+    from fuxi.Horn.HornRules import horn_from_n3
+    from fuxi.Rete.RuleStore import setup_rule_store
     from fuxi.SPARQL.BackwardChainingStore import (
         BFP_METHOD,
         TopDownSPARQLEntailingStore,
     )
 
-    reasoning_method = BFP_METHOD if reasoning_method == -1 else reasoning_method
     if hybrid_predicates is None:
         hybrid_predicates = []
     if derived_predicates is None:
@@ -126,36 +131,34 @@ def owl_entailment_regime_graph(
             )
         elif derived_predicates is not None:
             derived_predicates = list(dict.fromkeys(goal_derived_predicates))
-    _, _, network = SetupRuleStore(makeNetwork=True)
+    _, _, network = setup_rule_store(make_network=True)
     closure_delta_graph = Graph()
     closure_delta_graph.namespace_manager = namespace_manager
     network.inferred_facts = closure_delta_graph
     if add_non_dhl_owl_rules:
-        rules = list(HornFromN3(StringIO(non_DHL_OWL_Semantics)))
+        rules = list(horn_from_n3(StringIO(NON_DHL_OWL_SEMANTICS)))
     else:
         rules = []
     rules.extend(
-        network.setupDescriptionLogicProgramming(
+        network.setup_description_logic_programming(
             graph if tbox_only_graph is None else tbox_only_graph,
-            addPDSemantics=add_pd_semantics,
-            constructNetwork=False
-        )
+            add_pd_semantics=add_pd_semantics,
+            construct_network=False)
     )
     if not tbox_only_graph:
-        for rule in AdditionalRules(graph):
+        for rule in additional_rules(graph):
             rules.append(rule)
     if extra_rulesets:
         rules.extend(extra_rulesets)
     top_down_store = TopDownSPARQLEntailingStore(
         graph.store,
         graph,
-        idb=rules,
-        DEBUG=verbose,
-        ns_bindings=ns_map,
-        decision_procedure=reasoning_method,
-        identify_hybrid_predicates=identify_hybrid_predicates,
-        hybrid_predicates=hybrid_predicates,
         derived_predicates=derived_predicates,
+        idb=rules,
+        debug=verbose,
+        ns_bindings=ns_map,
+        identify_hybrid_predicates=identify_hybrid_predicates,
+        hybrid_predicates=hybrid_predicates
     )
     return Graph(top_down_store), closure_delta_graph
 
@@ -213,7 +216,7 @@ def extract_triples_from_triple_part(
 
 def extract_triples_from_query(
     query_structure: CompValue, ns_binds: dict[str, URIRef], triples: list | None = None
-) -> tuple[URIRef | None, list[tuple[URIRef, URIRef, URIRef]]]:
+) -> tuple[URIRef | None, list[Triple]]:
     triples = triples if triples is not None else []
     service_url = None
     if query_structure.name == "AskQuery":
@@ -221,7 +224,8 @@ def extract_triples_from_query(
         assert isinstance(component, CompValue)
         service_url, _ = extract_triples_from_query(component, ns_binds, triples)
     elif query_structure.name == "GroupGraphPatternSub":
-        for component in extract_list_from_comp_values(query_structure, "part"):
+        for component in extract_list_from_comp_values(query_structure,
+                                                       "part"):
             child_service_url, _ = extract_triples_from_query(
                 component, ns_binds, triples
             )
@@ -229,28 +233,30 @@ def extract_triples_from_query(
                 service_url = child_service_url
     elif query_structure.name in "TriplesBlock":
         if isinstance(query_structure.triples, list) and all(
-            (
+
                 isinstance(item, list) and len(item) == 3
                 for item in query_structure.triples
-            )
+
         ):
             triples.extend(query_structure.triples)
         else:
-            for item in extract_list_from_comp_values(query_structure, "triples"):
+            for item in extract_list_from_comp_values(query_structure,
+                                                      "triples"):
                 if isinstance(item, list) and len(item) == 3:
                     triples.append(
                         tuple(
                             map(
-                                lambda i: extract_triples_from_triple_part(i, ns_binds),
+                                lambda i: extract_triples_from_triple_part(
+                                    i,
+                                    ns_binds
+                                ),
                                 item,
                             )
                         )
                     )
                 else:
-                    items = [*map(
-                        lambda i: extract_triples_from_triple_part(i, ns_binds),
-                        item,
-                    )]
+                    for i in item:
+                        extract_triples_from_triple_part(i, ns_binds)
                     triples.extend([
                         tuple(
                             extract_triples_from_triple_part(part, ns_binds)
@@ -274,13 +280,53 @@ def extract_triples_from_query(
         )
     elif query_structure.name == "ServiceGraphPattern":
         if service_url is not None:
-            raise NotImplementedError("Multiple SERVICE patterns are not supported")
+            raise NotImplementedError(
+                "Multiple SERVICE patterns are not supported")
         service_url = query_structure.term
         child_service_url, _ = extract_triples_from_query(
             query_structure.graph, ns_binds, triples
         )
         if child_service_url is not None:
-            raise NotImplementedError("Multiple SERVICE patterns are not supported")
+            raise NotImplementedError(
+                "Multiple SERVICE patterns are not supported")
     else:
         raise Exception(f"Unknown type: {type(query_structure)}")
     return service_url, triples
+
+
+def sparql_interlocution(query: str, top_down_store: "TopDownSPARQLEntailingStore"):
+    """
+    Execute a SPARQL query against a TopDownSPARQLEntailingStore and yield solutions.
+
+    It parses the query, extracts the basic graph pattern, converts
+    triples to quads (with None as the fourth element), and uses the store's batch_unify
+    to retrieve matching solutions.
+
+    Only solutions where all query variables are bound are yielded.
+
+    :param query: A SPARQL query string.
+    :param top_down_store: A TopDownSPARQLEntailingStore instance configured with
+        the rule program and EDB.
+    :yields: Dictionaries mapping Variable objects to their bound values for each
+        matching solution.
+
+    Example:
+        >>> for answer in sparql_interlocution(query, top_down_store):
+        ...     movie = answer[Variable('movie')]
+    """
+    from fuxi.SPARQL.utilities import extract_triples_from_query
+
+    _, parsed_query = parseQuery(query)
+    _, triples = extract_triples_from_query(parsed_query, top_down_store.ns_bindings)
+    variables: set[Variable] = set()
+    for triple in triples:
+        for part in triple:
+            if isinstance(part, Variable):
+                variables.add(part)
+    quads = [triple + tuple([None]) for triple in triples]
+    try:
+        for answer in top_down_store.batch_unify(quads):
+            if not variables.difference(answer):
+                yield answer
+    except (StopIteration, RuntimeError):
+        pass

@@ -1,6 +1,12 @@
 FuXi is a highly efficient, Python-based, semantic web logical reasoning system. It is
 being re-written for modern Python 3.9+ and adapted for use with transformer-based AI systems and their frameworks.
 
+## Changelog
+
+See [CHANGELOG.md](https://github.com/chimezie/FuXi-reincarnate/blob/main/CHANGELOG.md)
+for the full release history. The latest release notes are at
+[Releases](https://github.com/chimezie/FuXi-reincarnate/releases).
+
 Robert Doorenbos (1995) wrote about:
 
 > Production Matching for Large Learning Systems.

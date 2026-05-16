@@ -47,7 +47,11 @@ fuxi = "fuxi.Rete.CommandLine:main"
 "fuxi.owl" = "fuxi.cli.owl:main"
 
 [project.urls]
-Homepage = "https://github.com/chimezie/FuXi-reincarnate/blob/fuxi-reincarnate/"
+Homepage = "https://github.com/chimezie/FuXi-reincarnate/"
+Documentation = "https://fuxi.readthedocs.io/"
+Changelog = "https://github.com/chimezie/FuXi-reincarnate/blob/main/CHANGELOG.md"
+Issues = "https://github.com/chimezie/FuXi-reincarnate/issues"
+Source = "https://github.com/chimezie/FuXi-reincarnate"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

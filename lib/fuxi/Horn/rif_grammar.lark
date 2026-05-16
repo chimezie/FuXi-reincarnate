@@ -1,0 +1,93 @@
+// RIF-BLD Presentation Syntax Grammar
+// Based on W3C RIF-BLD (Second Edition, 2013)
+// Lark grammar - Earley compatible during development
+// Implements the full RIF-BLD presentation syntax EBNF
+
+start: document
+
+document: irimeta? "Document" "(" base? prefix* import_* group? ")"
+
+base: "Base" "(" ANGLE_IRI ")"
+prefix: "Prefix" "(" NCNAME ANGLE_IRI ")"
+import_: irimeta? "Import" "(" locator profile? ")"
+locator: ANGLE_IRI
+profile: ANGLE_IRI
+
+group: irimeta? "Group" "(" (rule | group)* ")"
+
+rule: irimeta? "Forall" var+ "(" clause ")" | clause
+clause: implies | atomic
+implies: irimeta? (atomic | "And" "(" atomic* ")") ":-" formula
+
+formula: and_formula
+       | or_formula
+       | exists_formula
+       | atomic
+       | external_atom
+
+and_formula: irimeta? "And" "(" formula* ")"
+or_formula: irimeta? "Or" "(" formula* ")"
+exists_formula: irimeta? "Exists" var+ "(" formula ")"
+
+atomic: irimeta? (atom | equal | member | subclass | frame)
+
+atom: uniterm
+equal: term "=" term
+member: term "#" term
+subclass: term "##" term
+frame: term "[" slot* "]"
+slot: term "->" term
+
+term: irimeta? (const | var | expr | list_ | external_expr)
+
+expr: uniterm
+uniterm: const "(" (term* | named_arg*) ")"
+
+named_arg: NCNAME "->" term
+list_: "List" "(" term* ")" | "List" "(" term+ "|" term ")"
+
+const: ESCAPED_STRING "^^" symspace     -> typed_const
+     | ESCAPED_STRING "@" NCNAME        -> lang_const
+     | ANGLE_IRI                        -> iri_const
+     | CURIE                            -> curie_const
+     | NCNAME                           -> short_const
+     | NUMBER                           -> numeric_const
+
+var: "?" NCNAME
+
+external_atom: "External" "(" atom ")"
+external_expr: "External" "(" expr ")"
+
+symspace: ANGLE_IRI | CURIE
+
+irimeta: "(*" iriconst? frame_ann? "*)"
+iriconst: const
+frame_ann: frame | "And" "(" frame* ")"
+
+// Terminals - ordered by priority for lexer
+DOCUMENT.2: "Document"
+GROUP.2: "Group"
+FORALL.2: "Forall"
+AND.2: "And"
+OR.2: "Or"
+EXISTS.2: "Exists"
+IMPORT.2: "Import"
+PREFIX.2: "Prefix"
+BASE.2: "Base"
+LIST.2: "List"
+EXTERNAL.2: "External"
+TRUE.2: "true"
+FALSE.2: "false"
+
+ANGLE_IRI: "<" /[^>]+/ ">"
+CURIE: NCNAME ":" NCNAME_CHARS
+
+NCNAME.1: /[a-zA-Z_\u00C0-\uFFFD][\w.\-\u00B7-\uFFFD]*/
+NCNAME_CHARS: /[a-zA-Z0-9._\-\u00B7-\uFFFD]+/
+
+ESCAPED_STRING: "\"" /([^"\\]|\\.)*/ "\""
+
+NUMBER: /-?[0-9]+(\.[0-9]+)?/
+
+%import common.WS
+%ignore WS

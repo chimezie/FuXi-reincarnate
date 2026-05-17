@@ -100,7 +100,11 @@ def _render_rete_network(
                     f"Is Graphviz ('dot' binary) installed?"
                 ) from exc
             sys.stdout.buffer.write(data)
-            assert idx < 2
+            if idx >= 2:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Found %d query networks; only the first was rendered", idx,
+                )
     elif network is not None:
         dot = render_network(network, ns_map=ns_binds, format=img_format)
         try:

@@ -486,7 +486,7 @@ def _add_rete_node(dot, node, namespace_manager, identifier):
     return identifier
 
 
-def render_network(network, ns_map=None, format="png", store = None):
+def render_network(network, ns_map=None, format="png"):
     """
     Takes an instance of a compiled ReteNetwork and a namespace mapping
     (for constructing QNames for rule pattern terms) and returns a
@@ -528,29 +528,6 @@ def render_network(network, ns_map=None, format="png", store = None):
                     label="left" if i == 0 else "right",
                 )
                 edges.append((node, beta_node))
-
-    if store is not None:
-        from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
-        if isinstance(store, TopDownSPARQLEntailingStore):
-            for network_for_goal, goal in store.query_networks:
-                for node in list(network_for_goal.nodes.values()):
-                    if node not in visited_nodes:
-                        idx += 1
-                        dot.node(
-                            str(idx),
-                            label="",
-                            shape="component",
-                            root="true" if node.consequent else "false",
-                        )
-                        visited_nodes[node] = idx
-                for node in list(network_for_goal.nodes.values()):
-                    for mem in node.descendent_memory:
-                        if not mem:
-                            continue
-                        handle_bnode(idx, node, mem.successor, dot)
-                    for beta_node in node.descendent_beta_nodes:
-                        handle_bnode(idx, node, beta_node, dot)
-            return dot
 
     for node in list(network.nodes.values()):
         if node not in visited_nodes:

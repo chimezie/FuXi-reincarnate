@@ -75,21 +75,42 @@ def _render_proof_graph(
 
 def _render_rete_network(
     fmt: OutputFormat,
-    network,
+    result: BFPResult | None,
     ns_binds: dict[str, Identifier],
+    network=None,
 ) -> None:
     from fuxi.Rete.Util import render_network
 
     img_format = "svg" if fmt == OutputFormat.RETE_NETWORK_SVG else "png"
-    dot = render_network(network, ns_map=ns_binds, format=img_format)
-    try:
-        data = dot.pipe(format=img_format)
-    except Exception as exc:
-        raise SystemExit(
-            f"Failed to render RETE network: {exc}. "
-            f"Is Graphviz ('dot' binary) installed?"
-        ) from exc
-    sys.stdout.buffer.write(data)
+
+    if result is not None:
+        store = result.top_down_store
+        for idx, (network_for_goal, goal_pattern) in enumerate(
+            store.query_networks, 1
+        ):
+            ns_map = {**network_for_goal.ns_map, **ns_binds}
+            dot = render_network(
+                network_for_goal, ns_map=ns_map, format=img_format
+            )
+            try:
+                data = dot.pipe(format=img_format)
+            except Exception as exc:
+                raise SystemExit(
+                    f"Failed to render RETE network: {exc}. "
+                    f"Is Graphviz ('dot' binary) installed?"
+                ) from exc
+            sys.stdout.buffer.write(data)
+            assert idx < 2
+    elif network is not None:
+        dot = render_network(network, ns_map=ns_binds, format=img_format)
+        try:
+            data = dot.pipe(format=img_format)
+        except Exception as exc:
+            raise SystemExit(
+                f"Failed to render RETE network: {exc}. "
+                f"Is Graphviz ('dot' binary) installed?"
+            ) from exc
+        sys.stdout.buffer.write(data)
 
 
 def _render_sip_collection(
@@ -98,7 +119,8 @@ def _render_sip_collection(
 ) -> None:
     if result is None:
         raise SystemExit("--output=sip-collection-* requires --why --method=bfp")
-    from fuxi.Rete.SidewaysInformationPassing import render_sip_collection
+    from fuxi.Rete.SidewaysInformationPassing import MAGIC, render_sip_collection
+    from rdflib import RDF
 
     img_format = "svg" if fmt == OutputFormat.SIP_COLLECTION_SVG else "png"
     store = result.top_down_store
@@ -106,10 +128,17 @@ def _render_sip_collection(
         goal_info = store.goal_rule_sip_info.get(_goal)
         if goal_info is None:
             continue
-        _, _, sip_collection, _, _ = goal_info
+        _, adorned_program, sip_collection, _, _ = goal_info
         if sip_collection is None:
             continue
-        dot = render_sip_collection(sip_collection, format=img_format)
+        has_arcs = list(
+            sip_collection.triples((None, RDF.type, MAGIC.SipArc))
+        )
+        dot = render_sip_collection(
+            sip_collection,
+            format=img_format,
+            adorned_program=adorned_program if not has_arcs else None,
+        )
         try:
             data = dot.pipe(format=img_format)
         except Exception as exc:
@@ -125,7 +154,11 @@ def _render_rif(
     network,
     negation: bool,
 ) -> None:
-    for rule in rule_set:
+    rules = (rule_set if rule_set
+             else network.rules if network.rules
+             else network.justifications if network.justifications
+             else [])
+    for rule in rules:
         print(rule)
     if negation:
         for n_rule in network.neg_rules:
@@ -251,7 +284,7 @@ def render_output(
         return
 
     if fmt in OutputFormat.rete_network_formats():
-        _render_rete_network(fmt, network, ns_binds)
+        _render_rete_network(fmt, result, ns_binds, network=network)
         return
 
     if fmt in OutputFormat.sip_collection_formats():

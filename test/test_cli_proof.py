@@ -34,6 +34,38 @@ def test_proof_requires_why():
 
 
 @pytest.mark.integration
+def test_proof_rete_network_svg():
+    """rete-network-svg must not crash with BFP query networks."""
+    inverse_of_premises = TEST_DIR / "OWL" / "inverseOf" / "premises001.rdf"
+    query = "ASK { eg:bob your:isBrotherOf eg:joe }"
+    result = subprocess.run(
+        [
+            *FUXI_PROOF_CMD,
+            "--dlp",
+            "--hybrid",
+            "--ns",
+            "eg=http://example.net/vocab#",
+            "--ns",
+            "your=http://example.net/vocab#",
+            "--why",
+            query,
+            "--output",
+            "rete-network-svg",
+            str(inverse_of_premises),
+        ],
+        capture_output=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, (
+        f"CLI failed:\nstdout: {result.stdout[:500]}\nstderr: {result.stderr[:500]}"
+    )
+    output = result.stdout
+    assert output.startswith(b"<?xml") or output.startswith(b"<svg"), (
+        f"SVG rete network should start with XML/SVG header, got: {output[:200]!r}"
+    )
+
+
+@pytest.mark.integration
 def test_proof_graph_svg():
     query = f"PREFIX fam: <{FAM_NS}> SELECT ?a {{ fam:david fam:ancestor ?a }}"
     result = subprocess.run(

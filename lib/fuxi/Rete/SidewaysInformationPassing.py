@@ -64,7 +64,15 @@ def _get_graphviz():
     return graphviz
 
 
-def render_sip_collection(sip_graph, format="png"):
+def _adorned_label(lit):
+    lead = normalize_term(get_op(lit), lit.ns_manager)
+    adorn = getattr(lit, "adornment", None)
+    if adorn:
+        return f"{lead}^{adorn}"
+    return lead
+
+
+def render_sip_collection(sip_graph, format="png", adorned_program=None):
     graphviz = _get_graphviz()
     dot = graphviz.Digraph("SIP Collection", format=format)
     left_nodes_lookup = {}
@@ -109,6 +117,21 @@ def render_sip_collection(sip_graph, format="png"):
 
         if edge_label != marked_edge_label:
             dot.edge(left_name, nodes[q], label=edge_label)
+
+    if not nodes and adorned_program:
+        for rule in adorned_program:
+            head = rule.head if hasattr(rule, "head") else rule.formula.head
+            head_label = _adorned_label(head)
+            head_id = make_md5_digest(head_label)
+            dot.node(head_id, label=head_label, shape="box")
+            for lit in iter_condition(rule.formula.body):
+                lit_label = _adorned_label(lit)
+                lit_id = make_md5_digest(lit_label)
+                dot.node(lit_id, label=lit_label, shape="plaintext")
+                dot.edge(head_id, lit_id)
+
+        dot.node("legend", label="No SIP arcs (all body predicates are EDB)", shape="note")
+
     return dot
 
 

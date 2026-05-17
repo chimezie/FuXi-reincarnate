@@ -515,7 +515,7 @@ def run_bfp(
     for answer in sparql_interlocution(options.why, top_down_store):
         answers.append(answer)
         s_time = time.time() - start
-        logger.info(
+        logger.debug(
             "Answer via top-down SPARQL SIP strategy: %s (%s)",
             answer,
             _format_timing(s_time),

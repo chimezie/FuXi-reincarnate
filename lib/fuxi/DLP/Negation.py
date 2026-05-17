@@ -12,7 +12,6 @@ from rdflib import Namespace, RDF, Variable, BNode
 from rdflib.util import first
 from fuxi.Rete.RuleStore import setup_rule_store
 from fuxi.Horn.PositiveConditions import And
-from fuxi.Rete.Util import generate_token_set
 
 from fuxi.Syntax.InfixOWL import some
 from fuxi.Syntax.InfixOWL import only
@@ -40,6 +39,7 @@ def get_vars(atom):
 
 
 def calculate_stratified_model(network, ont_graph, derived_preds, edb=None):
+    from fuxi.Rete.Util import generate_token_set
     pos_rules, ignored = map_dlp_to_network(network, ont_graph, construct_network=False, derived_preds=derived_preds,
                                            ignore_negative_stratus=True)
     for rule in pos_rules:

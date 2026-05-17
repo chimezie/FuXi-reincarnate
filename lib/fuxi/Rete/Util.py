@@ -382,6 +382,10 @@ def generate_token_set(
     return rt
 
 
+def _rete_label(uri: str) -> str:
+    return uri[1:-1] if uri.startswith("<") and uri.endswith(">") else uri
+
+
 def _add_rete_node(dot, node, namespace_manager, identifier):
     from fuxi.Rete import ReteNetwork, BetaNode, BuiltInAlphaNode, AlphaNode
     from .BetaNode import LEFT_MEMORY, RIGHT_MEMORY
@@ -419,9 +423,9 @@ def _add_rete_node(dot, node, namespace_manager, identifier):
             stmts.append(
                 " ".join(
                     [
-                        str(namespace_manager.normalizeUri(s)),
-                        str(namespace_manager.normalizeUri(p)),
-                        str(namespace_manager.normalizeUri(o)),
+                        _rete_label(str(namespace_manager.normalizeUri(s))),
+                        _rete_label(str(namespace_manager.normalizeUri(p))),
+                        _rete_label(str(namespace_manager.normalizeUri(o))),
                     ]
                 )
             )
@@ -444,16 +448,16 @@ def _add_rete_node(dot, node, namespace_manager, identifier):
         leftLen = node.memories[LEFT_MEMORY] and len(node.memories[LEFT_MEMORY]) or 0
         rightLen = len(node.memories[RIGHT_MEMORY])
         label += "\\n %s in left, %s in right memories" % (leftLen, rightLen)
-        inst = node.network.instantiations[node]
+        inst = node.network.instantiations.get(node, 0)
         if inst:
             label += "\\n%s instantiations" % inst
 
     elif isinstance(node, BuiltInAlphaNode):
         peripheries = "1"
         shape = "plaintext"
-        canonicalFunc = namespace_manager.normalizeUri(node.n3builtin.uri)
-        canonicalArg1 = namespace_manager.normalizeUri(node.n3builtin.argument)
-        canonicalArg2 = namespace_manager.normalizeUri(node.n3builtin.result)
+        canonicalFunc = _rete_label(namespace_manager.normalizeUri(node.n3builtin.uri))
+        canonicalArg1 = _rete_label(namespace_manager.normalizeUri(node.n3builtin.argument))
+        canonicalArg2 = _rete_label(namespace_manager.normalizeUri(node.n3builtin.result))
         label = "%s(%s,%s)" % (canonicalFunc, canonicalArg1, canonicalArg2)
 
     elif isinstance(node, AlphaNode):
@@ -463,7 +467,7 @@ def _add_rete_node(dot, node, namespace_manager, identifier):
             [
                 isinstance(i, BNode)
                 and i.n3()
-                or str(namespace_manager.normalizeUri(i))
+                or _rete_label(str(namespace_manager.normalizeUri(i)))
                 for i in node.triple_pattern
             ]
         )
@@ -482,7 +486,7 @@ def _add_rete_node(dot, node, namespace_manager, identifier):
     return identifier
 
 
-def render_network(network, ns_map=None, format="png"):
+def render_network(network, ns_map=None, format="png", store = None):
     """
     Takes an instance of a compiled ReteNetwork and a namespace mapping
     (for constructing QNames for rule pattern terms) and returns a
@@ -496,9 +500,58 @@ def render_network(network, ns_map=None, format="png"):
     for prefix, uri in list(ns_map.items()):
         namespace_manager.bind(prefix, uri, override=False)
 
+    # Register namespaces from the network's inferred_facts namespace manager
+    # (set to the fact graph's namespace manager in the BFP path)
+    inferred_nm = getattr(
+        getattr(network, "inferred_facts", None), "namespace_manager", None
+    )
+    if inferred_nm:
+        for prefix, uri in inferred_nm.namespaces():
+            namespace_manager.bind(prefix, uri, override=False)
+
     visited_nodes = {}
     edges = []
     idx = 0
+
+    def handle_bnode(idx, node, beta_node, dot):
+        for i, other_node in enumerate([beta_node.left_node, beta_node.right_node]):
+            if node == other_node and (node, other_node) not in edges:
+                for item in [node, beta_node]:
+                    if item not in visited_nodes:
+                        idx += 1
+                        visited_nodes[item] = _add_rete_node(
+                            dot, item, namespace_manager, str(idx)
+                        )
+                dot.edge(
+                    visited_nodes[node],
+                    visited_nodes[beta_node],
+                    label="left" if i == 0 else "right",
+                )
+                edges.append((node, beta_node))
+
+    if store is not None:
+        from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
+        if isinstance(store, TopDownSPARQLEntailingStore):
+            for network_for_goal, goal in store.query_networks:
+                for node in list(network_for_goal.nodes.values()):
+                    if node not in visited_nodes:
+                        idx += 1
+                        dot.node(
+                            str(idx),
+                            label="",
+                            shape="component",
+                            root="true" if node.consequent else "false",
+                        )
+                        visited_nodes[node] = idx
+                for node in list(network_for_goal.nodes.values()):
+                    for mem in node.descendent_memory:
+                        if not mem:
+                            continue
+                        handle_bnode(idx, node, mem.successor, dot)
+                    for beta_node in node.descendent_beta_nodes:
+                        handle_bnode(idx, node, beta_node, dot)
+            return dot
+
     for node in list(network.nodes.values()):
         if node not in visited_nodes:
             idx += 1
@@ -507,11 +560,11 @@ def render_network(network, ns_map=None, format="png"):
         for mem in node.descendent_memory:
             if not mem:
                 continue
-            bNode = mem.successor
-        for bNode in node.descendent_beta_nodes:
-            for i, otherNode in enumerate([bNode.left_node, bNode.right_node]):
+            beta_node = mem.successor
+        for beta_node in node.descendent_beta_nodes:
+            for i, otherNode in enumerate([beta_node.left_node, beta_node.right_node]):
                 if node == otherNode and (node, otherNode) not in edges:
-                    for item in [node, bNode]:
+                    for item in [node, beta_node]:
                         if item not in visited_nodes:
                             idx += 1
                             visited_nodes[item] = _add_rete_node(
@@ -519,10 +572,10 @@ def render_network(network, ns_map=None, format="png"):
                             )
                     dot.edge(
                         visited_nodes[node],
-                        visited_nodes[bNode],
+                        visited_nodes[beta_node],
                         label="left" if i == 0 else "right",
                     )
-                    edges.append((node, bNode))
+                    edges.append((node, beta_node))
 
     return dot
 

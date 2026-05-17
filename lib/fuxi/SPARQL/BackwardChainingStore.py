@@ -29,7 +29,6 @@ from fuxi.Rete.TopDown import rdf_tuples_to_sparql
 from fuxi.Rete.TopDown import merge_mappings1_to2
 from fuxi.Rete.SidewaysInformationPassing import get_op
 from fuxi.Rete.SidewaysInformationPassing import sip_representation
-from fuxi.Rete.Util import LOG
 from fuxi.LP.BackwardFixpointProcedure import BackwardFixpointProcedure
 from fuxi.LP import identify_hybrid_predicates as identify_hybrid_predicates_fn
 from fuxi.Horn.PositiveConditions import build_uniterm_from_tuple
@@ -47,14 +46,14 @@ from rdflib.plugins.sparql.parserutils import CompValue
 
 assert AlgebraExpression
 from rdflib.plugins.sparql.sparql import Query
+from rdflib.namespace import Namespace
 
 assert Query
 
 TOP_DOWN_METHOD = 0
 BFP_METHOD = 1
-
+LOG = Namespace("http://www.w3.org/2000/10/swap/log#")
 DEFAULT_BUILTIN_MAP = {LOG.equal: "%s  = %s", LOG.notEqualTo: "%s != %s"}
-
 
 class NonSymmetricBinaryOperator(AlgebraExpression):
     def fetch_terminal_expression(self):

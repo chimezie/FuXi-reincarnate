@@ -30,7 +30,6 @@ from fuxi.Rete.SidewaysInformationPassing import get_args
 from fuxi.Rete.SidewaysInformationPassing import incoming_sip_arcs
 from fuxi.Rete.SidewaysInformationPassing import sip_representation
 from fuxi.Rete.Magic import adorn_literal
-from fuxi.Rete.Util import selective_memoize, lazy_generator_peek
 from fuxi.SPARQL import EDBQuery, normalize_bindings_and_query
 
 from rdflib import (
@@ -108,7 +107,7 @@ def triple_to_triple_pattern(graph, term):
         return "%s %s %s" % tuple([render_term(graph, trm) for trm in term.to_rdf_tuple()])
 
 
-@selective_memoize([0])
+#@selective_memoize([0])
 def normalize_uri(rdf_term, rev_ns_map):
     """
     Takes an RDF Term and 'normalizes' it into a QName (using the registered
@@ -134,7 +133,7 @@ def normalize_uri(rdf_term, rev_ns_map):
         return ":".join([q_name_parts[0], q_name_parts[-1]])
 
 
-@selective_memoize([0])
+#@selective_memoize([0])
 def compute_qname(uri, rev_ns_map):
     namespace, name = split_uri(uri)
     namespace = URIRef(namespace)
@@ -280,6 +279,7 @@ def invoke_rule(
     top-down proof tree (passing it on and updating it where necessary)
 
     """
+    from fuxi.Rete.Util import lazy_generator_peek
     assert not build_proof or step is not None
 
     (

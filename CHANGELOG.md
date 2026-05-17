@@ -16,6 +16,49 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ---
 
+## [2.0.1] — 2026-05-17
+
+> Hotfix release addressing bugs and gaps discovered in the 2.0.0 initial
+> release.
+
+### Added
+
+- `to_pml()` method on `TopDownSPARQLEntailingStore` for PML proof
+  serialization using `NodeSet`/`InferenceStep` serialize paths.
+- `OutputFormat.ADORNMENT` (`--output=adornment`) to print the adorned
+  rule program from `goal_rule_sip_info`.
+- SIP collection SVG fallback when `build_natural_sip` produces no triples
+  (single-body rules) — renders chained SIP arcs, variable binding labels,
+  and skolem-shortened identifiers.
+
+### Changed
+
+- `_render_rif()` now emits adorned rules alongside RIF output when
+  `--why --method=bfp` is active.
+- `_render_rdf()` now includes rules in N3 output.
+- SIP collection rendering: removed "No SIP arcs" legend, chained
+  `head → body[0] → body[1] → ...` order, deduplicated edges, shortened
+  skolem labels, joined adornment strings (`^bf` not `^['b', 'f']`).
+
+### Fixed
+
+- `sparql_interlocution` `TypeError` when `batch_unify` yields `True` for
+  proved ground ASK goals (`isinstance(answer, bool)` guard).
+- Missing `Tuple`/`Identifier` imports in `Rete.Util`.
+- Circular `ImportError` from module-level `TopDownSPARQLEntailingStore`
+  import in `Rete.Util` (moved to lazy import).
+- `KeyError` in `_add_rete_node` at `node.network.instantiations[node]`
+  (`.get(node, 0)` across three sites).
+- Graphviz DOT syntax error from angle-bracketed URIs (`_rete_label()`
+  strips `<>` for unresolvable namespaces).
+- Empty `sip-collection-svg` output for single-body rules (fallback via
+  `adorned_program` parameter).
+- `assert idx < 2` crash on conjunctive SPARQL queries (replaced with
+  `logging.warning()`).
+- Dead-code `store` parameter in `render_network()` (removed).
+
+---
+
 ## [2.0.0] — 2026-05-15
 
 > First tagged release of the modernized **FuXi-reincarnate** fork.
@@ -176,5 +219,6 @@ find your_project -name '*.py' -type f -print0 | xargs -0 sed -i \
 
 ---
 
-[Unreleased]: https://github.com/chimezie/FuXi-reincarnate/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/chimezie/FuXi-reincarnate/compare/v2.0.1...HEAD
+[2.0.1]: https://github.com/chimezie/FuXi-reincarnate/releases/tag/v2.0.1
 [2.0.0]: https://github.com/chimezie/FuXi-reincarnate/releases/tag/v2.0.0

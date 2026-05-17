@@ -40,37 +40,41 @@ def _render_proof_graph(
         return
 
     from fuxi.Rete.Proof import generate_proof
+    if fmt in [OutputFormat.PROOF_GRAPH_SVG, OutputFormat.PROOF_GRAPH_PNG]:
+        img_format = "svg" if fmt == OutputFormat.PROOF_GRAPH_SVG else "png"
+        store = result.top_down_store
 
-    img_format = "svg" if fmt == OutputFormat.PROOF_GRAPH_SVG else "png"
-    store = result.top_down_store
+        for network_for_goal, goal_pattern in store.query_networks:
+            has_variable = any(isinstance(t, Variable) for t in goal_pattern)
+            if has_variable:
+                goals_to_prove = _ground_goal(
+                    goal_pattern, result.answers, network_for_goal
+                )
+            else:
+                goals_to_prove = (
+                    [goal_pattern]
+                    if goal_pattern in network_for_goal.inferred_facts
+                    else []
+                )
 
-    for network_for_goal, goal_pattern in store.query_networks:
-        has_variable = any(isinstance(t, Variable) for t in goal_pattern)
-        if has_variable:
-            goals_to_prove = _ground_goal(
-                goal_pattern, result.answers, network_for_goal
-            )
-        else:
-            goals_to_prove = (
-                [goal_pattern]
-                if goal_pattern in network_for_goal.inferred_facts
-                else []
-            )
-
-        for ground_goal in goals_to_prove:
-            builder, proof = generate_proof(network_for_goal, ground_goal, store)
-            ns_map = {**network_for_goal.ns_map, **ns_binds}
-            if not ns_map:
-                ns_map = store.ns_bindings or ns_binds
-            dot = builder.render_proof(proof, ns_map=ns_map, format=img_format)
-            try:
-                data = dot.pipe(format=img_format)
-            except Exception as exc:
-                raise SystemExit(
-                    f"Failed to render proof graph: {exc}. "
-                    f"Is Graphviz ('dot' binary) installed?"
-                ) from exc
-            sys.stdout.buffer.write(data)
+            for ground_goal in goals_to_prove:
+                builder, proof = generate_proof(network_for_goal, ground_goal, store)
+                ns_map = {**network_for_goal.ns_map, **ns_binds}
+                if not ns_map:
+                    ns_map = store.ns_bindings or ns_binds
+                dot = builder.render_proof(proof, ns_map=ns_map, format=img_format)
+                try:
+                    data = dot.pipe(format=img_format)
+                except Exception as exc:
+                    raise SystemExit(
+                        f"Failed to render proof graph: {exc}. "
+                        f"Is Graphviz ('dot' binary) installed?"
+                    ) from exc
+                sys.stdout.buffer.write(data)
+    elif fmt == OutputFormat.PML:
+        pml = result.top_down_store.to_pml(fmt="xml")
+        sys.stdout.buffer.write(pml.encode("utf-8"))
+        return
 
 
 def _render_rete_network(
@@ -157,6 +161,7 @@ def _render_rif(
     rule_set: Ruleset,
     network,
     negation: bool,
+    result: BFPResult | None = None,
 ) -> None:
     rules = (rule_set if rule_set
              else network.rules if network.rules
@@ -167,6 +172,17 @@ def _render_rif(
     if negation:
         for n_rule in network.neg_rules:
             print(n_rule)
+
+    if result is not None:
+        for _network, _goal in result.top_down_store.query_networks:
+            goal_info = result.top_down_store.goal_rule_sip_info.get(_goal)
+            if goal_info is None:
+                continue
+            _, adorned_program, _, _, _ = goal_info
+            if adorned_program:
+                print("# Adorned rules:")
+                for adorned_rule in adorned_program:
+                    print(adorned_rule)
 
 
 def _render_conflict(
@@ -184,11 +200,26 @@ def _render_conflict(
         network.report_conflict_set()
 
 
+def _render_adornment(result: BFPResult) -> None:
+    if result is None:
+        raise SystemExit("--output=adornment requires --why --method=bfp")
+    for _network, _goal in result.top_down_store.query_networks:
+        goal_info = result.top_down_store.goal_rule_sip_info.get(_goal)
+        if goal_info is None:
+            continue
+        _, adorned_program, _, _, _ = goal_info
+        if adorned_program:
+            for adorned_rule in adorned_program:
+                print(adorned_rule)
+
+
 def _render_rdf(
     options,
     network,
     fact_graph: Graph,
     namespace_manager: NamespaceManager,
+    result: BFPResult | None = None,
+    rule_set: Ruleset | None = None,
 ) -> None:
     for file_n in options.filter:
         for rule in horn_from_n3(file_n):
@@ -214,6 +245,13 @@ def _render_rdf(
         network.inferred_facts = network.filtered_facts
 
     fmt = options.output
+    if fmt == OutputFormat.N3:
+        rules = (rule_set if rule_set
+                 else network.rules if network.rules
+                 else [])
+        for rule in rules:
+            print(rule)
+
     if options.closure and fmt in OutputFormat.rdf_formats():
         closure_graph = network.closure_graph(fact_graph)
         closure_graph.namespace_manager = namespace_manager
@@ -298,7 +336,10 @@ def render_output(
     if fmt == OutputFormat.CONFLICT:
         _render_conflict(options, result, network)
     elif fmt == OutputFormat.RIF:
-        _render_rif(rule_set, network, options.negation)
+        _render_rif(rule_set, network, options.negation, result=result)
+    elif fmt == OutputFormat.ADORNMENT:
+        _render_adornment(result)
+        return
     elif fmt == OutputFormat.MAN_OWL:
         _render_man_owl(options, network, fact_graph)
 
@@ -307,4 +348,5 @@ def render_output(
             print(answer)
 
     if fmt in OutputFormat.rdf_formats():
-        _render_rdf(options, network, fact_graph, namespace_manager)
+        _render_rdf(options, network, fact_graph, namespace_manager,
+                     result=result, rule_set=rule_set)

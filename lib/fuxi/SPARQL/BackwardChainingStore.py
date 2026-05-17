@@ -883,6 +883,30 @@ class TopDownSPARQLEntailingStore(Store):
         for prefix, ns_uri in list(self.ns_bindings.items()):
             yield prefix, ns_uri
 
+    def to_pml(self, fmt="xml"):
+        from fuxi.Rete.Proof import PML, PML_P, GMP_NS, FUXI, generate_proof
+        from rdflib import Graph
+
+        graph = Graph()
+        graph.bind("pml", PML)
+        graph.bind("pmlp", PML_P)
+        graph.bind("fuxi", FUXI)
+        graph.bind("gmp", GMP_NS)
+
+        for network, goal in self.query_networks:
+            try:
+                if goal not in network.inferred_facts:
+                    continue
+                builder, proof = generate_proof(network, goal, self)
+                builder.serialize(proof, graph)
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception(
+                    "Failed to generate PML proof for %s", goal
+                )
+
+        return graph.serialize(format=fmt)
+
     # Optional Transactional methods
 
     def commit(self):

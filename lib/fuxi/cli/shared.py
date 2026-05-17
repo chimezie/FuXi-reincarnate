@@ -49,6 +49,7 @@ class OutputFormat(StrEnum):
     RIF_XML = "rif-xml"
     CONFLICT = "conflict"
     MAN_OWL = "man-owl"
+    ADORNMENT = "adornment"
     PROOF_GRAPH_SVG = "proof-graph-svg"
     PROOF_GRAPH_PNG = "proof-graph-png"
     RETE_NETWORK_SVG = "rete-network-svg"
@@ -58,7 +59,7 @@ class OutputFormat(StrEnum):
 
     @classmethod
     def proof_graph_formats(cls) -> set[OutputFormat]:
-        return {cls.PROOF_GRAPH_SVG, cls.PROOF_GRAPH_PNG}
+        return {cls.PROOF_GRAPH_SVG, cls.PROOF_GRAPH_PNG, cls.PML}
 
     @classmethod
     def rete_network_formats(cls) -> set[OutputFormat]:

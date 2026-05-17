@@ -34,6 +34,38 @@ def test_proof_requires_why():
 
 
 @pytest.mark.integration
+def test_proof_rete_network_svg():
+    """rete-network-svg must not crash with BFP query networks."""
+    inverse_of_premises = TEST_DIR / "OWL" / "inverseOf" / "premises001.rdf"
+    query = "ASK { eg:bob your:isBrotherOf eg:joe }"
+    result = subprocess.run(
+        [
+            *FUXI_PROOF_CMD,
+            "--dlp",
+            "--hybrid",
+            "--ns",
+            "eg=http://example.net/vocab#",
+            "--ns",
+            "your=http://example.net/vocab#",
+            "--why",
+            query,
+            "--output",
+            "rete-network-svg",
+            str(inverse_of_premises),
+        ],
+        capture_output=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, (
+        f"CLI failed:\nstdout: {result.stdout[:500]}\nstderr: {result.stderr[:500]}"
+    )
+    output = result.stdout
+    assert output.startswith(b"<?xml") or output.startswith(b"<svg"), (
+        f"SVG rete network should start with XML/SVG header, got: {output[:200]!r}"
+    )
+
+
+@pytest.mark.integration
 def test_proof_graph_svg():
     query = f"PREFIX fam: <{FAM_NS}> SELECT ?a {{ fam:david fam:ancestor ?a }}"
     result = subprocess.run(
@@ -161,3 +193,46 @@ def test_proof_conflict_output():
         timeout=60,
     )
     assert result.returncode == 0, f"CLI failed:\nstderr: {result.stderr}"
+
+
+@pytest.mark.integration
+def test_render_network_rejects_store():
+    """render_network() must reject store= (dead parameter removed)."""
+    from fuxi.Rete.Util import render_network
+
+    with pytest.raises(TypeError, match="unexpected keyword argument 'store'"):
+        render_network(object(), store=object())
+
+
+@pytest.mark.integration
+def test_multiple_query_networks_no_crash():
+    """Multiple query networks must produce valid SVG, not crash."""
+    query = (
+        f"PREFIX fam: <{FAM_NS}> "
+        "SELECT ?a ?b ?c { ?a fam:ancestor ?b . ?b fam:ancestor ?c }"
+    )
+    result = subprocess.run(
+        [
+            *FUXI_PROOF_CMD,
+            "--rules",
+            str(RULES_FILE),
+            "--input-format",
+            "n3",
+            "--ns",
+            f"fam={FAM_NS}",
+            "--why",
+            query,
+            "--output",
+            "rete-network-svg",
+            str(FACTS_FILE),
+        ],
+        capture_output=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, (
+        f"CLI failed:\nstdout: {result.stdout[:500]}\nstderr: {result.stderr[:500]}"
+    )
+    output = result.stdout
+    assert output.startswith(b"<?xml") or output.startswith(b"<svg"), (
+        f"SVG rete network should start with XML/SVG header, got: {output[:200]!r}"
+    )

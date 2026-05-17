@@ -1,6 +1,6 @@
 [project]
 name = "fuxi"
-version = "2.0.0"
+version = "2.0.1"
 description = "An OWL / N3-based in-memory, logic reasoning system for RDF"
 requires-python = ">=3.13"
 license = {text = "Apache"}

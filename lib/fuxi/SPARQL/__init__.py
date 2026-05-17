@@ -35,7 +35,6 @@ from fuxi.Rete.SidewaysInformationPassing import (
     get_variables,
     iter_condition,
 )
-from fuxi.Rete.Util import selective_memoize
 from functools import reduce
 
 
@@ -80,7 +79,7 @@ def triple_to_triple_pattern(graph, term):
         )
 
 
-@selective_memoize([0])
+#@selective_memoize([0])
 def normalize_uri(rdf_term, rev_ns_map):
     """
     Takes an RDF Term and 'normalizes' it into a QName (using the registered prefix)
@@ -104,7 +103,7 @@ def normalize_uri(rdf_term, rev_ns_map):
         return ":".join([q_name_parts[0], q_name_parts[-1]])
 
 
-@selective_memoize([0])
+#@selective_memoize([0])
 def compute_qname(uri, rev_ns_map):
     namespace, name = split_uri(uri)
     namespace = URIRef(namespace)

@@ -327,7 +327,9 @@ def sparql_interlocution(query: str, top_down_store: "TopDownSPARQLEntailingStor
     quads = [triple + tuple([None]) for triple in triples]
     try:
         for answer in top_down_store.batch_unify(quads):
-            if not variables.difference(answer):
+            if isinstance(answer, bool):
+                yield answer
+            elif not variables.difference(answer):
                 yield answer
     except (StopIteration, RuntimeError):
         pass

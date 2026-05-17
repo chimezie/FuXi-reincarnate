@@ -29,7 +29,6 @@ from fuxi.Rete.TopDown import rdf_tuples_to_sparql
 from fuxi.Rete.TopDown import merge_mappings1_to2
 from fuxi.Rete.SidewaysInformationPassing import get_op
 from fuxi.Rete.SidewaysInformationPassing import sip_representation
-from fuxi.Rete.Util import LOG
 from fuxi.LP.BackwardFixpointProcedure import BackwardFixpointProcedure
 from fuxi.LP import identify_hybrid_predicates as identify_hybrid_predicates_fn
 from fuxi.Horn.PositiveConditions import build_uniterm_from_tuple
@@ -47,14 +46,14 @@ from rdflib.plugins.sparql.parserutils import CompValue
 
 assert AlgebraExpression
 from rdflib.plugins.sparql.sparql import Query
+from rdflib.namespace import Namespace
 
 assert Query
 
 TOP_DOWN_METHOD = 0
 BFP_METHOD = 1
-
+LOG = Namespace("http://www.w3.org/2000/10/swap/log#")
 DEFAULT_BUILTIN_MAP = {LOG.equal: "%s  = %s", LOG.notEqualTo: "%s != %s"}
-
 
 class NonSymmetricBinaryOperator(AlgebraExpression):
     def fetch_terminal_expression(self):
@@ -883,6 +882,30 @@ class TopDownSPARQLEntailingStore(Store):
     def namespaces(self):
         for prefix, ns_uri in list(self.ns_bindings.items()):
             yield prefix, ns_uri
+
+    def to_pml(self, fmt="xml"):
+        from fuxi.Rete.Proof import PML, PML_P, GMP_NS, FUXI, generate_proof
+        from rdflib import Graph
+
+        graph = Graph()
+        graph.bind("pml", PML)
+        graph.bind("pmlp", PML_P)
+        graph.bind("fuxi", FUXI)
+        graph.bind("gmp", GMP_NS)
+
+        for network, goal in self.query_networks:
+            try:
+                if goal not in network.inferred_facts:
+                    continue
+                builder, proof = generate_proof(network, goal, self)
+                builder.serialize(proof, graph)
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception(
+                    "Failed to generate PML proof for %s", goal
+                )
+
+        return graph.serialize(format=fmt)
 
     # Optional Transactional methods
 

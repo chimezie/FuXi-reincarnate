@@ -49,10 +49,18 @@ def iter_condition(condition):
         return isinstance(condition, SetOperator) and condition or iter([condition])
 
 
+_skolem_labels: dict[Identifier, str] = {}
+
+
 def normalize_term(uri, sip_graph):
+    uri_str = str(uri)
+    if str(SKOLEMIZED_CLASS_NS) in uri_str:
+        if uri not in _skolem_labels:
+            _skolem_labels[uri] = f"_{len(_skolem_labels) + 1}"
+        return _skolem_labels[uri]
     try:
         return sip_graph.qname(uri).split(":")[-1]
-    except:
+    except Exception:
         return uri.n3()
 
 
@@ -77,6 +85,23 @@ def render_sip_collection(sip_graph, format="png", adorned_program=None):
     dot = graphviz.Digraph("SIP Collection", format=format)
     left_nodes_lookup = {}
     nodes = {}
+
+    _skolem_cache: dict[Identifier, str] = {}
+    _skolem_idx: list[int] = [0]
+
+    def _label(uri, ns_graph=None):
+        uri_str = str(uri)
+        if str(SKOLEMIZED_CLASS_NS) in uri_str:
+            if uri not in _skolem_cache:
+                _skolem_idx[0] += 1
+                _skolem_cache[uri] = f"_{_skolem_idx[0]}"
+            return _skolem_cache[uri]
+        try:
+            ns = ns_graph or sip_graph
+            return ns.qname(uri).split(":")[-1]
+        except Exception:
+            return uri.n3()
+
     for N, prop, q in sip_graph.query(
         "SELECT ?N ?prop ?q {  ?prop a magic:SipArc . ?N ?prop ?q . }",
         initNs={"magic": MAGIC},
@@ -90,13 +115,13 @@ def render_sip_collection(sip_graph, format="png", adorned_program=None):
             q_name = make_md5_digest(q)
             dot.node(
                 q_name,
-                label=normalize_term(q, sip_graph),
+                label=_label(q),
                 shape="plaintext",
             )
             nodes[q] = q_name
 
         bNode = BNode()
-        node_label = ", ".join([normalize_term(term, sip_graph) for term in NCol])
+        node_label = ", ".join([_label(term) for term in NCol])
         edge_label = ", ".join(
             [
                 var.n3()
@@ -119,18 +144,65 @@ def render_sip_collection(sip_graph, format="png", adorned_program=None):
             dot.edge(left_name, nodes[q], label=edge_label)
 
     if not nodes and adorned_program:
+        _var_labels: dict[str, str] = {}
+        _var_idx: list[int] = [0]
+
+        def _adorned_label_from(lit):
+            lead = _label(get_op(lit), getattr(lit, "ns_manager", None))
+            adorn = getattr(lit, "adornment", None)
+            if adorn:
+                adorn_str = "".join(adorn) if isinstance(adorn, (list, tuple)) else str(adorn)
+                return f"{lead}^{adorn_str}"
+            return lead
+
+        def _var_label(v):
+            v_str = v.n3()
+            if len(v_str) > 10:
+                if v_str not in _var_labels:
+                    _var_idx[0] += 1
+                    _var_labels[v_str] = f"_{_var_idx[0]}"
+                return _var_labels[v_str]
+            return v_str
+
+        def _shared_vars(left, right):
+            left_vars = {
+                v for v in get_args(left, second_order=True)
+                if isinstance(v, Variable)
+            }
+            right_vars = {
+                v for v in get_args(right, second_order=True)
+                if isinstance(v, Variable)
+            }
+            return left_vars.intersection(right_vars)
+
+        _edges_seen: set[tuple[str, str]] = set()
+
         for rule in adorned_program:
             head = rule.head if hasattr(rule, "head") else rule.formula.head
-            head_label = _adorned_label(head)
+            head_label = _adorned_label_from(head)
             head_id = make_md5_digest(head_label)
             dot.node(head_id, label=head_label, shape="box")
+
+            prev_id = head_id
+            prev_lit = head
             for lit in iter_condition(rule.formula.body):
-                lit_label = _adorned_label(lit)
+                lit_label = _adorned_label_from(lit)
                 lit_id = make_md5_digest(lit_label)
                 dot.node(lit_id, label=lit_label, shape="plaintext")
-                dot.edge(head_id, lit_id)
 
-        dot.node("legend", label="No SIP arcs (all body predicates are EDB)", shape="note")
+                if (prev_id, lit_id) not in _edges_seen:
+                    _edges_seen.add((prev_id, lit_id))
+                    vars_shared = _shared_vars(prev_lit, lit)
+                    if vars_shared:
+                        edge_label = " ".join(
+                            _var_label(v) for v in sorted(vars_shared, key=str)
+                        )
+                        dot.edge(prev_id, lit_id, label=edge_label)
+                    else:
+                        dot.edge(prev_id, lit_id)
+
+                prev_id = lit_id
+                prev_lit = lit
 
     return dot
 

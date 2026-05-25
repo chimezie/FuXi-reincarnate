@@ -1,5 +1,9 @@
+import path from "path"
+import os from "os"
 import { tool } from "@opencode-ai/plugin"
 import { which } from "bun"
+
+const TOOLS_DIR = path.join(os.homedir(), ".opencode", "tools")
 
 export default tool({
   description: "Print logical entailment explanations about class via ELK reasoner with " +
@@ -19,7 +23,7 @@ export default tool({
     configurationFile: tool.schema.string().optional().describe("Path to configuration YAML file for NL rendering"),
   },
   async execute(args, context) {
-    const configFile = args.configurationFile ?? "/home/chimezie/.opencode/tools/yijing.CNL.yaml"
+    const configFile = args.configurationFile ?? path.join(TOOLS_DIR, "yijing.CNL.yaml")
 
     const command = ['owl_dsl.reason',
                      '--action', 'explain_logical_inferences',

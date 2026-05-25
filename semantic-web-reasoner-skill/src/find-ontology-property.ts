@@ -1,5 +1,9 @@
+import path from "path"
+import os from "os"
 import { tool } from "@opencode-ai/plugin"
 import { which } from "bun"
+
+const TOOLS_DIR = path.join(os.homedir(), ".opencode", "tools")
 
 export default tool({
   description: "Find OWL properties by label pattern using `owl_dsl.review`",
@@ -15,23 +19,34 @@ export default tool({
     configurationFile: tool.schema.string().optional().describe("Path to configuration YAML file for NL rendering"),
   },
   async execute(args, context) {
-    const prefix = args.prefix ? "--prefix " + args.prefix : ""
-    const propLabel = args.propReferenceLabel ? "--prop-reference-label " + args.propReferenceLabel : ""
-    const limit = args.limit ?? 10
-    const showUsage = args.showPropertyDefinitionUsage ? "--show-property-definition-usage" : ""
-    const configFile = args.configurationFile ?? "/home/chimezie/.opencode/tools/yijing.CNL.yaml"
+    const configFile = args.configurationFile ?? path.join(TOOLS_DIR, "yijing.CNL.yaml")
 
-    const command = `owl_dsl.review -a find_properties 
-                                    --ontology-uri ${args.ontologyUri} 
-                                    --sqlite-file ${args.sqliteFile} 
-                                    --ontology-namespace-baseuri ${args.baseuri} ${prefix} ${propLabel} 
-                                    --configuration-file ${configFile}
-                                    --limit ${limit} ${showUsage} ${args.owlFile}`
+    const command = ['owl_dsl.review',
+                     '-a', 'find_properties',
+                     '--ontology-uri', args.ontologyUri,
+                     '--sqlite-file', args.sqliteFile,
+                     '--ontology-namespace-baseuri', args.baseuri ?? args.ontologyUri]
+    if (args.prefix) {
+      command.push('--prefix', args.prefix)
+    }
+    if (args.propReferenceLabel) {
+      command.push('--prop-reference-label', args.propReferenceLabel)
+    }
+    if (args.configurationFile) {
+      command.push('--configuration-file', configFile)
+    }
+    command.push('--limit', String(args.limit ?? 10))
+    if (args.showPropertyDefinitionUsage) {
+      command.push('--show-property-definition-usage')
+    }
+    if (args.owlFile) {
+      command.push(args.owlFile)
+    }
 
     const useUv = which("uv")
     const commands = useUv
-      ? ["uv", "run", "--active", command]
-      : [command]
+      ? ["uv", "run", "--active", ...command]
+      : [...command]
     const result = await Bun.$`${commands}`.text()
     return result.trim()
   }

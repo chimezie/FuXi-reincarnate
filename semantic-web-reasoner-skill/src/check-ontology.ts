@@ -16,10 +16,11 @@ export default tool({
     const useUv = which("uv")
     const robotPath = which("robot")
 
-    // Resolve input path relative to the project worktree
+    // Resolve input path relative to the project worktree or CWD
     const resolvePath = (p: string | undefined): string | undefined => {
       if (!p) return p
-      return path.isAbsolute(p) ? p : path.resolve(context.worktree, p)
+      const baseDir = context?.worktree || process.cwd()
+      return path.isAbsolute(p) ? p : path.resolve(baseDir, p)
     }
 
     const owlPath = resolvePath(args.owlFile)

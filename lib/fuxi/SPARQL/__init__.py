@@ -79,7 +79,7 @@ def triple_to_triple_pattern(graph, term):
         )
 
 
-#@selective_memoize([0])
+# @selective_memoize([0])
 def normalize_uri(rdf_term, rev_ns_map):
     """
     Takes an RDF Term and 'normalizes' it into a QName (using the registered prefix)
@@ -103,7 +103,7 @@ def normalize_uri(rdf_term, rev_ns_map):
         return ":".join([q_name_parts[0], q_name_parts[-1]])
 
 
-#@selective_memoize([0])
+# @selective_memoize([0])
 def compute_qname(uri, rev_ns_map):
     namespace, name = split_uri(uri)
     namespace = URIRef(namespace)
@@ -127,11 +127,19 @@ def render_term(graph, term, pred_term=False):
         return qname[0] == "_" and "<%s>" % term or qname
     elif isinstance(term, Literal):
         return term.n3()
-    else:
+    elif isinstance(term, BNode):
+        return term.n3()
+    elif hasattr(term, "n3"):
+        return term.n3()
+    elif isinstance(term, str):
+        return '"%s"' % term.replace('"', '\\"')
+    elif term is not None:
         try:
-            return isinstance(term, BNode) and term.n3() or graph.qname(term)
-        except (ValueError, AttributeError, KeyError):
-            return term.n3()
+            return graph.qname(term)
+        except (ValueError, AttributeError):
+            return '"%s"' % str(term).replace('"', '\\"')
+    else:
+        return "UNDEF"
 
 
 def rdf_tuples_to_sparql(
@@ -275,9 +283,10 @@ def run_query(
         return subquery, bool(rt)
     else:
         rt = (
-            len(vars) > 1
-            and (dict([(vars[idx], i) for idx, i in enumerate(v)]) for v in rt)
-            or (dict([(vars[0], v[0] if hasattr(v, "__getitem__") else v)]) for v in rt)
+            {Variable(k): v for k, v in row.items()}
+            if isinstance(row, dict)
+            else dict(zip(vars, row))
+            for row in rt
         )
         if debug:
             print(
@@ -404,12 +413,15 @@ class EDBQuery(QNameManager, SetOperator, Condition):
 
     """
 
-    def __init__(self,
-                 lst: Iterable[Uniterm],
-                 fact_graph: Graph,
-                 return_vars: Iterable[Variable] | None = None,
-                 bindings: dict[Variable, Identifier] | None = None, var_map: dict[Variable, Variable] | None = None,
-                 symm_atomic_inclusion: bool = False):
+    def __init__(
+        self,
+        lst: Iterable[Uniterm],
+        fact_graph: Graph,
+        return_vars: Iterable[Variable] | None = None,
+        bindings: dict[Variable, Identifier] | None = None,
+        var_map: dict[Variable, Variable] | None = None,
+        symm_atomic_inclusion: bool = False,
+    ):
         if var_map is None:
             var_map = {}
         if bindings is None:
@@ -448,16 +460,20 @@ class EDBQuery(QNameManager, SetOperator, Condition):
             term_list = lst
 
         super(EDBQuery, self).__init__(fact_graph.namespace_manager.namespaces())
-        self.bindings = (
-            dict(bindings) if isinstance(bindings, frozendict) else bindings
-        )
+        self.bindings = dict(bindings) if isinstance(bindings, frozendict) else bindings
 
     def copy(self):
         """
         A shallow copy of an EDB query
         """
-        return EDBQuery([copy.deepcopy(t) for t in self.formulae], self.fact_graph, self.return_vars,
-                        self.bindings.copy(), self.var_map.copy(), symm_atomic_inclusion=self.symm_atomic_inclusion)
+        return EDBQuery(
+            [copy.deepcopy(t) for t in self.formulae],
+            self.fact_graph,
+            self.return_vars,
+            self.bindings.copy(),
+            self.var_map.copy(),
+            symm_atomic_inclusion=self.symm_atomic_inclusion,
+        )
 
     def rename_variables(self, var_map):
         for item in self.formulae:

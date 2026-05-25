@@ -413,7 +413,10 @@ class Equal(QNameManager, Atomic):
 
 def build_uniterm_from_tuple(triple: Triple,
                              new_nss: Mapping[str, Identifier] = None):
+    from rdflib import Variable
     (s, p, o) = triple
+    s = Variable("s") if s is None else s
+    o = Variable("o") if o is None else o
     return Uniterm(p, [s, o], new_nss)
 
 

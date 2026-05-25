@@ -21,6 +21,7 @@ dependencies = [
     "frozendict",
     "pyparsing",
     "rdflib>=7.4",
+    "owlapy"
 ]
 
 [project.optional-dependencies]

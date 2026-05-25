@@ -1,0 +1,29 @@
+{
+  "name": "opencode-my-skill",
+  "version": "1.0.0",
+  "description": "For various semantic web architecture design patterns",
+  "main": "dist/index.js",
+  "files": [
+    "dist/",
+    "skills/",
+    ".claude-plugin/",
+    "README.md"
+  ],
+  "keywords": [
+    "opencode",
+    "claude-code",
+    "skill"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "latest"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "@types/node": "^25.9.1",
+    "typescript": "latest"
+  }
+}

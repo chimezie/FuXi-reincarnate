@@ -798,8 +798,8 @@ class ProofBuilder(object):
     def build_non_evaluation_step(
         self,
         goal: Tuple[Identifier, Identifier, Identifier],
-        parent: NodeSet,
-        step: InferenceStep,
+        parent: "NodeSet",
+        step: "InferenceStep",
         bindings: Mapping[Variable, Identifier],
         top_down_store,
     ):

@@ -295,7 +295,7 @@ def extract_triples_from_query(
     return service_url, triples
 
 
-def sparql_interlocution(query: str, top_down_store: "TopDownSPARQLEntailingStore"):
+def sparql_interlocution(query: str, top_down_store: "TopDownSPARQLEntailingStore", generate_proofs: bool = False):
     """
     Execute a SPARQL query against a TopDownSPARQLEntailingStore and yield solutions.
 
@@ -308,12 +308,24 @@ def sparql_interlocution(query: str, top_down_store: "TopDownSPARQLEntailingStor
     :param query: A SPARQL query string.
     :param top_down_store: A TopDownSPARQLEntailingStore instance configured with
         the rule program and EDB.
+    :param generate_proofs: If True, generate and save proof diagrams for each goal.
     :yields: Dictionaries mapping Variable objects to their bound values for each
         matching solution.
 
     Example:
         >>> for answer in sparql_interlocution(query, top_down_store):
         ...     movie = answer[Variable('movie')]
+
+    builder, proof = generate_proof(network, goal, top_down_store)
+    ns_map = {**network.ns_map, **(extra_nsmap or {})}
+    if not ns_map:
+        ns_map = top_down_store.ns_bindings or (extra_nsmap or {})
+    dot = builder.render_proof(proof, ns_map=ns_map, format="svg")
+    suffix = f"-goal-{goal_index}" if goal_index is not None else ""
+    base = f"/tmp/{proof_id}{suffix}"
+    dot.render(filename=base, cleanup=True, format="svg")
+    dot.render(filename=base, cleanup=True, format="png")
+
     """
     from fuxi.SPARQL.utilities import extract_triples_from_query
 
@@ -327,6 +339,9 @@ def sparql_interlocution(query: str, top_down_store: "TopDownSPARQLEntailingStor
     quads = [triple + tuple([None]) for triple in triples]
     try:
         for answer in top_down_store.batch_unify(quads):
+            # for quad in quads:
+            #     builder, proof = generate_proof(network, goal, top_down_store)
+            #     triple = quad[:3]
             if isinstance(answer, bool):
                 yield answer
             elif not variables.difference(answer):

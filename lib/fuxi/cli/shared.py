@@ -44,6 +44,7 @@ class OutputFormat(StrEnum):
     TRI_X = "TriX"
     N3 = "n3"
     NT = "nt"
+    TTL = "ttl"
     PML = "pml"
     RIF = "rif"
     RIF_XML = "rif-xml"
@@ -71,7 +72,7 @@ class OutputFormat(StrEnum):
 
     @classmethod
     def rdf_formats(cls) -> set[OutputFormat]:
-        return {cls.XML, cls.TRI_X, cls.N3, cls.NT}
+        return {cls.XML, cls.TRI_X, cls.N3, cls.NT, cls.TTL}
 
     @classmethod
     def choices(cls) -> list[str]:

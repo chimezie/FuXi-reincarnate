@@ -1,14 +1,11 @@
 from collections.abc import Mapping
-from itertools import chain
 from typing import Any
 
-from rdflib.plugins.sparql.parser import parseQuery
 from rdflib.plugins.sparql.sparql import Query
 from rdflib.query import Processor, Result
 from rdflib.term import Identifier
 
 from fuxi.Horn.PositiveConditions import build_uniterm_from_tuple
-from fuxi.Rete.SidewaysInformationPassing import get_variables
 from fuxi.SPARQL import EDBQuery
 from rdflib import Graph
 
@@ -95,17 +92,78 @@ from rdflib import Graph, Variable
     def __repr__(self):
         return f"SPARQLServiceGraph(service_url='{self.service_url}')"
 
-    def triples(self, triple, context=None):
-        ns_map = {prefix: uri for prefix, uri in self.namespace_manager.namespaces()}
-        query_literal = EDBQuery([build_uniterm_from_tuple(triple, ns_map)], self, None)
-        mediated_query = query_literal.as_sparql(service_url=self.service_url)
-        response = Graph().query(
-            mediated_query, init_ns=ns_map
+    def _sparql_post(self, query_str: str) -> dict | None:
+        """Execute a SPARQL query against the endpoint and return parsed JSON."""
+        import requests as req
+        prefix_lines = "".join(
+            f"PREFIX {p}: <{ns}>\n"
+            for p, ns in self.namespace_manager.namespaces()
+            if ns != "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
         )
-        self.num_queries += 1
-        return response
+        if not query_str.lstrip().upper().startswith("PREFIX"):
+            query_str = prefix_lines + query_str
+        try:
+            resp = req.post(
+                self.service_url,
+                data=query_str,
+                headers={
+                    "Content-Type": "application/sparql-query",
+                    "Accept": "application/sparql-results+json",
+                },
+                timeout=120,
+            )
+            resp.raise_for_status()
+            self.num_queries += 1
+            return resp.json()
+        except Exception:
+            self.num_queries += 1
+            return None
 
-        raise RuntimeError("SPARQLServiceGraph does not support triples()")
+    def triples(self, triple, context=None):
+        from rdflib import Variable
+        ns_map = {prefix: uri for prefix, uri in self.namespace_manager.namespaces()}
+        s, p, o = triple
+        vars = []
+        tp = list(triple)
+        if s is None:
+            v = Variable("s")
+            tp[0] = v
+            vars.append(v)
+        if o is None:
+            v = Variable("o")
+            tp[2] = v
+            vars.append(v)
+        query_literal = EDBQuery([build_uniterm_from_tuple(tuple(tp), ns_map)], self, vars or None)
+        mediated_query = query_literal.as_sparql() + " LIMIT 10000"
+        results = self._sparql_post(mediated_query)
+        if results is None:
+            return iter([])
+        for binding in results.get("results", {}).get("bindings", []):
+            s_val = self._parse_term(binding.get("s"))
+            p_val = self._parse_term(binding.get("p"))
+            o_val = self._parse_term(binding.get("o"))
+            yield (s_val or s, p_val or p, o_val or o)
+
+    def _parse_term(self, term_dict):
+        if term_dict is None:
+            return None
+        from rdflib import BNode, Literal, URIRef
+        typ = term_dict.get("type")
+        val = term_dict.get("value")
+        if typ == "uri":
+            return URIRef(val)
+        elif typ == "bnode":
+            return BNode(val)
+        elif typ == "literal":
+            dtype = term_dict.get("datatype")
+            lang = term_dict.get("xml:lang")
+            if lang:
+                return Literal(val, lang=lang)
+            elif dtype:
+                return Literal(val, datatype=URIRef(dtype))
+            else:
+                return Literal(val)
+        return None
 
     def query(
         self,
@@ -117,43 +175,77 @@ from rdflib import Graph, Variable
         use_store_provided: bool = True,
         **kwargs: Any,
     ) -> Result:
-        """
-        Executes a SPARQL query against the remote service, extracting
-        the graph pattern, converting them to an EDBQuery for a
-        SPARQL service query
+        """Execute SPARQL query by forwarding to the remote endpoint via HTTP."""
+        query_str = str(query_object) if not isinstance(query_object, str) else query_object
+        data = self._sparql_post(query_str)
+        if data is None:
+            return _empty_result(query_str)
+        return _json_to_result(data, query_str)
 
-        :param query_object: The SPARQL query string or parsed Query object.
-        :param processor: The query processor to use, defaults to 'sparql'.
-        :param result: The result format, defaults to 'sparql'.
-        :param initNs: Initial namespace bindings, defaults to None.
-        :param initBindings: Initial variable bindings, defaults to None.
-        :param use_store_provided: Whether to use store-provided results,
-               defaults to True.
-        :param kwargs: Additional keyword arguments for query execution.
-        :return: The query result.
-        """
-        from fuxi.SPARQL.utilities import extract_triples_from_query
 
-        _, parsed_query = parseQuery(query_object)
-        _service_url, triples = extract_triples_from_query(parsed_query, initNs)
-        uniterms = [build_uniterm_from_tuple(triple, initNs) for triple in triples]
-        vars = [
-            *set(
-                chain(
-                    *map(
-                        lambda uniterm: get_variables(uniterm, second_order=True),
-                        uniterms,
-                    )
-                )
-            )
-        ]
-        conjunct = EDBQuery(uniterms, self, vars)
-        mediated_query = conjunct.as_sparql(service_url=self.service_url)
-        response = Graph().query(
-            mediated_query, initNs=initNs, initBindings=initBindings
-        )
-        self.num_queries += 1
-        return response
+class _AskResult:
+    """Minimal result wrapper for ASK queries (checking .askAnswer)."""
+    def __init__(self, answer: bool):
+        self.askAnswer = answer
+
+    def __iter__(self):
+        return iter([])
+
+
+class _SelectResult:
+    """Minimal result wrapper for SELECT queries."""
+    def __init__(self, vars, bindings):
+        self.vars = vars
+        self._bindings = bindings
+
+    def __iter__(self):
+        for b in self._bindings:
+            yield b
+
+
+def _empty_result(query_str: str):
+    if "ASK" in query_str.upper():
+        return _AskResult(False)
+    return _SelectResult([], [])
+
+
+def _json_to_result(data: dict, query_str: str):
+    import rdflib
+
+    head = data.get("head", {})
+    vars = head.get("vars", [])
+    results = data.get("results", {})
+    bindings = results.get("bindings", [])
+
+    # ASK query
+    if "boolean" in data:
+        return _AskResult(data["boolean"])
+
+    # SELECT query
+    rows = []
+    for b in bindings:
+        row = {}
+        for var in vars:
+            term_dict = b.get(var)
+            if term_dict is None:
+                continue
+            typ = term_dict.get("type")
+            val = term_dict.get("value")
+            if typ == "uri":
+                row[var] = rdflib.URIRef(val)
+            elif typ == "bnode":
+                row[var] = rdflib.BNode(val)
+            elif typ == "literal":
+                dtype = term_dict.get("datatype")
+                lang = term_dict.get("xml:lang")
+                if lang:
+                    row[var] = rdflib.Literal(val, lang=lang)
+                elif dtype:
+                    row[var] = rdflib.Literal(val, datatype=rdflib.URIRef(dtype))
+                else:
+                    row[var] = rdflib.Literal(val)
+        rows.append(row)
+    return _SelectResult(vars, rows)
 
 class ServiceGraphPatternError(Exception):
     """

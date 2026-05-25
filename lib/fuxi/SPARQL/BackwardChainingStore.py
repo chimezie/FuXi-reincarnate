@@ -55,6 +55,7 @@ BFP_METHOD = 1
 LOG = Namespace("http://www.w3.org/2000/10/swap/log#")
 DEFAULT_BUILTIN_MAP = {LOG.equal: "%s  = %s", LOG.notEqualTo: "%s != %s"}
 
+
 class NonSymmetricBinaryOperator(AlgebraExpression):
     def fetch_terminal_expression(self):
         if self.right.name == "BGP":
@@ -808,13 +809,11 @@ class TopDownSPARQLEntailingStore(Store):
 
             rt = self.edb.query(query, initNs=self.ns_bindings)
 
-            rt = (
-                len(vars) > 1
-                and (dict([(vars[idx], i) for idx, i in enumerate(v)]) for v in rt)
-                or (dict([(vars[0], v)]) for v in rt)
-            )
-            for item in rt:
-                yield item
+            for row in rt:
+                if isinstance(row, dict):
+                    yield {Variable(k): v for k, v in row.items()}
+                else:
+                    yield dict(zip(vars, row))
 
     def close(self, commit_pending_transaction=False):
         """
@@ -901,6 +900,7 @@ class TopDownSPARQLEntailingStore(Store):
                 builder.serialize(proof, graph)
             except Exception:
                 import logging
+
                 logging.getLogger(__name__).exception(
                     "Failed to generate PML proof for %s", goal
                 )

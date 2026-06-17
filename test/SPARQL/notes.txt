@@ -1,0 +1,2 @@
+https://www.w3.org/TR/sparql11-entailment/
+https://www.w3.org/2009/sparql/docs/tests/data-sparql11/entailment/

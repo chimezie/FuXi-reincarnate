@@ -692,11 +692,12 @@ def adorn_literal(rdf_tuple, new_nss=None, naf=False):
 def derived_predicate_iterator(facts_or_base_preds,
                                ruleset,
                                strict=DDL_STRICTNESS_FALLBACK_DERIVED,
-                               default_predicates=None):
+                               default_predicates=None,
+                               predicates_given=False):
     if not default_predicates:
         default_predicates = [], []
     default_base_preds, default_derived_preds = default_predicates
-    base_preds = [
+    base_preds = facts_or_base_preds if predicates_given else [
         get_op(build_uniTerm(fact)) for fact in facts_or_base_preds if fact[1] != LOG.implies
     ]
     processed = {True: set(), False: set()}

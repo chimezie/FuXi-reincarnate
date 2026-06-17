@@ -454,6 +454,12 @@ def build_natural_sip(
             left = list(set(left))
             [left_list.append(i) for i in [get_op(ii) for ii in left]]
             left.append(right)
+            SIPGraphArc(
+                left_list.uri,
+                get_occurrence_id(right, occur_lookup),
+                vars,
+                sip_graph,
+            )
             return left
         else:
             left.is_head = True
@@ -461,11 +467,16 @@ def build_natural_sip(
             if not vars and ignore_unbound_d_preds:
                 raise InvalidSIPException("No bound variables for %s" % right)
             ph = get_op(left)
+            q = get_occurrence_id(right, occur_lookup)
             if bound_head:
+                SIPGraphArc(ph, q, vars, sip_graph, head_passing=bound_head)
                 sip_graph.add((ph, RDF.type, MAGIC.BoundHeadPredicate))
                 rt = [left, right]
             else:
-                rt = [right]
+                left_list = Collection(sip_graph, None)
+                left_list.append(ph)
+                SIPGraphArc(left_list.uri, q, vars, sip_graph)
+                rt = [left, right]
         return rt
 
     sip_graph = Graph()

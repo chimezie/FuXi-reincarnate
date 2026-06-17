@@ -21,8 +21,7 @@ from fuxi.SPARQL.utilities import extract_triples_from_query, sparql_query_from_
 from rdflib.plugins.sparql.algebra import translateQuery
 from rdflib.plugins.sparql.parser import parseQuery
 
-from fuxi.Rete.Magic import setup_ddl_and_adorn_program
-from fuxi.Rete.Magic import derived_predicate_iterator
+from fuxi.Rete.Magic import setup_ddl_and_adorn_program, derived_predicate_iterator
 from fuxi.Rete.RuleStore import setup_rule_store
 from fuxi.Rete.TopDown import prepare_sip_collection
 from fuxi.Rete.TopDown import rdf_tuples_to_sparql
@@ -53,7 +52,7 @@ assert Query
 TOP_DOWN_METHOD = 0
 BFP_METHOD = 1
 LOG = Namespace("http://www.w3.org/2000/10/swap/log#")
-DEFAULT_BUILTIN_MAP = {LOG.equal: "%s  = %s", LOG.notEqualTo: "%s != %s"}
+DEFAULT_BUILTIN_MAP = {LOG.equalTo: "%s  = %s", LOG.notEqualTo: "%s != %s"}
 
 
 class NonSymmetricBinaryOperator(AlgebraExpression):
@@ -292,6 +291,7 @@ class TopDownSPARQLEntailingStore(Store):
                 bfp.meta_interp_network.inferred_facts.serialize(format="turtle"),
             )
         if is_not_ground is not None:
+            #Has bindings
             if any(len(l) for l in bfp.goal_solutions):
                 for item in bfp.goal_solutions:
                     yield item, None
@@ -359,7 +359,12 @@ class TopDownSPARQLEntailingStore(Store):
         if not goals_remaining:
             yield bindings
             return
-
+        if bindings:
+            #Unify the remaining triple patterns against the bindings from prior solutions
+            goals_remaining = [
+                tuple(bindings.get(term, term) if isinstance(term, Variable) else term for term in goal)
+                for goal in goals_remaining
+            ]
         # Take the next pattern to solve and leave the rest for recursive calls.
         tp = goals_remaining[0]
         rest = goals_remaining[1:]
@@ -389,10 +394,7 @@ class TopDownSPARQLEntailingStore(Store):
             for item in rt:
                 next_bindings = dict(bindings)
                 next_bindings.update(item)
-                for ans_dict in self.conjunctive_sip_strategy(
-                    rest, fact_graph, next_bindings
-                ):
-                    yield ans_dict
+                yield from self.conjunctive_sip_strategy(rest, fact_graph, next_bindings)
 
         else:
             # ----------------------------------------------------------------
@@ -454,13 +456,24 @@ class TopDownSPARQLEntailingStore(Store):
                 print("No SIP graph.")
 
             goal = tp
-            self.goal_rule_sip_info[goal] = (
-                query_lit,
-                copy.deepcopy(self.edb.adorned_program),
-                sip_collection,
-                None,
-                None,
-            )
+            if goal in self.goal_rule_sip_info:
+                # Preserve the last two elements (inferred_facts, meta_interp_network)
+                _, _, _, existing_inferred, existing_network = self.goal_rule_sip_info[goal]
+                self.goal_rule_sip_info[goal] = (
+                    query_lit,
+                    copy.deepcopy(self.edb.adorned_program),
+                    sip_collection,
+                    existing_inferred,
+                    existing_network,
+                )
+            else:
+                self.goal_rule_sip_info[goal] = (
+                    query_lit,
+                    copy.deepcopy(self.edb.adorned_program),
+                    sip_collection,
+                    None,
+                    None,
+                )
 
             # Run the backward-fixpoint procedure for this single goal.
             # ``invoke_decision_procedure`` yields (answer, node) pairs where
@@ -490,6 +503,9 @@ class TopDownSPARQLEntailingStore(Store):
                     # extended binding environment.  Each answer from this
                     # call is a fully consistent solution to the entire
                     # original conjunction (this pattern plus all that follow).
+                    if isinstance(rt, bool):
+                        assert rt
+                        rt = None
                     for ans_dict in self.conjunctive_sip_strategy(rest, fact_graph, rt):
                         yield ans_dict
 
@@ -649,13 +665,24 @@ class TopDownSPARQLEntailingStore(Store):
                     pprint(list(self.edb.adorned_program))
                 elif self.debug:
                     print("No SIP graph.")
-                self.goal_rule_sip_info[goal] = (
-                    lit,
-                    copy.deepcopy(self.edb.adorned_program),
-                    sip_collection,
-                    None,
-                    None,
-                )
+                if goal in self.goal_rule_sip_info:
+                    # Preserve the last two elements (inferred_facts, meta_interp_network)
+                    _, _, _, existing_inferred, existing_network = self.goal_rule_sip_info[goal]
+                    self.goal_rule_sip_info[goal] = (
+                        lit,
+                        copy.deepcopy(self.edb.adorned_program),
+                        sip_collection,
+                        existing_inferred,
+                        existing_network,
+                    )
+                else:
+                    self.goal_rule_sip_info[goal] = (
+                        lit,
+                        copy.deepcopy(self.edb.adorned_program),
+                        sip_collection,
+                        None,
+                        None,
+                    )
 
                 # Step 3d — run the BFP for this single derived goal.
                 if is_ask:
@@ -783,11 +810,14 @@ class TopDownSPARQLEntailingStore(Store):
         goals = []
         for s, p, o, g in patterns:
             goals.append((s, p, o))
-            d_pred = o if p == RDF.type else p
-            if d_pred in self.hybrid_predicates:
-                d_preds.add(URIRef(d_pred + "_derived"))
-            else:
-                d_preds.add(p == RDF.type and o or p)
+            d_pred = self.derived_predicate_from_triple((s, p, o))
+            if d_pred is not None:
+                if p == RDF.type and o in self.hybrid_predicates:
+                    d_preds.add(URIRef(o + "_derived"))
+                elif p in self.hybrid_predicates:
+                    d_preds.add(URIRef(p + "_derived"))
+                else:
+                    d_preds.add(d_pred)
         if set(d_preds).intersection(self.derived_predicates):
             # Patterns involve derived predicates
             self.batch_unification = False

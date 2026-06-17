@@ -29,7 +29,6 @@ def owl_entailment_regime_graph(
     verbose: bool = False,
     namespace_manager: NamespaceManager = None,
     add_pd_semantics: bool = False,
-    add_non_dhl_owl_rules: bool = True,
     tbox_only_graph: Graph = None
 ):
     """
@@ -82,9 +81,6 @@ def owl_entailment_regime_graph(
     :param namespace_manager: Namespace manager for the closure delta graph, used to
         serialize inferred triples if you choose to inspect the delta graph directly.
     :type namespace_manager: NamespaceManager, optional
-    :param add_non_dhl_owl_rules: Enables additional OWL rules beyond those used in
-        the Description Logic Horn (DLH) fragment.
-    :type add_non_dhl_owl_rules: bool, optional
     :param tbox_only_graph: If provided, only the TBox (ontology) part of
            the graph will be used for entailment.
     :type tbox_only_graph: Graph, optional
@@ -136,10 +132,7 @@ def owl_entailment_regime_graph(
     closure_delta_graph = Graph()
     closure_delta_graph.namespace_manager = namespace_manager
     network.inferred_facts = closure_delta_graph
-    if add_non_dhl_owl_rules:
-        rules = list(horn_from_n3(StringIO(NON_DHL_OWL_SEMANTICS)))
-    else:
-        rules = []
+    rules = []
     rules.extend(
         network.setup_description_logic_programming(
             graph if tbox_only_graph is None else tbox_only_graph,

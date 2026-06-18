@@ -207,6 +207,7 @@ class GraphContext:
         >>> with GraphContext(g, {"ex": EX_NS}, declare_common_annotations=True):
         ...     pass  # rdfs:label, rdfs:comment, skos:* etc. are now declared
     """
+
     def __init__(
         self,
         graph: Graph,
@@ -234,7 +235,9 @@ class GraphContext:
             for prefix, uri in self.namespace_bindings.items():
                 self.graph.namespace_manager.bind(prefix, uri, override=False)
         if self.declare_common_annotations:
-            declare_common_annotations_fn(self.graph, include=self.common_annotation_sets)
+            declare_common_annotations_fn(
+                self.graph, include=self.common_annotation_sets
+            )
         return self.graph
 
     def __exit__(self, exc_type, exc, tb):

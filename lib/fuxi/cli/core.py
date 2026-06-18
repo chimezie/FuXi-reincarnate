@@ -65,14 +65,10 @@ def main(argv: list[str] | None = None) -> None:
         or fmt in OutputFormat.sip_collection_formats()
     )
     if proof_or_sip:
-        raise SystemExit(
-            f"--output={options.output} requires fuxi.proof command"
-        )
+        raise SystemExit(f"--output={options.output} requires fuxi.proof command")
 
     if options.output == "man-owl":
-        raise SystemExit(
-            "--output=man-owl requires fuxi.owl command"
-        )
+        raise SystemExit("--output=man-owl requires fuxi.owl command")
 
     if getattr(options, "why", None):
         raise SystemExit(

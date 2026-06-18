@@ -84,16 +84,20 @@ class EvaluateConjunctiveQueryMemory(ReteMemory):
     """
 
     def __init__(self, betaNode, memoryPos, _filter=None):
-        super(EvaluateConjunctiveQueryMemory, self).__init__(betaNode, memoryPos, _filter)
+        super(EvaluateConjunctiveQueryMemory, self).__init__(
+            betaNode, memoryPos, _filter
+        )
 
     def __repr__(self):
         return "<Evaluate Memory: %s item(s)>" % (len(self))
+
 
 class MalformedQeryPredicate(Exception):
     """An exception raised when a malformed quer predicate is created"""
 
     def __init__(self, msg):
         super(MalformedQeryPredicate, self).__init__(msg)
+
 
 class GoalSolutionAction(object):
     def __init__(self, bfp, var_map):
@@ -151,8 +155,9 @@ class EvaluateExecution(object):
                 for memory in self.bfp.eval_hash[(self.rule_no, self.body_idx)]:
                     for bindings in token.bindings:
                         memory.add_token(token, debug)
-                        self.bfp.action_propagation_info.setdefault(self, {}).setdefault(memory.successor,
-                                                                                         set()).add((t_node, token))
+                        self.bfp.action_propagation_info.setdefault(
+                            self, {}
+                        ).setdefault(memory.successor, set()).add((t_node, token))
                         if memory.position == LEFT_MEMORY:
                             memory.successor.propagate(memory.position, debug, token)
                         else:
@@ -199,10 +204,18 @@ class QueryExecution(object):
                     _vars = set()
                     for lit in self.edb_conj:
                         _vars.update(list(get_variables(lit, second_order=True)))
-                    _qLit = EDBQuery([copy.deepcopy(lit) for lit in self.edb_conj], self.fact_graph, _vars)
+                    _qLit = EDBQuery(
+                        [copy.deepcopy(lit) for lit in self.edb_conj],
+                        self.fact_graph,
+                        _vars,
+                    )
                 else:
                     _qLit = copy.deepcopy(self.query_literal)
-                    _qLit = EDBQuery([_qLit], self.fact_graph, list(get_variables(_qLit, second_order=True)))
+                    _qLit = EDBQuery(
+                        [_qLit],
+                        self.fact_graph,
+                        list(get_variables(_qLit, second_order=True)),
+                    )
                 orig_query = _qLit.copy()
                 _qLit.ground(_bindings)
                 self.fired_grounded_queries[frozendict(_bindings)] = _qLit
@@ -218,14 +231,22 @@ class QueryExecution(object):
                 if is_ground:
                     if first(rt):
                         self.handle_query_answer(
-                            orig_query, token, self.bfp.debug, t_node, ({}, token_binding)
+                            orig_query,
+                            token,
+                            self.bfp.debug,
+                            t_node,
+                            ({}, token_binding),
                         )
                 else:
                     for ans in rt:
                         if self.bfp.debug:
                             pprint(ans)
                         self.handle_query_answer(
-                            orig_query, token, self.bfp.debug, t_node, (ans, token_binding)
+                            orig_query,
+                            token,
+                            self.bfp.debug,
+                            t_node,
+                            (ans, token_binding),
                         )
 
     @ConjunctiveQueryMemoize()
@@ -281,8 +302,9 @@ class QueryExecution(object):
             query_bindings, token_bindings = bindings
             # Defensive: unwrap any ResultRow objects that may have leaked into bindings
             from rdflib.query import ResultRow
+
             query_bindings = {
-                 k: (v[0] if isinstance(v, ResultRow) and len(v) == 1 else v)
+                k: (v[0] if isinstance(v, ResultRow) and len(v) == 1 else v)
                 for k, v in query_bindings.items()
             }
             # toDo = []
@@ -315,8 +337,9 @@ class QueryExecution(object):
             token_clone._generate_bindings()
             for memory in self.associated_beta_memories():
                 memory.add_token(token_clone, debug)
-                self.bfp.action_propagation_info.setdefault(self, {}).setdefault(memory.successor,
-                                                                                 set()).add((t_node, token))
+                self.bfp.action_propagation_info.setdefault(self, {}).setdefault(
+                    memory.successor, set()
+                ).add((t_node, token))
                 if memory.position == LEFT_MEMORY:
                     memory.successor.propagate(memory.position, debug, token_clone)
                 else:
@@ -326,7 +349,9 @@ class QueryExecution(object):
             if bindings:
                 edb_result.ground(bindings)
             assert len(edb_result) == 1
-            inferred_token = ReteToken(edb_result.formulae[0].to_rdf_tuple(), debug=debug)
+            inferred_token = ReteToken(
+                edb_result.formulae[0].to_rdf_tuple(), debug=debug
+            )
             if inferred_token not in self.bfp.meta_interp_network.working_memory:
                 # if self.bfp.debug or debug:
                 #     print("\tAnswer to BFP triggered query %s : %s" % (edb_result, bindings))
@@ -343,7 +368,9 @@ class QueryExecution(object):
                 if self.edb_conj
                 else self.query_literal
             ),
-            " -> %s" % (repr(self.conjoined_token_mem)) if self.conjoined_token_mem else "",
+            " -> %s" % (repr(self.conjoined_token_mem))
+            if self.conjoined_token_mem
+            else "",
         )
 
 
@@ -416,15 +443,17 @@ class BackwardFixpointProcedure(object):
     generated from sub-queries of conjunctions they appear in (queries are collected).
     """
 
-    def __init__(self,
-                 fact_graph,
-                 network,
-                 derived_predicates,
-                 goal,
-                 sip_collection=None,
-                 hybrid_predicates=None,
-                 debug=False,
-                 push_down_mdbq=True):
+    def __init__(
+        self,
+        fact_graph,
+        network,
+        derived_predicates,
+        goal,
+        sip_collection=None,
+        hybrid_predicates=None,
+        debug=False,
+        push_down_mdbq=True,
+    ):
         if sip_collection is None:
             sip_collection = []
         self.debug = debug
@@ -496,9 +525,12 @@ class BackwardFixpointProcedure(object):
         self.meta_interpretation_seeds[bfp_top_query.to_rdf_tuple()] = None
         # Add BFP query atom to working memory, triggering procedure
         try:
-            self.meta_interp_network.feed_facts_to_add(generate_token_set([bfp_top_query.to_rdf_tuple()],
-                                                                          debug_triples=[bfp_top_query.to_rdf_tuple()]
-                                                                          if debug else []))
+            self.meta_interp_network.feed_facts_to_add(
+                generate_token_set(
+                    [bfp_top_query.to_rdf_tuple()],
+                    debug_triples=[bfp_top_query.to_rdf_tuple()] if debug else [],
+                )
+            )
         except InferredGoal:
             if debug:
                 print("Reached ground goal. Terminated BFP.")
@@ -523,8 +555,8 @@ class BackwardFixpointProcedure(object):
             conjunct = []
             # V_{j} = V_{j-1} UNION vars(Literal(..)) where j <> 0
             eval_vars[(idx + 1, bodyIdx + 1)] = (
-                    list(get_variables(bodyLiteral, second_order=True))
-                    + eval_vars[(idx + 1, bodyIdx)]
+                list(get_variables(bodyLiteral, second_order=True))
+                + eval_vars[(idx + 1, bodyIdx)]
             )
             if skip_mdbq_count > 0:
                 skip_mdbq_count -= 1
@@ -556,7 +588,9 @@ class BackwardFixpointProcedure(object):
             # query invokation
             t_node = first(a_node_dk.descendent_beta_nodes)
             assert len(a_node_dk.descendent_beta_nodes) == 1
-            new_eval_memory = setup_evaluation_beta_node(t_node, rule, self.meta_interp_network)
+            new_eval_memory = setup_evaluation_beta_node(
+                t_node, rule, self.meta_interp_network
+            )
 
             is_base = (
                 bodyLiteral.adornment is None
@@ -589,7 +623,9 @@ class BackwardFixpointProcedure(object):
                     built_in_node
                 )
             elif conjunct and (is_base or lazy_base_conjunct):
-                single_conj = EDBQuery([copy.deepcopy(item) for item in conjunct], self.fact_graph)
+                single_conj = EDBQuery(
+                    [copy.deepcopy(item) for item in conjunct], self.fact_graph
+                )
                 matching_triple = first(t_node.consequent)
                 assert len(t_node.consequent) == 1
                 new_action = QueryExecution(
@@ -601,14 +637,18 @@ class BackwardFixpointProcedure(object):
                     edb_conj=conjunct if lazy_base_conjunct else single_conj,
                 )
 
-                self.eval_hash.setdefault((idx + 1, bodyIdx), []).append(new_eval_memory)
+                self.eval_hash.setdefault((idx + 1, bodyIdx), []).append(
+                    new_eval_memory
+                )
                 # If the body predicate is a 2nd order predicate, we don't infer the
                 # second order query predicate (since it will trigger a query into
                 # the EDB and thus there is no need to trigger subsequent
                 # rules)
                 t_node.execute_actions[matching_triple] = (True, new_action)
             else:
-                self.eval_hash.setdefault((idx + 1, bodyIdx), []).append(new_eval_memory)
+                self.eval_hash.setdefault((idx + 1, bodyIdx), []).append(
+                    new_eval_memory
+                )
             if is_hybrid_predicate(bodyLiteral, self.hybrid_predicates) or (
                 (get_op(bodyLiteral) in self.derived_predicates)
                 and not (is_base and len(conjunct) > 1)
@@ -628,8 +668,10 @@ class BackwardFixpointProcedure(object):
                 term_node_ck.right_variables = set(
                     get_variables(bodyLiteral, second_order=True)
                 )
-                term_node_ck.common_variables = term_node_ck.right_variables.intersection(
-                    term_node_ck.left_variables
+                term_node_ck.common_variables = (
+                    term_node_ck.right_variables.intersection(
+                        term_node_ck.left_variables
+                    )
                 )
             if lazy_base_conjunct and len(conjunct) > 1:
                 end_idx = self.max_edb_front2_end[(idx + 1, bodyIdx + 1)][-1]
@@ -656,7 +698,9 @@ class BackwardFixpointProcedure(object):
                 assert override and isinstance(execute_fn, EvaluateExecution), term_node
                 assert execute_fn.rule_no == rule_idx
                 assert execute_fn.body_idx == head_tuple[-1]
-                assert body_idx is None or execute_fn.body_idx == int(body_idx), body_idx
+                assert body_idx is None or execute_fn.body_idx == int(body_idx), (
+                    body_idx
+                )
 
                 if isinstance(rule.formula.body, And):
                     # c^{rule_idx}_{body_idx}
@@ -729,8 +773,8 @@ class BackwardFixpointProcedure(object):
         memoization in the face of recursion
         """
         for rule in set(self.specialize_adorned_ruleset(debug)):
-            self.meta_rule2_network[rule] = self.meta_interp_network.build_network_from_clause(
-                rule
+            self.meta_rule2_network[rule] = (
+                self.meta_interp_network.build_network_from_clause(rule)
             )
         if debug:
             sortedBFPRules = [
@@ -767,7 +811,9 @@ class BackwardFixpointProcedure(object):
             b_node = first(node.descendent_beta_nodes)
             assert b_node.left_node.a_pass_thru
             assert len(b_node.consequent) == 1
-            new_eval_memory = setup_evaluation_beta_node(b_node, rule, self.meta_interp_network)
+            new_eval_memory = setup_evaluation_beta_node(
+                b_node, rule, self.meta_interp_network
+            )
             self.eval_hash.setdefault((idx + 1, conjunct_length), []).append(
                 new_eval_memory
             )
@@ -814,9 +860,17 @@ class BackwardFixpointProcedure(object):
             # Attach evaluate action to p-node that propagates
             # token to beta memory associated with evaluate(rule_no, body_idx)
             execute_action = EvaluateExecution((rule_no, body_idx), self, t_nodes)
-            evaluation_stmt = (BFP_RULE[str(rule_no)], BFP_NS.evaluate, Literal(body_idx))
-            eval_index = tuple([i.value if isinstance(i, Literal) else int(i.split("Rule#")[-1])
-                                for i in [evaluation_stmt[0], evaluation_stmt[-1]]])
+            evaluation_stmt = (
+                BFP_RULE[str(rule_no)],
+                BFP_NS.evaluate,
+                Literal(body_idx),
+            )
+            eval_index = tuple(
+                [
+                    i.value if isinstance(i, Literal) else int(i.split("Rule#")[-1])
+                    for i in [evaluation_stmt[0], evaluation_stmt[-1]]
+                ]
+            )
             self.meta_evaluation.setdefault(eval_index, set()).add(execute_action)
             for t_node in t_nodes:
                 t_node.execute_actions[evaluation_stmt] = (True, execute_action)
@@ -936,12 +990,19 @@ class BackwardFixpointProcedure(object):
                     m_db_conj_front = (idx + 1, body_idx + 1)
                     if len(conj) > 1:
                         skip_mdbq_count = len(conj) - 1
-                        self.push_down_queries[m_db_conj_front] = EDBQuery([copy.deepcopy(item) for item in conj],
-                                                                           self.fact_graph)
+                        self.push_down_queries[m_db_conj_front] = EDBQuery(
+                            [copy.deepcopy(item) for item in conj], self.fact_graph
+                        )
                     else:
-                        self.max_edb_front2_end[m_db_conj_front] = (idx + 1, body_idx + 1)
+                        self.max_edb_front2_end[m_db_conj_front] = (
+                            idx + 1,
+                            body_idx + 1,
+                        )
                     if debug and skip_mdbq_count > 0:
-                        print("maximal db query: ", self.push_down_queries[m_db_conj_front])
+                        print(
+                            "maximal db query: ",
+                            self.push_down_queries[m_db_conj_front],
+                        )
                         print(
                             "skipping %s literals, starting from the %s"
                             % (body_idx + 1, skip_mdbq_count)
@@ -959,8 +1020,8 @@ class BackwardFixpointProcedure(object):
                     or (
                         (body_pred_symbol in FILTERS and len(conj) == 1)
                         or (
-                                body_pred_symbol in self.derived_predicates
-                                or is_hybrid_predicate(body_literal, self.hybrid_predicates)
+                            body_pred_symbol in self.derived_predicates
+                            or is_hybrid_predicate(body_literal, self.hybrid_predicates)
                         )
                     )
                 ) and skip_mdbq_count in (1, -1):
@@ -980,7 +1041,8 @@ class BackwardFixpointProcedure(object):
                     # query_Literal(x0, ..., xj) :- evaluate(ruleNo, j, X)
                     # OpenQuery(query_Literal)
                     new_rule = self.make_adorned_rule(
-                        prior_evaluate_term, self.make_derived_query_predicate(body_literal)
+                        prior_evaluate_term,
+                        self.make_derived_query_predicate(body_literal),
                     )
                     self.bfp_lookup[("d", idx + 1, body_idx + 1)] = new_rule
                     rules.add(new_rule)

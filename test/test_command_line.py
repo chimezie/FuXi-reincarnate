@@ -53,8 +53,8 @@ Using sub-commands directly::
         test/command_line_facts.n3 > proof.svg
 """
 
-import subprocess
 from pathlib import Path
+import subprocess
 
 import pytest
 

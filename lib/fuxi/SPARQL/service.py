@@ -12,76 +12,76 @@ from rdflib import Graph
 
 class SPARQLServiceGraph(Graph):
     """
-    A query-only graph wrapper for a remote SPARQL service.
+        A query-only graph wrapper for a remote SPARQL service.
 
-    This class mediates SPARQL query evaluation by extracting the basic graph
-    pattern (BGP) from a query, compiling it into an ``EDBQuery``, and issuing
-    a service query against the configured SPARQL endpoint. It is designed to
-    plug into FuXi's SPARQL entailment machinery so you can implement SPARQL 1.1
-    entailment regimes over remote services independent of any
-    reasoning capabilities of the service.
+        This class mediates SPARQL query evaluation by extracting the basic graph
+        pattern (BGP) from a query, compiling it into an ``EDBQuery``, and issuing
+        a service query against the configured SPARQL endpoint. It is designed to
+        plug into FuXi's SPARQL entailment machinery so you can implement SPARQL 1.1
+        entailment regimes over remote services independent of any
+        reasoning capabilities of the service.
 
-    ## How It Works
-    1. Parse a SPARQL query and extract the BGP.
-    2. Convert the BGP into an ``EDBQuery``.
-    3. Emit a SPARQL SERVICE query against ``service_url``.
-    4. Return the remote endpoint results.
+        ## How It Works
+        1. Parse a SPARQL query and extract the BGP.
+        2. Convert the BGP into an ``EDBQuery``.
+        3. Emit a SPARQL SERVICE query against ``service_url``.
+        4. Return the remote endpoint results.
 
-    ## Entailment Regimes
-    In the SPARQL 1.1 entailment specification, regimes include:
-    - Simple
-    - RDF
-    - RDFS
-    - OWL Direct Semantics
-    - OWL RDF-Based Semantics
-    - RIF (RIF Core entailment)
-    - D Entailment
+        ## Entailment Regimes
+        In the SPARQL 1.1 entailment specification, regimes include:
+        - Simple
+        - RDF
+        - RDFS
+        - OWL Direct Semantics
+        - OWL RDF-Based Semantics
+        - RIF (RIF Core entailment)
+        - D Entailment
 
-    FuXi supports rule-based entailment by providing an intensional
-    database (IDB)
-    of rules and derived predicates. ``SPARQLServiceGraph`` provides the
-    extensional database (EDB) access layer for data living behind a
-    SPARQL service.
+        FuXi supports rule-based entailment by providing an intensional
+        database (IDB)
+        of rules and derived predicates. ``SPARQLServiceGraph`` provides the
+        extensional database (EDB) access layer for data living behind a
+        SPARQL service.
 
-    ## Example
-    ```python
-from rdflib import Graph, Variable
-    from rdflib.plugins.sparql.parser import parseQuery
-    from fuxi.SPARQL import TopDownSPARQLEntailingStore
-    from fuxi.SPARQL.utilities import extract_triples_from_query
+        ## Example
+        ```python
+    from rdflib import Graph, Variable
+        from rdflib.plugins.sparql.parser import parseQuery
+        from fuxi.SPARQL import TopDownSPARQLEntailingStore
+        from fuxi.SPARQL.utilities import extract_triples_from_query
 
-    parsed_query = parseQuery(".. SPARQL query ..")
-    _, query_structure = parsed_query
-    service_url, _ = extract_triples_from_query(query_structure, [..])
+        parsed_query = parseQuery(".. SPARQL query ..")
+        _, query_structure = parsed_query
+        service_url, _ = extract_triples_from_query(query_structure, [..])
 
-    service_graph = SPARQLServiceGraph(service_url)
-    entailing_graph, closure_delta_graph = owl_entailment_regime_graph(
-        service_graph,
-        ns_map,
-        identify_hybrid_predicates=True,
-        derived_predicates=None,
-        hybrid_predicates=None,
-        goals=goals,
-        namespace_manager=namespace_manager,
-        extra_rulesets=horn_from_n3(StringIO(thing_rule)),
-        verbose=debug,
-    )
+        service_graph = SPARQLServiceGraph(service_url)
+        entailing_graph, closure_delta_graph = owl_entailment_regime_graph(
+            service_graph,
+            ns_map,
+            identify_hybrid_predicates=True,
+            derived_predicates=None,
+            hybrid_predicates=None,
+            goals=goals,
+            namespace_manager=namespace_manager,
+            extra_rulesets=horn_from_n3(StringIO(thing_rule)),
+            verbose=debug,
+        )
 
-    top_down_store = TopDownSPARQLEntailingStore(
-        service_graph.store,
-        service_graph,
-        idb=program,
-        derived_predicates=derived_predicates,
-        identify_hybrid_predicates=False,
-        hybrid_predicates=[..],
-    )
+        top_down_store = TopDownSPARQLEntailingStore(
+            service_graph.store,
+            service_graph,
+            idb=program,
+            derived_predicates=derived_predicates,
+            identify_hybrid_predicates=False,
+            hybrid_predicates=[..],
+        )
 
-    result = Graph(store=top_down_store).query(parsed_query, [..])
-    ```
+        result = Graph(store=top_down_store).query(parsed_query, [..])
+        ```
 
-    ## Notes
-    - ``triples()`` is not supported; this graph is intended for query mediation.
-    - The remote service is the EDB, while FuXi rules provide the IDB.
+        ## Notes
+        - ``triples()`` is not supported; this graph is intended for query mediation.
+        - The remote service is the EDB, while FuXi rules provide the IDB.
     """
 
     def __init__(self, service_url: str, *args, **kwargs):
@@ -95,6 +95,7 @@ from rdflib import Graph, Variable
     def _sparql_post(self, query_str: str) -> dict | None:
         """Execute a SPARQL query against the endpoint and return parsed JSON."""
         import requests as req
+
         prefix_lines = "".join(
             f"PREFIX {p}: <{ns}>\n"
             for p, ns in self.namespace_manager.namespaces()
@@ -121,6 +122,7 @@ from rdflib import Graph, Variable
 
     def triples(self, triple, context=None):
         from rdflib import Variable
+
         ns_map = {prefix: uri for prefix, uri in self.namespace_manager.namespaces()}
         s, p, o = triple
         vars = []
@@ -133,7 +135,9 @@ from rdflib import Graph, Variable
             v = Variable("o")
             tp[2] = v
             vars.append(v)
-        query_literal = EDBQuery([build_uniterm_from_tuple(tuple(tp), ns_map)], self, vars or None)
+        query_literal = EDBQuery(
+            [build_uniterm_from_tuple(tuple(tp), ns_map)], self, vars or None
+        )
         mediated_query = query_literal.as_sparql() + " LIMIT 10000"
         results = self._sparql_post(mediated_query)
         if results is None:
@@ -148,6 +152,7 @@ from rdflib import Graph, Variable
         if term_dict is None:
             return None
         from rdflib import BNode, Literal, URIRef
+
         typ = term_dict.get("type")
         val = term_dict.get("value")
         if typ == "uri":
@@ -176,7 +181,9 @@ from rdflib import Graph, Variable
         **kwargs: Any,
     ) -> Result:
         """Execute SPARQL query by forwarding to the remote endpoint via HTTP."""
-        query_str = str(query_object) if not isinstance(query_object, str) else query_object
+        query_str = (
+            str(query_object) if not isinstance(query_object, str) else query_object
+        )
         data = self._sparql_post(query_str)
         if data is None:
             return _empty_result(query_str)
@@ -185,6 +192,7 @@ from rdflib import Graph, Variable
 
 class _AskResult:
     """Minimal result wrapper for ASK queries (checking .askAnswer)."""
+
     def __init__(self, answer: bool):
         self.askAnswer = answer
 
@@ -194,13 +202,13 @@ class _AskResult:
 
 class _SelectResult:
     """Minimal result wrapper for SELECT queries."""
+
     def __init__(self, vars, bindings):
         self.vars = vars
         self._bindings = bindings
 
     def __iter__(self):
-        for b in self._bindings:
-            yield b
+        yield from self._bindings
 
 
 def _empty_result(query_str: str):
@@ -246,6 +254,7 @@ def _json_to_result(data: dict, query_str: str):
                     row[var] = rdflib.Literal(val)
         rows.append(row)
     return _SelectResult(vars, rows)
+
 
 class ServiceGraphPatternError(Exception):
     """

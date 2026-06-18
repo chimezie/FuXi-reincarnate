@@ -33,6 +33,7 @@ def inner(x):
     """
     yield from x
 
+
 # The original hash_join
 # throughout, we assume S is the smaller relation of R and S.
 def hash_join(r, s, predicate=identity, join=inner, combine=operator.concat):
@@ -45,12 +46,7 @@ def hash_join(r, s, predicate=identity, join=inner, combine=operator.concat):
 
 
 def nested_loops_join(
-    r,
-    s,
-    predicate=identity,
-    join=inner,
-    combine=operator.concat,
-    theta=operator.eq
+    r, s, predicate=identity, join=inner, combine=operator.concat, theta=operator.eq
 ):
     sp = [(predicate(s), s) for s in s]
     for r in r:
@@ -66,7 +62,9 @@ def bisect_join(r, s, predicate=identity, join=inner, combine=operator.concat):
     """
 
     from bisect import bisect_left
+
     length = len(s)
+
     def consume(sp, si, rp):
         """This needs a better name..."""
         while si < length:

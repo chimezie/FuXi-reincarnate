@@ -17,13 +17,14 @@ try:
     )
     from owlapy.owl_individual import OWLNamedIndividual
     from owlapy.owl_property import OWLObjectProperty
+
     owlapy_available = True
 except ImportError:
     owlapy_available = False
 
 pytestmark = pytest.mark.skipif(  # noqa: E402
     not owlapy_available,
-    reason="owlapy package not installed - install with: pip install owlapy"
+    reason="owlapy package not installed - install with: pip install owlapy",
 )
 
 from fuxi.Syntax.InfixOWL import (  # noqa: E402
@@ -110,4 +111,4 @@ class TestInfixOWLOwlapyAdapter:
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, '-v'])
+    pytest.main([__file__, "-v"])

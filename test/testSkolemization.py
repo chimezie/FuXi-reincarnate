@@ -12,25 +12,21 @@ from fuxi.Rete.RuleStore import setup_rule_store
 from fuxi.Syntax.InfixOWL import OWL_NS, BooleanClass, Class, Individual
 from rdflib import Graph, Namespace
 
-EX = Namespace('http://example.com#')
+EX = Namespace("http://example.com#")
 
 
 @pytest.fixture
 def tbox_graph():
     """Provide a TBox graph with classes for skolemization testing."""
     graph = Graph()
-    graph.namespace_manager.bind('ex', EX)
-    graph.namespace_manager.bind('owl', OWL_NS)
+    graph.namespace_manager.bind("ex", EX)
+    graph.namespace_manager.bind("owl", OWL_NS)
     Individual.factoryGraph = graph
     class_b = Class(EX.b)
     class_e = Class(EX.e)
     class_f = Class(EX.f)
-    class_a = BooleanClass(EX.a,
-                           operator=OWL_NS.unionOf,
-                           members=[class_e, class_f])
-    BooleanClass(EX.c,
-                 operator=OWL_NS.unionOf,
-                 members=[class_a, class_b])
+    class_a = BooleanClass(EX.a, operator=OWL_NS.unionOf, members=[class_e, class_f])
+    BooleanClass(EX.c, operator=OWL_NS.unionOf, members=[class_a, class_b])
     return graph
 
 
@@ -50,12 +46,13 @@ class TestSkolemization:
         network = rete_network
         program = network.setup_description_logic_programming(tbox_graph)
         for rule in program:
-            if hasattr(rule.formula.body, 'arg'):
-                assert not (rule.formula.body.arg[-1].find(SKOLEMIZED_CLASS_NS) > -1), \
+            if hasattr(rule.formula.body, "arg"):
+                assert not (rule.formula.body.arg[-1].find(SKOLEMIZED_CLASS_NS) > -1), (
                     f"Rule has a skolem term when it shouldn't!: {rule}"
+                )
             else:
                 print(f"{rule.formula.body} - find(SKOLEMIZED_CLASS_NS)")
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

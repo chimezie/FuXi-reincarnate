@@ -41,7 +41,9 @@ def format_doctest_out(obj: Any) -> Any:
     return obj
 
 
-def build_uniTerm(triple: Triple, new_nss: "Iterable[tuple[str, URIRef]] | None" = None) -> "Uniterm":
+def build_uniTerm(
+    triple: Triple, new_nss: "Iterable[tuple[str, URIRef]] | None" = None
+) -> "Uniterm":
     if isinstance(triple, tuple):
         (s, p, o) = triple
     else:
@@ -64,6 +66,8 @@ class QNameManager(object):
         self.ns_manager: NamespaceManager = NamespaceManager(Graph())
         self.ns_manager.bind("owl", "http://www.w3.org/2002/07/owl#")
         self.ns_manager.bind("math", "http://www.w3.org/2000/10/swap/math#")
+        for prefix, uri in self.ns_dict.items():
+            self.ns_manager.bind(prefix, uri)
 
     def bind(self, prefix: str, namespace: URIRef) -> None:
         self.ns_manager.bind(prefix, namespace)
@@ -310,7 +314,9 @@ class Or(QNameManager, SetOperator, Condition):
         f is a disjunction, and v is safe in every disjunct;
         """
         unboundConjs = list(
-            itertools.takewhile(lambda conj: conj.is_safe_for_variable(var), self.formulae)
+            itertools.takewhile(
+                lambda conj: conj.is_safe_for_variable(var), self.formulae
+            )
         )
         return len(unboundConjs) == len(self.formulae)
 
@@ -411,9 +417,9 @@ class Equal(QNameManager, Atomic):
         return "%s =  %s" % (left, right)
 
 
-def build_uniterm_from_tuple(triple: Triple,
-                             new_nss: Mapping[str, Identifier] = None):
+def build_uniterm_from_tuple(triple: Triple, new_nss: Mapping[str, Identifier] = None):
     from rdflib import Variable
+
     (s, p, o) = triple
     s = Variable("s") if s is None else s
     o = Variable("o") if o is None else o
@@ -480,7 +486,7 @@ class Uniterm(QNameManager, Atomic):
         """
         bindings = {}
         for selfTerm, otherTerm in zip(
-                [self.op] + self.arg, [other_lit.op] + other_lit.arg
+            [self.op] + self.arg, [other_lit.op] + other_lit.arg
         ):
             if isinstance(selfTerm, Variable):
                 bindings[selfTerm] = otherTerm
@@ -666,7 +672,10 @@ class Uniterm(QNameManager, Atomic):
 
         """
         return " ".join(
-            [self.render_term_as_n3(term) for term in [self.arg[0], self.op, self.arg[1]]]
+            [
+                self.render_term_as_n3(term)
+                for term in [self.arg[0], self.op, self.arg[1]]
+            ]
         )
 
     def to_rdf_tuple(self):
@@ -798,6 +807,7 @@ def test():
 
 if __name__ == "__main__":
     test()
+
 
 def format_doctest_out(obj):
     return obj

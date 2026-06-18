@@ -39,14 +39,15 @@ T(owl:TransitiveProperty(P))   -> P(x, z) :- P(x, y) ^ P(y, z)
 [3] http://www.w3.org/2005/rules/wg/wiki/asn06
 
 """
+
 from __future__ import annotations
 
 import collections.abc
+from collections.abc import Generator, Iterable
 import copy
+from functools import reduce
 import logging
 import warnings
-from collections.abc import Generator, Iterable
-from functools import reduce
 
 from rdflib.collection import Collection
 from rdflib.namespace import RDF, RDFS, Namespace
@@ -221,44 +222,42 @@ def make_rule(clause, ns_map):
         if isinstance(child, Or):
             return None
         assert isinstance(child, Uniterm), repr(child)
-        vars.update([term for term in child.to_rdf_tuple()
-                     if isinstance(term, Variable)])
+        vars.update(
+            [term for term in child.to_rdf_tuple() if isinstance(term, Variable)]
+        )
     negative_stratus = False
     for child in clause.body:
         if hasattr(child, "naf") and child.naf:
             negative_stratus = True
         elif not hasattr(child, "naf"):
             child.naf = False
-        vars.update([term for term in child.to_rdf_tuple()
-                     if isinstance(term, Variable)])
-    return Rule(clause,
-                declare=vars,
-                ns_mapping=ns_map,
-                negative_stratus=negative_stratus)
+        vars.update(
+            [term for term in child.to_rdf_tuple() if isinstance(term, Variable)]
+        )
+    return Rule(
+        clause, declare=vars, ns_mapping=ns_map, negative_stratus=negative_stratus
+    )
 
-def disjunctive_normal_form(program: Iterable[Rule],
-                            safety: int = DATALOG_SAFETY_NONE,
-                            network = None) -> Generator[Rule] | None:
+
+def disjunctive_normal_form(
+    program: Iterable[Rule], safety: int = DATALOG_SAFETY_NONE, network=None
+) -> Generator[Rule] | None:
     for rule in program:
         tx_horn_clause = normalize_clause(rule.formula)
-        for tx_horn_clause in lloyd_topor_transformation(tx_horn_clause,
-                                                         True):
+        for tx_horn_clause in lloyd_topor_transformation(tx_horn_clause, True):
             if safety in [DATALOG_SAFETY_LOOSE, DATALOG_SAFETY_STRICT]:
-                rule = Rule(tx_horn_clause,
-                            ns_mapping = {} if network is None
-                            else network.ns_map)
+                rule = Rule(
+                    tx_horn_clause, ns_mapping={} if network is None else network.ns_map
+                )
                 if not rule.is_safe():
                     if safety == DATALOG_SAFETY_LOOSE:
                         warnings.warn(
-                            f"Ignoring unsafe rule ({rule})",
-                            SyntaxWarning,
-                            3
+                            f"Ignoring unsafe rule ({rule})", SyntaxWarning, 3
                         )
                         continue
                     elif safety == DATALOG_SAFETY_STRICT:
                         raise SyntaxError(f"Unsafe RIF Core rule: {rule}")
-            disj = [i for i in breadth_first(tx_horn_clause.body)
-                    if isinstance(i, Or)]
+            disj = [i for i in breadth_first(tx_horn_clause.body) if isinstance(i, Or)]
             if len(disj) > 0:
                 normalize_disjunctions(disj, tx_horn_clause, program, network)
             elif isinstance(tx_horn_clause.head, (And, Uniterm)):
@@ -266,13 +265,15 @@ def disjunctive_normal_form(program: Iterable[Rule],
                     yield make_rule(hc, network and network.ns_map or {})
 
 
-def map_dlp_to_network(network,
-                       fact_graph,
-                       complement_expansions=None,
-                       construct_network=False,
-                       derived_preds=None,
-                       ignore_negative_stratus=False,
-                       safety=DATALOG_SAFETY_NONE):
+def map_dlp_to_network(
+    network,
+    fact_graph,
+    complement_expansions=None,
+    construct_network=False,
+    derived_preds=None,
+    ignore_negative_stratus=False,
+    safety=DATALOG_SAFETY_NONE,
+):
     if complement_expansions is None:
         complement_expansions = []
     if derived_preds is None:
@@ -307,9 +308,7 @@ def map_dlp_to_network(network,
                         if not rule.is_safe():
                             if safety == DATALOG_SAFETY_LOOSE:
                                 warnings.warn(
-                                    f"Ignoring unsafe rule ({rule})",
-                                    SyntaxWarning,
-                                    3
+                                    f"Ignoring unsafe rule ({rule})", SyntaxWarning, 3
                                 )
                                 continue
                             elif safety == DATALOG_SAFETY_STRICT:
@@ -318,7 +317,7 @@ def map_dlp_to_network(network,
                     if _rule.negative_stratus:
                         negative_stratus.append(_rule)
                     if _rule is not None and (
-                            not _rule.negative_stratus or not ignore_negative_stratus
+                        not _rule.negative_stratus or not ignore_negative_stratus
                     ):
                         ruleset.add(_rule)
     if ignore_negative_stratus:
@@ -347,6 +346,7 @@ def isa_fact_forming_conclusion(head):
 def traverse_clause(condition):
     if isinstance(condition, SetOperator):
         yield from condition
+
 
 def breadth_first(condition, children=traverse_clause):
     yield condition
@@ -385,16 +385,14 @@ def extend_n3_rules(network, horn_clause, construct_network=False):
         rule_store = network.rule_store
         lhs = BNode()
         rhs = BNode()
-    assert isinstance(horn_clause.body, (And, Uniterm)), (
-        list(horn_clause.body))
+    assert isinstance(horn_clause.body, (And, Uniterm)), list(horn_clause.body)
     assert len(list(horn_clause.body))
     if construct_network:
         for term in horn_clause.body:
-            rule_store.formulae.setdefault(
-                lhs,
-                Formula(lhs)).append(term.to_rdf_tuple())
-    assert isinstance(horn_clause.head,
-                      (And, Uniterm)), repr(horn_clause.head)
+            rule_store.formulae.setdefault(lhs, Formula(lhs)).append(
+                term.to_rdf_tuple()
+            )
+    assert isinstance(horn_clause.head, (And, Uniterm)), repr(horn_clause.head)
 
     if isa_fact_forming_conclusion(horn_clause.head):
         prepare_horn_clause_for_rete(horn_clause)
@@ -402,17 +400,19 @@ def extend_n3_rules(network, horn_clause, construct_network=False):
             for term in horn_clause.head:
                 assert not isinstance(term, collections.abc.Iterator)
                 if isinstance(term, Or):
-                    rule_store.formulae.setdefault(rhs,
-                                                   Formula(rhs)).append(term)
+                    rule_store.formulae.setdefault(rhs, Formula(rhs)).append(term)
                 else:
                     rule_store.formulae.setdefault(rhs, Formula(rhs)).append(
                         term.to_rdf_tuple()
                     )
-            rule_store.rules.append((rule_store.formulae[lhs],
-                                     rule_store.formulae[rhs]))
-            network.build_network(iter(rule_store.formulae[lhs]),
-                                  iter(rule_store.formulae[rhs]),
-                                  Rule(horn_clause))
+            rule_store.rules.append(
+                (rule_store.formulae[lhs], rule_store.formulae[rhs])
+            )
+            network.build_network(
+                iter(rule_store.formulae[lhs]),
+                iter(rule_store.formulae[rhs]),
+                Rule(horn_clause),
+            )
             network.alpha_nodes = [
                 node
                 for node in list(network.nodes.values())
@@ -420,8 +420,7 @@ def extend_n3_rules(network, horn_clause, construct_network=False):
             ]
         rt.append(horn_clause)
     else:
-        for hc in lloyd_topor_transformation(horn_clause,
-                                             full_reduction=True):
+        for hc in lloyd_topor_transformation(horn_clause, full_reduction=True):
             rt.append(hc)
             for i in extend_n3_rules(network, hc, construct_network):
                 rt.append(hc)
@@ -477,8 +476,7 @@ def prepare_horn_clause_for_rete(horn_clause):
         )
     )
 
-    update_dict = dict([(var, BNode()) for var in head_vars
-                        if var not in body_vars])
+    update_dict = dict([(var, BNode()) for var in head_vars if var not in body_vars])
 
     if set(update_dict.keys()).intersection(get_args(horn_clause.head)):
         new_head = copy.deepcopy(horn_clause.head)
@@ -505,8 +503,10 @@ def generator_flattener(gen):
     i = list(gen)
     i = (
         len(i) > 1
-        and [isinstance(i2, collections.abc.Iterator) and
-             generator_flattener(i2) or i2 for i2 in i]
+        and [
+            isinstance(i2, collections.abc.Iterator) and generator_flattener(i2) or i2
+            for i2 in i
+        ]
         or i[0]
     )
     if isinstance(i, collections.abc.Iterator):
@@ -515,9 +515,8 @@ def generator_flattener(gen):
         # return i
     elif isinstance(i, SetOperator):
         i.formulae = [
-            isinstance(i2,
-                       collections.abc.Iterator) and
-            generator_flattener(i2) or i2 for i2 in i.formulae
+            isinstance(i2, collections.abc.Iterator) and generator_flattener(i2) or i2
+            for i2 in i.formulae
         ]
         return i
     else:
@@ -532,14 +531,12 @@ def skolemize_existential_classes(term, check=True):
 
 def normalize_boolean_class_operand(term, owl_graph):
     return (
-            (
-                    (isinstance(term,
-                                BNode) and
-                     isa_boolean_class_description(term, owl_graph))
-                    or isa_restriction(term, owl_graph)
-            )
-            and skolemize_existential_classes(term)
-            or term
+        (
+            (isinstance(term, BNode) and isa_boolean_class_description(term, owl_graph))
+            or isa_restriction(term, owl_graph)
+        )
+        and skolemize_existential_classes(term)
+        or term
     )
 
 
@@ -555,16 +552,17 @@ def isa_restriction(term, owl_graph):
 
 
 def iter_condition(condition):
-    return isinstance(condition,
-                      SetOperator) and condition or iter([condition])
+    return isinstance(condition, SetOperator) and condition or iter([condition])
 
 
 def Tc(owl_graph, negated_formula):
     if (negated_formula, OWL_NS.hasValue, None) in owl_graph:
         body_uni_term = Uniterm(
             RDF.type,
-            [Variable("X"),
-                 normalize_boolean_class_operand(negated_formula, owl_graph)],
+            [
+                Variable("X"),
+                normalize_boolean_class_operand(negated_formula, owl_graph),
+            ],
             new_nss=owl_graph.namespaces(),
         )
 
@@ -584,14 +582,17 @@ def Tc(owl_graph, negated_formula):
     elif isinstance(negated_formula, URIRef):
         return Uniterm(
             RDF.type,
-            [Variable("X"), normalize_boolean_class_operand(negated_formula,
-                                                            owl_graph)],
+            [
+                Variable("X"),
+                normalize_boolean_class_operand(negated_formula, owl_graph),
+            ],
             new_nss=owl_graph.namespaces(),
             naf=True,
         )
     else:
         raise UnsupportedNegationError(
-            f"Unsupported negated concept: {negated_formula}")
+            f"Unsupported negated concept: {negated_formula}"
+        )
 
 
 class MalformedDLPFormulaError(NotImplementedError):
@@ -610,16 +611,16 @@ def handle_conjunct(conjunction, owl_graph, o, conjunct_var=Variable("X")):
         if negated_formula:
             conjunction.append(add_to_conjunct)
         else:
-            normalized_body_term = normalize_boolean_class_operand(body_term,
-                                                                   owl_graph)
+            normalized_body_term = normalize_boolean_class_operand(body_term, owl_graph)
             body_uni_term = Uniterm(
                 RDF.type,
                 [conjunct_var, normalized_body_term],
                 new_nss=owl_graph.namespaces(),
             )
             processed_body_term = Tb(owl_graph, body_term, conjunct_var)
-            classifying_clause = normalize_clause(Clause(processed_body_term,
-                                                         body_uni_term))
+            classifying_clause = normalize_clause(
+                Clause(processed_body_term, body_uni_term)
+            )
             if (
                 isinstance(normalized_body_term, URIRef)
                 and normalized_body_term.find(SKOLEMIZED_CLASS_NS) == -1
@@ -657,8 +658,7 @@ def T(owl_graph, complement_expansions=None, derived_preds=None):
             yield normalize_clause(Clause(Tc(owl_graph, o), head_literal))
     for c, p, d in owl_graph.triples((None, RDFS.subClassOf, None)):
         try:
-            yield normalize_clause(Clause(Tb(owl_graph, c),
-                                          Th(owl_graph, d)))
+            yield normalize_clause(Clause(Tb(owl_graph, c), Th(owl_graph, d)))
         except UnsupportedNegationError:
             warnings.warn(
                 f"Unable to handle negation in DL axiom ({c}), skipping",
@@ -707,15 +707,13 @@ def T(owl_graph, complement_expansions=None, derived_preds=None):
                 [
                     Uniterm(
                         RDF.type,
-                        [Variable("X"),
-                             normalize_boolean_class_operand(i, owl_graph)],
+                        [Variable("X"), normalize_boolean_class_operand(i, owl_graph)],
                         new_nss=owl_graph.namespaces(),
                     )
                     for i in Collection(owl_graph, o)
                 ]
             )
-            head = Uniterm(RDF.type, [Variable("X"), s],
-                           new_nss=owl_graph.namespaces())
+            head = Uniterm(RDF.type, [Variable("X"), s], new_nss=owl_graph.namespaces())
             yield Clause(body, head)
     for s, p, o in owl_graph.triples((None, OWL_NS.inverseOf, None)):
         new_var = Variable(BNode())
@@ -723,26 +721,14 @@ def T(owl_graph, complement_expansions=None, derived_preds=None):
         s = skolemize_existential_classes(s) if isinstance(s, BNode) else s
         o = skolemize_existential_classes(o) if isinstance(o, BNode) else o
 
-        body1 = Uniterm(s,
-                        [new_var, Variable("X")],
-                        new_nss=owl_graph.namespaces())
-        head1 = Uniterm(o,
-                        [Variable("X"), new_var],
-                        new_nss=owl_graph.namespaces())
+        body1 = Uniterm(s, [new_var, Variable("X")], new_nss=owl_graph.namespaces())
+        head1 = Uniterm(o, [Variable("X"), new_var], new_nss=owl_graph.namespaces())
         yield Clause(body1, head1)
         new_var = Variable(BNode())
-        body2 = Uniterm(o,
-                        [Variable("X"),
-                         new_var],
-                        new_nss=owl_graph.namespaces())
-        head2 = Uniterm(s,
-                        [new_var,
-                         Variable("X")],
-                        new_nss=owl_graph.namespaces())
+        body2 = Uniterm(o, [Variable("X"), new_var], new_nss=owl_graph.namespaces())
+        head2 = Uniterm(s, [new_var, Variable("X")], new_nss=owl_graph.namespaces())
         yield Clause(body2, head2)
-    for s, p, o in owl_graph.triples((None,
-                                      RDF.type,
-                                      OWL_NS.TransitiveProperty)):
+    for s, p, o in owl_graph.triples((None, RDF.type, OWL_NS.TransitiveProperty)):
         y = Variable(BNode())
         z = Variable(BNode())
         x = Variable("X")
@@ -780,9 +766,7 @@ def T(owl_graph, complement_expansions=None, derived_preds=None):
         yield Clause(body, head)
         yield Clause(head, body)
 
-    for s, p, o in owl_graph.triples((None,
-                                      RDF.type,
-                                      OWL_NS.SymmetricProperty)):
+    for s, p, o in owl_graph.triples((None, RDF.type, OWL_NS.SymmetricProperty)):
         y = Variable("Y")
         x = Variable("X")
 
@@ -792,28 +776,20 @@ def T(owl_graph, complement_expansions=None, derived_preds=None):
         head = Uniterm(s, [y, x], new_nss=owl_graph.namespaces())
         yield Clause(body, head)
 
-    for s, p, o in owl_graph.triples_choices((None,
-                                              [RDFS.range, RDFS.domain],
-                                              None)):
+    for s, p, o in owl_graph.triples_choices((None, [RDFS.range, RDFS.domain], None)):
         s = skolemize_existential_classes(s) if isinstance(s, BNode) else s
 
         if p == RDFS.range:
             x = Variable("X")
             y = Variable(BNode())
             body = Uniterm(s, [x, y], new_nss=owl_graph.namespaces())
-            head = Uniterm(RDF.type,
-                           [y, o],
-                           new_nss=owl_graph.namespaces())
+            head = Uniterm(RDF.type, [y, o], new_nss=owl_graph.namespaces())
             yield Clause(body, head)
         else:
             x = Variable("X")
             y = Variable(BNode())
-            body = Uniterm(s,
-                           [x, y],
-                           new_nss=owl_graph.namespaces())
-            head = Uniterm(RDF.type,
-                           [x, o],
-                           new_nss=owl_graph.namespaces())
+            body = Uniterm(s, [x, y], new_nss=owl_graph.namespaces())
+            head = Uniterm(RDF.type, [x, o], new_nss=owl_graph.namespaces())
             yield Clause(body, head)
 
 
@@ -825,16 +801,15 @@ def lloyd_topor_transformation(clause, full_reduction=True):
             if isinstance(atom, collections.abc.Iterator):
                 atom = first(atom)
             yield from lloyd_topor_transformation(
-                normalize_clause(
-                    Clause(atom, clause.head)), full_reduction=full_reduction
+                normalize_clause(Clause(atom, clause.head)),
+                full_reduction=full_reduction,
             )
     elif isinstance(clause.head, original_clause):
         yield normalize_clause(
             Clause(And([clause.body, clause.head.body]), clause.head.head)
         )
     elif full_reduction and (
-        (isinstance(clause.head,
-                    Exists) and isinstance(clause.head.formula, And))
+        (isinstance(clause.head, Exists) and isinstance(clause.head.formula, And))
         or isinstance(clause.head, And)
     ):
         if isinstance(clause.head, Exists):
@@ -857,43 +832,33 @@ def Th(owl_graph, _class, variable=Variable("X"), position=LHS):
     props = list(set(owl_graph.predicates(subject=_class)))
     if OWL_NS.allValuesFrom in props:
         for s, p, o in owl_graph.triples((_class, OWL_NS.allValuesFrom, None)):
-            prop = list(owl_graph.objects(subject=_class,
-                                          predicate=OWL_NS.onProperty))[0]
+            prop = list(owl_graph.objects(subject=_class, predicate=OWL_NS.onProperty))[
+                0
+            ]
             new_var = Variable(BNode())
-            body = Uniterm(prop,
-                           [variable, new_var],
-                           new_nss=owl_graph.namespaces())
+            body = Uniterm(prop, [variable, new_var], new_nss=owl_graph.namespaces())
             for head in Th(owl_graph, o, variable=new_var):
                 yield Clause(body, head)
     elif OWL_NS.hasValue in props:
-        prop = list(owl_graph.objects(subject=_class,
-                                      predicate=OWL_NS.onProperty))[0]
-        o = first(owl_graph.objects(subject=_class,
-                                    predicate=OWL_NS.hasValue))
-        yield Uniterm(prop,
-                      [variable, o],
-                      new_nss=owl_graph.namespaces())
+        prop = list(owl_graph.objects(subject=_class, predicate=OWL_NS.onProperty))[0]
+        o = first(owl_graph.objects(subject=_class, predicate=OWL_NS.hasValue))
+        yield Uniterm(prop, [variable, o], new_nss=owl_graph.namespaces())
     elif OWL_NS.someValuesFrom in props:
-        for s, p, o in owl_graph.triples((_class,
-                                          OWL_NS.someValuesFrom,
-                                          None)):
-            prop = list(owl_graph.objects(subject=_class,
-                                          predicate=OWL_NS.onProperty))[0]
+        for s, p, o in owl_graph.triples((_class, OWL_NS.someValuesFrom, None)):
+            prop = list(owl_graph.objects(subject=_class, predicate=OWL_NS.onProperty))[
+                0
+            ]
             new_var = BNode()
             yield And(
                 [
-                    Uniterm(prop,
-                            [variable, new_var],
-                            new_nss=owl_graph.namespaces()),
+                    Uniterm(prop, [variable, new_var], new_nss=owl_graph.namespaces()),
                     generator_flattener(Th(owl_graph, o, variable=new_var)),
                 ]
             )
     elif OWL_NS.intersectionOf in props:
         from fuxi.Syntax.InfixOWL import BooleanClass
 
-        yield And([first(Th(owl_graph,
-                            h,
-                            variable)) for h in BooleanClass(_class)])
+        yield And([first(Th(owl_graph, h, variable)) for h in BooleanClass(_class)])
     else:
         yield Uniterm(
             RDF.type,
@@ -910,46 +875,33 @@ def Th(owl_graph, _class, variable=Variable("X"), position=LHS):
 def Tb(owl_graph, _class, variable=Variable("X")):
     props = list(set(owl_graph.predicates(subject=_class)))
     if OWL_NS.intersectionOf in props and not isinstance(_class, URIRef):
-        for s, p, o in owl_graph.triples((_class,
-                                          OWL_NS.intersectionOf,
-                                          None)):
+        for s, p, o in owl_graph.triples((_class, OWL_NS.intersectionOf, None)):
             conj = []
             handle_conjunct(conj, owl_graph, o, variable)
             return And(conj)
     elif OWL_NS.unionOf in props and not isinstance(_class, URIRef):
         for s, p, o in owl_graph.triples((_class, OWL_NS.unionOf, None)):
             return Or(
-                [Tb(owl_graph,
-                    c,
-                    variable=variable) for c in Collection(owl_graph, o)]
+                [Tb(owl_graph, c, variable=variable) for c in Collection(owl_graph, o)]
             )
     elif OWL_NS.someValuesFrom in props:
-        prop = list(owl_graph.objects(subject=_class,
-                                      predicate=OWL_NS.onProperty))[0]
-        o = list(owl_graph.objects(subject=_class,
-                                   predicate=OWL_NS.someValuesFrom))[0]
+        prop = list(owl_graph.objects(subject=_class, predicate=OWL_NS.onProperty))[0]
+        o = list(owl_graph.objects(subject=_class, predicate=OWL_NS.someValuesFrom))[0]
         new_var = Variable(BNode())
         return And(
             [
-                Uniterm(prop,
-                        [variable, new_var],
-                        new_nss=owl_graph.namespaces()),
+                Uniterm(prop, [variable, new_var], new_nss=owl_graph.namespaces()),
                 Tb(owl_graph, o, variable=new_var),
             ]
         )
     elif OWL_NS.hasValue in props:
-        prop = list(owl_graph.objects(subject=_class,
-                                      predicate=OWL_NS.onProperty))[0]
-        o = first(owl_graph.objects(subject=_class,
-                                    predicate=OWL_NS.hasValue))
-        return Uniterm(prop,
-                       [variable, o],
-                       new_nss=owl_graph.namespaces())
+        prop = list(owl_graph.objects(subject=_class, predicate=OWL_NS.onProperty))[0]
+        o = first(owl_graph.objects(subject=_class, predicate=OWL_NS.hasValue))
+        return Uniterm(prop, [variable, o], new_nss=owl_graph.namespaces())
     elif OWL_NS.complementOf in props:
-        return Tc(owl_graph,
-                  first(owl_graph.objects(_class, OWL_NS.complementOf)))
+        return Tc(owl_graph, first(owl_graph.objects(_class, OWL_NS.complementOf)))
     else:
         _class_term = skolemize_existential_classes(_class)
-        return Uniterm(RDF.type,
-                       [variable, _class_term],
-                       new_nss=owl_graph.namespaces())
+        return Uniterm(
+            RDF.type, [variable, _class_term], new_nss=owl_graph.namespaces()
+        )

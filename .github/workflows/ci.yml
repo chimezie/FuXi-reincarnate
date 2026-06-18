@@ -22,9 +22,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra dev
       - name: Ruff lint
-        run: uv run ruff check .
+        run: uv run ruff check lib/fuxi/ test/
       - name: Ruff format
-        run: uv run ruff format --check .
+        run: uv run ruff format --check lib/fuxi/ test/
 
   test:
     runs-on: ubuntu-latest

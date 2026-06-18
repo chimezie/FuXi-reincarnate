@@ -291,7 +291,7 @@ class TopDownSPARQLEntailingStore(Store):
                 bfp.meta_interp_network.inferred_facts.serialize(format="turtle"),
             )
         if is_not_ground is not None:
-            #Has bindings
+            # Has bindings
             if any(len(l) for l in bfp.goal_solutions):
                 for item in bfp.goal_solutions:
                     yield item, None
@@ -302,9 +302,15 @@ class TopDownSPARQLEntailingStore(Store):
                 query = EDBQuery(
                     [goal_literal], bfp.meta_interp_network.inferred_facts
                 ).as_sparql()
-                for item in bfp.meta_interp_network.inferred_facts.query(query):
+                result = bfp.meta_interp_network.inferred_facts.query(query)
+                # Bind each projected variable to its own column *by name* rather
+                # than by positional index.  The SELECT projection order produced
+                # by EDBQuery.as_sparql() is not deterministic (it derives from a
+                # set), so zipping by index could swap variable/value pairs.
+                projected_vars = list(result.vars) if result.vars else variables
+                for item in result:
                     yield (
-                        {variables[idx]: item[idx] for idx in range(len(variables))},
+                        {var: item[var] for var in projected_vars},
                         None,
                     )
         else:
@@ -360,9 +366,12 @@ class TopDownSPARQLEntailingStore(Store):
             yield bindings
             return
         if bindings:
-            #Unify the remaining triple patterns against the bindings from prior solutions
+            # Unify the remaining triple patterns against the bindings from prior solutions
             goals_remaining = [
-                tuple(bindings.get(term, term) if isinstance(term, Variable) else term for term in goal)
+                tuple(
+                    bindings.get(term, term) if isinstance(term, Variable) else term
+                    for term in goal
+                )
                 for goal in goals_remaining
             ]
         # Take the next pattern to solve and leave the rest for recursive calls.
@@ -394,7 +403,9 @@ class TopDownSPARQLEntailingStore(Store):
             for item in rt:
                 next_bindings = dict(bindings)
                 next_bindings.update(item)
-                yield from self.conjunctive_sip_strategy(rest, fact_graph, next_bindings)
+                yield from self.conjunctive_sip_strategy(
+                    rest, fact_graph, next_bindings
+                )
 
         else:
             # ----------------------------------------------------------------
@@ -404,7 +415,7 @@ class TopDownSPARQLEntailingStore(Store):
 
             # Build a uniterm (structured literal) from the triple pattern so
             # we can manipulate it as a logic-programming goal term.
-            query_lit = build_uniterm_from_tuple(tp)
+            query_lit = build_uniterm_from_tuple(tp, self.ns_bindings)
             current_op = get_op(query_lit)
             query_lit.set_operator(current_op)
 
@@ -431,6 +442,7 @@ class TopDownSPARQLEntailingStore(Store):
                 derived_preds=self.derived_predicates,
                 ignore_unbound_d_preds=True,
                 hybrid_preds_to_replace=self.hybrid_predicates,
+                ns_bindings=self.ns_bindings,
             )
 
             # Hybrid predicates appear in both EDB and IDB.  The adornment
@@ -458,7 +470,9 @@ class TopDownSPARQLEntailingStore(Store):
             goal = tp
             if goal in self.goal_rule_sip_info:
                 # Preserve the last two elements (inferred_facts, meta_interp_network)
-                _, _, _, existing_inferred, existing_network = self.goal_rule_sip_info[goal]
+                _, _, _, existing_inferred, existing_network = self.goal_rule_sip_info[
+                    goal
+                ]
                 self.goal_rule_sip_info[goal] = (
                     query_lit,
                     copy.deepcopy(self.edb.adorned_program),
@@ -635,13 +649,14 @@ class TopDownSPARQLEntailingStore(Store):
                     derived_preds=self.derived_predicates,
                     ignore_unbound_d_preds=True,
                     hybrid_preds_to_replace=self.hybrid_predicates,
+                    ns_bindings=self.ns_bindings,
                 )
 
                 # Step 3b — hybrid-predicate renaming: if this goal's predicate
                 # also appears in the EDB (a "hybrid" predicate), the adornment
                 # step renamed the IDB variant to "<pred>_derived".  Rewrite the
                 # goal to match so the BFP targets the right adorned rules.
-                lit = build_uniterm_from_tuple(goal)
+                lit = build_uniterm_from_tuple(goal, self.ns_bindings)
                 if self.hybrid_predicates:
                     op = get_op(lit)
                     if op in self.hybrid_predicates:
@@ -667,7 +682,9 @@ class TopDownSPARQLEntailingStore(Store):
                     print("No SIP graph.")
                 if goal in self.goal_rule_sip_info:
                     # Preserve the last two elements (inferred_facts, meta_interp_network)
-                    _, _, _, existing_inferred, existing_network = self.goal_rule_sip_info[goal]
+                    _, _, _, existing_inferred, existing_network = (
+                        self.goal_rule_sip_info[goal]
+                    )
                     self.goal_rule_sip_info[goal] = (
                         lit,
                         copy.deepcopy(self.edb.adorned_program),

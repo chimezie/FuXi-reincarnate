@@ -289,20 +289,16 @@ def test_network_misc_helpers():
 
     for term_node in network.terminal_nodes:
         term_node.execute_actions = {}
-    network.register_rete_action((EX.a,
-                                  EX.q,
-                                  Variable("o")),
-                                 False,
-                                 lambda *_args, **_kwargs: None)
+    network.register_rete_action(
+        (EX.a, EX.q, Variable("o")), False, lambda *_args, **_kwargs: None
+    )
 
     network.report_conflict_set()
     network.report_size(token_size_threshold=0)
     assert isinstance(
         network.closure_graph(Graph(), read_only=True), ReadOnlyGraphAggregate
     )
-    assert isinstance(network.closure_graph(Graph(),
-                                            read_only=False),
-                      Dataset)
+    assert isinstance(network.closure_graph(Graph(), read_only=False), Dataset)
 
 
 def test_network_fire_consequent_infers_fact():
@@ -340,9 +336,7 @@ def test_network_fire_consequent_override_executes_action():
     def _exec_action(_node, _triple, _tokens, _binding, _debug):
         called["count"] += 1
 
-    term_node.execute_actions = {(EX.a,
-                                  EX.q,
-                                  Variable("o")): (True, _exec_action)}
+    term_node.execute_actions = {(EX.a, EX.q, Variable("o")): (True, _exec_action)}
 
     alpha_node = AlphaNode((Variable("s"), EX.p, Variable("o")))
     token = ReteToken((EX.a, EX.p, EX.b))
@@ -385,9 +379,7 @@ def test_network_fire_consequent_debug_paths_and_goal():
     def _exec_action(_node, _triple, _tokens, _binding, _debug):
         called["count"] += 1
 
-    term_node.execute_actions = {(EX.a,
-                                  EX.q,
-                                  Variable("o")): (None, _exec_action)}
+    term_node.execute_actions = {(EX.a, EX.q, Variable("o")): (None, _exec_action)}
     network.fire_consequent(tokens, term_node, debug=True)
     assert called["count"] >= 1
 
@@ -396,9 +388,7 @@ def test_network_fire_consequent_debug_paths_and_goal():
     )
     term_node.rules = {unbound_rule}
     term_node.consequent = {(EX.a, EX.q, Variable("x"))}
-    term_node.execute_actions = {(EX.a,
-                                  EX.q,
-                                  Variable("x")): (None, _exec_action)}
+    term_node.execute_actions = {(EX.a, EX.q, Variable("x")): (None, _exec_action)}
     network.fire_consequent(tokens, term_node, debug=True)
     assert called["count"] >= 1
 

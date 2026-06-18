@@ -89,7 +89,8 @@ class TestExistentialInHead:
         )
 
         inference_count = sum(
-            1 for _ in network.inferred_facts.subjects(
+            1
+            for _ in network.inferred_facts.subjects(
                 predicate=RDF.type, object=URIRef("http://example.com/#Inference")
             )
         )
@@ -102,17 +103,14 @@ class TestSkolemMachine:
 
     def test_skolem_machine_produces_multiple_inferred_facts(self, skolem_network):
         """Test that skolem machine produces correct number of inferred facts."""
-        p_triples = list(skolem_network.inferred_facts.triples((None,
-                                                                EX_NS.p,
-                                                                None)))
-        assert len(p_triples) == 2, (f"Expected 2 inferred facts for ex:p, got "
-                                     f"{len(p_triples)}")
+        p_triples = list(skolem_network.inferred_facts.triples((None, EX_NS.p, None)))
+        assert len(p_triples) == 2, (
+            f"Expected 2 inferred facts for ex:p, got {len(p_triples)}"
+        )
 
     def test_skolem_machine_all_have_correct_object(self, skolem_network):
         """Test that all inferred facts have the correct object (ex:c)."""
-        p_triples = list(skolem_network.inferred_facts.triples((None,
-                                                                EX_NS.p,
-                                                                None)))
+        p_triples = list(skolem_network.inferred_facts.triples((None, EX_NS.p, None)))
         objects = [obj for _, _, obj in p_triples]
         assert EX_NS.c in objects, "All inferred facts should have ex:c as object"
 

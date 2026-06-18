@@ -37,10 +37,9 @@ def _make_store_and_graph():
     fact_graph = Graph().parse(StringIO(facts), format="n3")
     fact_graph.bind("fam", fam_ns)
     fact_graph.bind("", fam_ns)
-    top_down_store = TopDownSPARQLEntailingStore(fact_graph.store,
-                                                 fact_graph,
-                                                 idb=parsed_rules,
-                                                 debug=True)
+    top_down_store = TopDownSPARQLEntailingStore(
+        fact_graph.store, fact_graph, idb=parsed_rules, debug=True
+    )
     return fam_ns, ns_mapping, top_down_store
 
 

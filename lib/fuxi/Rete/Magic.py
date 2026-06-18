@@ -98,7 +98,8 @@ def setup_ddl_and_adorn_program(
         strict_check=DDL_STRICTNESS_FALLBACK_DERIVED,
         default_predicates=None,
         ignore_unbound_d_preds=False,
-        hybrid_preds_to_replace=None):
+        hybrid_preds_to_replace=None,
+        ns_bindings=None):
     if not default_predicates:
         default_predicates = [], []
     if not derived_preds:
@@ -110,7 +111,8 @@ def setup_ddl_and_adorn_program(
             derived_preds.extend(_derived_preds)
     hybrid_preds_to_replace = hybrid_preds_to_replace or []
     adorned_program = adorn_program(fact_graph, rules, goals, derived_preds, ignore_unbound_d_preds,
-                                    hybrid_preds_to_replace=hybrid_preds_to_replace)
+                                    hybrid_preds_to_replace=hybrid_preds_to_replace,
+                                    ns_bindings=ns_bindings)
     if adorned_program != set([]):
         rt = reduce(
             lambda l, r: l + r,
@@ -290,10 +292,10 @@ def magic_set_transformation(
             yield rule
 
 
-def normalize_goals(goals):
+def normalize_goals(goals, ns_bindings=None):
     if isinstance(goals, (list, set)):
         for goal in goals:
-            yield goal, {}
+            yield goal, dict(ns_bindings or {})
     elif isinstance(goals, tuple):
         yield sparqlQuery, {}
     else:
@@ -453,7 +455,8 @@ def adorn_program(fact_graph,
                   goals,
                   derived_preds=None,
                   ignore_unbound_d_preds=False,
-                  hybrid_preds_to_replace=None):
+                  hybrid_preds_to_replace=None,
+                  ns_bindings=None):
     """
     The process starts from the given query. The query determines bindings for q, and we replace
     q by an adorned version, in which precisely the positions bound in the query are designated as
@@ -473,7 +476,7 @@ def adorn_program(fact_graph,
     goal_dict = {}
     hybrid_preds_to_replace = hybrid_preds_to_replace or []
     adorned_predicate_collection = set()
-    for goal, nsBindings in normalize_goals(goals):
+    for goal, nsBindings in normalize_goals(goals, ns_bindings):
         adorned_predicate_collection.add(adorn_literal(goal, nsBindings))
     if not derived_preds:
         derived_preds = list(derived_predicate_iterator(fact_graph, rs))
@@ -537,9 +540,9 @@ class AdornedUniTerm(Uniterm):
     def __init__(self, uterm, adornment=None, naf=False):
         self.marked = False
         self.adornment = adornment
-        self.ns_manager = get_uterm(uterm).ns_manager
         new_args = copy.deepcopy(get_uterm(uterm).arg)
         super(AdornedUniTerm, self).__init__(get_uterm(uterm).op, new_args, naf=naf)
+        self.ns_manager = get_uterm(uterm).ns_manager
         self.is_magic = False
 
     def clone(self):

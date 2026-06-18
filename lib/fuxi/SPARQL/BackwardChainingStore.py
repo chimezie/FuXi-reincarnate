@@ -404,7 +404,7 @@ class TopDownSPARQLEntailingStore(Store):
 
             # Build a uniterm (structured literal) from the triple pattern so
             # we can manipulate it as a logic-programming goal term.
-            query_lit = build_uniterm_from_tuple(tp)
+            query_lit = build_uniterm_from_tuple(tp, self.ns_bindings)
             current_op = get_op(query_lit)
             query_lit.set_operator(current_op)
 
@@ -431,6 +431,7 @@ class TopDownSPARQLEntailingStore(Store):
                 derived_preds=self.derived_predicates,
                 ignore_unbound_d_preds=True,
                 hybrid_preds_to_replace=self.hybrid_predicates,
+                ns_bindings=self.ns_bindings,
             )
 
             # Hybrid predicates appear in both EDB and IDB.  The adornment
@@ -635,13 +636,14 @@ class TopDownSPARQLEntailingStore(Store):
                     derived_preds=self.derived_predicates,
                     ignore_unbound_d_preds=True,
                     hybrid_preds_to_replace=self.hybrid_predicates,
+                    ns_bindings=self.ns_bindings,
                 )
 
                 # Step 3b — hybrid-predicate renaming: if this goal's predicate
                 # also appears in the EDB (a "hybrid" predicate), the adornment
                 # step renamed the IDB variant to "<pred>_derived".  Rewrite the
                 # goal to match so the BFP targets the right adorned rules.
-                lit = build_uniterm_from_tuple(goal)
+                lit = build_uniterm_from_tuple(goal, self.ns_bindings)
                 if self.hybrid_predicates:
                     op = get_op(lit)
                     if op in self.hybrid_predicates:

@@ -64,6 +64,8 @@ class QNameManager(object):
         self.ns_manager: NamespaceManager = NamespaceManager(Graph())
         self.ns_manager.bind("owl", "http://www.w3.org/2002/07/owl#")
         self.ns_manager.bind("math", "http://www.w3.org/2000/10/swap/math#")
+        for prefix, uri in self.ns_dict.items():
+            self.ns_manager.bind(prefix, uri)
 
     def bind(self, prefix: str, namespace: URIRef) -> None:
         self.ns_manager.bind(prefix, namespace)

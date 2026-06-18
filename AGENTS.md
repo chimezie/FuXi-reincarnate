@@ -38,13 +38,6 @@ tox -e docs
 uv run pytest --cov=FuXi --cov-report=html
 ```
 
-### Legacy Commands (FuXi-reincarnate-chimezie)
-```bash
-# Install dependencies (legacy)
-pip install -r FuXi-reincarnate-chimezie/requirements.py3.txt
-
-# Run all tests (legacy nose-based)
-python FuXi-reincarnate-chimezie/setup.py nosetests
 ```
 
 ---

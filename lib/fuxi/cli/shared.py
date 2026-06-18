@@ -22,7 +22,7 @@ from fuxi.Rete.Util import collapse_dictionary, generate_token_set
 from fuxi.SPARQL.service import SPARQLServiceGraph
 from fuxi.SPARQL.utilities import (
     extract_triples_from_query,
-    owl_entailment_regime_graph
+    owl_entailment_regime_graph,
 )
 from fuxi.Syntax.InfixOWL import (
     OWL_NS,

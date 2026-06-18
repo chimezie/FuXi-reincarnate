@@ -1,11 +1,16 @@
 from abc import ABC
-from rdflib import Graph, URIRef
+
 from rdflib.term import Identifier
-from .Horn.HornRules import Rule, horn_from_n3
+
+from rdflib import Graph, URIRef
+
+from .DLP.ConditionalAxioms import additional_rules
+from .Horn.HornRules import Rule
+from .LP import identify_hybrid_predicates as identify_hybrid_predicates_fn
 from .Rete.Magic import derived_predicate_iterator
-from .DLP import NON_DHL_OWL_SEMANTICS
 from .Rete.RuleStore import setup_rule_store
 from .SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
+
 
 class PredicatePartitioner(ABC):
     """Abstract base class for partitioning EDB/IDB  predicates"""
@@ -52,7 +57,9 @@ class DefaultPredicatePartitioner(PredicatePartitioner):
                  hybrid_predicates: list[URIRef] | None = None,
                  identify_hybrid_predicates: bool = False
                  ):
-        super().__init__(fact_graph, rules, edb_predicates, derived_predicates, hybrid_predicates)
+        super().__init__(
+            fact_graph, rules, edb_predicates, derived_predicates, hybrid_predicates
+        )
         if hybrid_predicates is None:
             hybrid_predicates = []
         if derived_predicates is None:
@@ -64,7 +71,9 @@ class DefaultPredicatePartitioner(PredicatePartitioner):
                 self.fact_graph, derived_predicates
             )
         else:
-            hybrid_predicates = hybrid_predicates if hybrid_predicates is not None else []
+            hybrid_predicates = (
+                hybrid_predicates if hybrid_predicates is not None else []
+            )
 
         for hybrid_pred in hybrid_predicates:
             if hybrid_pred in derived_predicates:
@@ -92,9 +101,13 @@ class SPARQLPredicatePartitioner(PredicatePartitioner, DescriptionLogicCompiler)
                  add_pd_semantics: bool = False,
                  introspect_rules: bool = False
                  ):
-        super().__init__(fact_graph, rules, edb_predicates, derived_predicates, hybrid_predicates)
+        super().__init__(
+            fact_graph, rules, edb_predicates, derived_predicates, hybrid_predicates
+        )
         if edb_predicates is None:
-            self.edb_predicates = [URIRef(row['pred']) for row in fact_graph.query(SPARQL_PREDICATE_QUERY)]
+            self.edb_predicates = [
+                URIRef(row["pred"]) for row in fact_graph.query(SPARQL_PREDICATE_QUERY)
+            ]
         if hybrid_predicates is None:
             hybrid_predicates = []
 
@@ -107,7 +120,11 @@ class SPARQLPredicatePartitioner(PredicatePartitioner, DescriptionLogicCompiler)
 
         if derived_predicates is None:
             self.derived_predicates = list(
-                set(derived_predicate_iterator(self.edb_predicates, self.rules, predicates_given=True))
+                set(
+                    derived_predicate_iterator(
+                        self.edb_predicates, self.rules, predicates_given=True
+                    )
+                )
             )
         if identify_hybrid_predicates:
             _derived_predicates = (
@@ -115,9 +132,13 @@ class SPARQLPredicatePartitioner(PredicatePartitioner, DescriptionLogicCompiler)
                 if isinstance(self.derived_predicates, set)
                 else set(self.derived_predicates)
             )
-            self.hybrid_predicates = list(_derived_predicates.intersection(self.edb_predicates))
+            self.hybrid_predicates = list(
+                _derived_predicates.intersection(self.edb_predicates)
+            )
         else:
-            self.hybrid_predicates = hybrid_predicates if hybrid_predicates is not None else []
+            self.hybrid_predicates = (
+                hybrid_predicates if hybrid_predicates is not None else []
+            )
 
         for hybrid_pred in self.hybrid_predicates:
             if hybrid_pred in self.derived_predicates:

@@ -44,8 +44,6 @@ case::
 
 from unittest.mock import Mock
 
-import pytest
-
 from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
 from fuxi.SPARQL.service import _SelectResult
 from rdflib import RDF, RDFS, Graph, Namespace, URIRef, Variable

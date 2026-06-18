@@ -4,10 +4,11 @@
  '?title -> "Blood Simple"'}
 
 """
-import pytest
-from fuxi.SPARQL.utilities import sparql_interlocution
-from rdflib import Namespace, RDFS, URIRef, Graph, Variable, Literal, XSD
 from io import StringIO
+
+from fuxi.SPARQL.utilities import sparql_interlocution
+from rdflib import RDFS, Graph, Namespace, URIRef, Variable
+
 IMDB = Namespace("https://www.imdb.com/")
 OWL_NS = Namespace("http://www.w3.org/2002/07/owl#")
 
@@ -18,13 +19,13 @@ NS_BINDINGS = {
 }
 
 FACTS = """
-@prefix imdb: <https://www.imdb.com/> . 
+@prefix imdb: <https://www.imdb.com/> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
-imdb:tt0086979 imdb:id "tt0086979" ; 
-               imdb:type "movie" ; 
+imdb:tt0086979 imdb:id "tt0086979" ;
+               imdb:type "movie" ;
                imdb:title "Blood Simple" .
-               
+
 imdb:tt0086979 imdb:principal [ imdb:role "actor" ; imdb:person imdb:nm0315288 ];
                imdb:principal [ imdb:role "actress" ; imdb:person imdb:nm0000531 ];
                imdb:principal [ imdb:role "actor" ; imdb:person imdb:nm0000445 ];
@@ -40,13 +41,17 @@ imdb:tt0086979 imdb:principal [ imdb:role "actor" ; imdb:person imdb:nm0315288 ]
                imdb:principal [ imdb:role "writer" ; imdb:person imdb:nm0001053 ];
                imdb:principal [ imdb:role "producer" ; imdb:person imdb:nm0001053 ];
                imdb:principal [ imdb:role "composer" ; imdb:person imdb:nm0001980 ];
-               imdb:principal [ imdb:role "cinematographer" ; imdb:person imdb:nm0001756 ];
+               imdb:principal [ imdb:role "cinematographer" ;
+                                imdb:person imdb:nm0001756 ];
                imdb:principal [ imdb:role "editor" ; imdb:person imdb:nm0001053 ];
                imdb:principal [ imdb:role "editor" ; imdb:person imdb:nm0001054 ];
                imdb:principal [ imdb:role "editor" ; imdb:person imdb:nm0927366 ];
-               imdb:principal [ imdb:role "casting_director" ; imdb:person imdb:nm0400715 ];
-               imdb:principal [ imdb:role "casting_director" ; imdb:person imdb:nm0608912 ];
-               imdb:principal [ imdb:role "production_designer" ; imdb:person imdb:nm0615788 ] .
+               imdb:principal [ imdb:role "casting_director" ;
+                                imdb:person imdb:nm0400715 ];
+               imdb:principal [ imdb:role "casting_director" ;
+                                imdb:person imdb:nm0608912 ];
+               imdb:principal [ imdb:role "production_designer" ;
+                                imdb:person imdb:nm0615788 ] .
 """
 
 RULES ="""
@@ -74,12 +79,10 @@ PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX imdb: <https://www.imdb.com/>
 
 SELECT ?director WHERE {
-   ?director    imdb:has_directed_actress_in_movie  imdb:nm0000531 
+   ?director    imdb:has_directed_actress_in_movie  imdb:nm0000531
 }"""
 
 def test_sip():
-    from fuxi.DLP import NON_DHL_OWL_SEMANTICS
-    from fuxi.DLP.ConditionalAxioms import additional_rules
     from fuxi.Horn.HornRules import horn_from_n3
     from fuxi.Rete.RuleStore import setup_rule_store
     from fuxi.SPARQL.BackwardChainingStore import (
@@ -97,8 +100,6 @@ def test_sip():
         debug=True,
         ns_bindings=NS_BINDINGS
     )
-    entailing_graph = Graph(top_down_store)
-
     for answer in sparql_interlocution(QUERY, top_down_store):
         print("\tInner Answer: ")
         print("\t", {f"?{k} -> {v.n3()}" for k, v in answer.items()})
@@ -120,6 +121,9 @@ def test_sip_graph_arcs_for_derived_body_literal():
     by the earlier ``imdb:principal(?movie ?principal2)`` literal and the
     binding must reach ``Movie`` for the lookup to be constrained.
     """
+    from rdflib.collection import Collection
+    from rdflib.util import first
+
     from fuxi.Horn.HornRules import horn_from_n3
     from fuxi.Rete.Magic import AdornedUniTerm
     from fuxi.Rete.SidewaysInformationPassing import (
@@ -132,8 +136,6 @@ def test_sip_graph_arcs_for_derived_body_literal():
         sip_representation,
     )
     from rdflib import RDF
-    from rdflib.collection import Collection
-    from rdflib.util import first
 
     rules = list(horn_from_n3(StringIO(RULES)))
     target_rule = first(
@@ -177,7 +179,7 @@ def test_sip_graph_arcs_for_derived_body_literal():
 
     movie_var = Variable("movie")
     found_movie_binding = False
-    for _N, bindings_col in incoming:
+    for _n, bindings_col in incoming:
         bindings = (
             list(bindings_col)
             if not isinstance(bindings_col, Collection)

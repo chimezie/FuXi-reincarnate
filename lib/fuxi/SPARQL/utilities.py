@@ -102,11 +102,8 @@ def owl_entailment_regime_graph(
       rdflib.term.URIRef('http://example.org/parentOf'),
       rdflib.term.URIRef('http://example.org/bob'))]
     """
-    from io import StringIO
 
-    from fuxi.DLP import NON_DHL_OWL_SEMANTICS
     from fuxi.DLP.ConditionalAxioms import additional_rules
-    from fuxi.Horn.HornRules import horn_from_n3
     from fuxi.Rete.RuleStore import setup_rule_store
     from fuxi.SPARQL.BackwardChainingStore import (
         TopDownSPARQLEntailingStore,
@@ -288,7 +285,11 @@ def extract_triples_from_query(
     return service_url, triples
 
 
-def sparql_interlocution(query: str, top_down_store: "TopDownSPARQLEntailingStore", generate_proofs: bool = False):
+def sparql_interlocution(
+    query: str,
+    top_down_store: "TopDownSPARQLEntailingStore",
+    generate_proofs: bool = False,
+):
     """
     Execute a SPARQL query against a TopDownSPARQLEntailingStore and yield solutions.
 

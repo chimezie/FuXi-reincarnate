@@ -133,7 +133,9 @@ from rdflib import Graph, Variable
             v = Variable("o")
             tp[2] = v
             vars.append(v)
-        query_literal = EDBQuery([build_uniterm_from_tuple(tuple(tp), ns_map)], self, vars or None)
+        query_literal = EDBQuery(
+            [build_uniterm_from_tuple(tuple(tp), ns_map)], self, vars or None
+        )
         mediated_query = query_literal.as_sparql() + " LIMIT 10000"
         results = self._sparql_post(mediated_query)
         if results is None:
@@ -176,7 +178,11 @@ from rdflib import Graph, Variable
         **kwargs: Any,
     ) -> Result:
         """Execute SPARQL query by forwarding to the remote endpoint via HTTP."""
-        query_str = str(query_object) if not isinstance(query_object, str) else query_object
+        query_str = (
+            str(query_object)
+            if not isinstance(query_object, str)
+            else query_object
+        )
         data = self._sparql_post(query_str)
         if data is None:
             return _empty_result(query_str)
@@ -199,8 +205,7 @@ class _SelectResult:
         self._bindings = bindings
 
     def __iter__(self):
-        for b in self._bindings:
-            yield b
+        yield from self._bindings
 
 
 def _empty_result(query_str: str):

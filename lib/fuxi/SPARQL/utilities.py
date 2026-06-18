@@ -3,18 +3,16 @@ from typing import TYPE_CHECKING
 from pyparsing import ParseResults
 from rdflib.graph import Graph
 from rdflib.namespace import NamespaceManager
-from rdflib.plugins.sparql.parser import parseQuery
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import SPARQLResult
 from rdflib.query import Result
-from rdflib.term import Identifier, Literal, Variable
+from rdflib.term import Identifier, Literal
 
 from fuxi.types import Triple
 from rdflib import RDF, URIRef
 
 if TYPE_CHECKING:
     from fuxi.Horn.HornRules import Ruleset
-    from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
 
 
 def owl_entailment_regime_graph(
@@ -277,62 +275,3 @@ def extract_triples_from_query(
     else:
         raise Exception(f"Unknown type: {type(query_structure)}")
     return service_url, triples
-
-
-def sparql_interlocution(
-    query: str,
-    top_down_store: "TopDownSPARQLEntailingStore",
-    generate_proofs: bool = False,
-):
-    """
-    Execute a SPARQL query against a TopDownSPARQLEntailingStore and yield solutions.
-
-    It parses the query, extracts the basic graph pattern, converts
-    triples to quads (with None as the fourth element), and uses the store's batch_unify
-    to retrieve matching solutions.
-
-    Only solutions where all query variables are bound are yielded.
-
-    :param query: A SPARQL query string.
-    :param top_down_store: A TopDownSPARQLEntailingStore instance configured with
-        the rule program and EDB.
-    :param generate_proofs: If True, generate and save proof diagrams for each goal.
-    :yields: Dictionaries mapping Variable objects to their bound values for each
-        matching solution.
-
-    Example:
-        >>> for answer in sparql_interlocution(query, top_down_store):
-        ...     movie = answer[Variable('movie')]
-
-    builder, proof = generate_proof(network, goal, top_down_store)
-    ns_map = {**network.ns_map, **(extra_nsmap or {})}
-    if not ns_map:
-        ns_map = top_down_store.ns_bindings or (extra_nsmap or {})
-    dot = builder.render_proof(proof, ns_map=ns_map, format="svg")
-    suffix = f"-goal-{goal_index}" if goal_index is not None else ""
-    base = f"/tmp/{proof_id}{suffix}"
-    dot.render(filename=base, cleanup=True, format="svg")
-    dot.render(filename=base, cleanup=True, format="png")
-
-    """
-    from fuxi.SPARQL.utilities import extract_triples_from_query
-
-    _, parsed_query = parseQuery(query)
-    _, triples = extract_triples_from_query(parsed_query, top_down_store.ns_bindings)
-    variables: set[Variable] = set()
-    for triple in triples:
-        for part in triple:
-            if isinstance(part, Variable):
-                variables.add(part)
-    quads = [triple + tuple([None]) for triple in triples]
-    try:
-        for answer in top_down_store.batch_unify(quads):
-            # for quad in quads:
-            #     builder, proof = generate_proof(network, goal, top_down_store)
-            #     triple = quad[:3]
-            if isinstance(answer, bool):
-                yield answer
-            elif not variables.difference(answer):
-                yield answer
-    except (StopIteration, RuntimeError):
-        pass

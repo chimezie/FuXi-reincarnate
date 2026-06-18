@@ -40,6 +40,7 @@ def _render_proof_graph(
         return
 
     from fuxi.Rete.Proof import generate_proof
+
     if fmt in [OutputFormat.PROOF_GRAPH_SVG, OutputFormat.PROOF_GRAPH_PNG]:
         img_format = "svg" if fmt == OutputFormat.PROOF_GRAPH_SVG else "png"
         store = result.top_down_store
@@ -89,13 +90,9 @@ def _render_rete_network(
 
     if result is not None:
         store = result.top_down_store
-        for idx, (network_for_goal, goal_pattern) in enumerate(
-            store.query_networks, 1
-        ):
+        for idx, (network_for_goal, goal_pattern) in enumerate(store.query_networks, 1):
             ns_map = {**network_for_goal.ns_map, **ns_binds}
-            dot = render_network(
-                network_for_goal, ns_map=ns_map, format=img_format
-            )
+            dot = render_network(network_for_goal, ns_map=ns_map, format=img_format)
             try:
                 data = dot.pipe(format=img_format)
             except Exception as exc:
@@ -106,8 +103,10 @@ def _render_rete_network(
             sys.stdout.buffer.write(data)
             if idx >= 2:
                 import logging
+
                 logging.getLogger(__name__).warning(
-                    "Found %d query networks; only the first was rendered", idx,
+                    "Found %d query networks; only the first was rendered",
+                    idx,
                 )
     elif network is not None:
         dot = render_network(network, ns_map=ns_binds, format=img_format)
@@ -139,9 +138,7 @@ def _render_sip_collection(
         _, adorned_program, sip_collection, _, _ = goal_info
         if sip_collection is None:
             continue
-        has_arcs = list(
-            sip_collection.triples((None, RDF.type, MAGIC.SipArc))
-        )
+        has_arcs = list(sip_collection.triples((None, RDF.type, MAGIC.SipArc)))
         dot = render_sip_collection(
             sip_collection,
             format=img_format,
@@ -163,10 +160,15 @@ def _render_rif(
     negation: bool,
     result: BFPResult | None = None,
 ) -> None:
-    rules = (rule_set if rule_set
-             else network.rules if network.rules
-             else network.justifications if network.justifications
-             else [])
+    rules = (
+        rule_set
+        if rule_set
+        else network.rules
+        if network.rules
+        else network.justifications
+        if network.justifications
+        else []
+    )
     for rule in rules:
         print(rule)
     if negation:
@@ -232,8 +234,7 @@ def _render_rdf(
             import logging
 
             logging.getLogger(__name__).info(
-                "Time to calculate stratified, stable model "
-                "(inferred %s facts): %s",
+                "Time to calculate stratified, stable model (inferred %s facts): %s",
                 rt,
                 _format_timing(time.time() - _start),
             )
@@ -246,9 +247,7 @@ def _render_rdf(
 
     fmt = options.output
     if fmt == OutputFormat.N3:
-        rules = (rule_set if rule_set
-                 else network.rules if network.rules
-                 else [])
+        rules = rule_set if rule_set else network.rules if network.rules else []
         for rule in rules:
             print(rule)
 
@@ -348,5 +347,11 @@ def render_output(
             print(answer)
 
     if fmt in OutputFormat.rdf_formats():
-        _render_rdf(options, network, fact_graph, namespace_manager,
-                     result=result, rule_set=rule_set)
+        _render_rdf(
+            options,
+            network,
+            fact_graph,
+            namespace_manager,
+            result=result,
+            rule_set=rule_set,
+        )

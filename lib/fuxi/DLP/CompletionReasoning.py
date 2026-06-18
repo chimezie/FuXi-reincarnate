@@ -231,8 +231,12 @@ rdf:nil a rdf:List.
 
 
 def which_subsumption_operand(term, owl_graph):
-    top_down_store = TopDownSPARQLEntailingStore(owl_graph.store, owl_graph,
-                                                 idb=horn_from_n3(StringIO(SUBSUMPTION_SEMANTICS)), debug=False)
+    top_down_store = TopDownSPARQLEntailingStore(
+        owl_graph.store,
+        owl_graph,
+        idb=horn_from_n3(StringIO(SUBSUMPTION_SEMANTICS)),
+        debug=False,
+    )
     target_graph = Graph(top_down_store)
     appears_left = target_graph.query(
         "ASK { <%s> rdfs:subClassOf [] } ", initNs={"rdfs": RDFS}
@@ -436,8 +440,14 @@ def setup_meta_interpreter(t_box_graph, goal, use_thing_rule=True):
             reduced_completion_rules.add(rule)
 
     network = setup_rule_store(make_network=True)[-1]
-    setup_ddl_and_adorn_program(t_box_graph, reduced_completion_rules, [goal], derived_preds=derived_predicates,
-                                ignore_unbound_d_preds=True, hybrid_preds_to_replace=hybridPredicates)
+    setup_ddl_and_adorn_program(
+        t_box_graph,
+        reduced_completion_rules,
+        [goal],
+        derived_preds=derived_predicates,
+        ignore_unbound_d_preds=True,
+        hybrid_preds_to_replace=hybridPredicates,
+    )
 
     lit = build_uniterm_from_tuple(goal)
     op = get_op(lit)
@@ -446,8 +456,15 @@ def setup_meta_interpreter(t_box_graph, goal, use_thing_rule=True):
 
     sip_collection = prepare_sip_collection(reduced_completion_rules)
     t_box_graph.templateMap = {}
-    bfp = BackwardFixpointProcedure(t_box_graph, network, derived_predicates, goal, sip_collection,
-                                    hybrid_predicates=hybridPredicates, debug=True)
+    bfp = BackwardFixpointProcedure(
+        t_box_graph,
+        network,
+        derived_predicates,
+        goal,
+        sip_collection,
+        hybrid_predicates=hybridPredicates,
+        debug=True,
+    )
     bfp.create_top_down_rete_network(True)
     log.debug(reduced_completion_rules)
     rt = bfp.answers(debug=True)

@@ -36,4 +36,3 @@ def identify_hybrid_predicates(graph, derived_predicates):
 
 if __name__ == "__main__":
     doctest.testmod()
-

@@ -21,8 +21,9 @@ LOG = Namespace("http://www.w3.org/2000/10/swap/log#")
 
 def string_starts_with(subject, object_):
     for term in (subject, object_):
-        assert isinstance(term, (Variable, Literal, URIRef)), \
+        assert isinstance(term, (Variable, Literal, URIRef)), (
             "str:startsWith terms must be Variables, Literals, or URIRefs!"
+        )
 
     def starts_with_f(subject_value, object_value):
         return subject_value.startswith(object_value)
@@ -38,6 +39,7 @@ def extract_base_facts(cg):
     """
     try:
         from rdflib.graph import QuotedGraph
+
         has_quoted_graph = True
     except ImportError:
         has_quoted_graph = False
@@ -66,8 +68,7 @@ def build_network2(rules):
     graph = Dataset(default_union=True)
     graph.parse(StringIO(rules), publicID="test", format="n3")
     rule_store, rule_graph = setup_rule_store(
-        StringIO(rules),
-        additional_builtins={STRING_NS.startsWith: string_starts_with}
+        StringIO(rules), additional_builtins={STRING_NS.startsWith: string_starts_with}
     )
     from fuxi.Rete.Network import ReteNetwork
 
@@ -138,4 +139,4 @@ class TestURIRefStringStartsWith:
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, '-v'])
+    pytest.main([__file__, "-v"])

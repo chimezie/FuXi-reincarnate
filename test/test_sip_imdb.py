@@ -4,6 +4,7 @@
  '?title -> "Blood Simple"'}
 
 """
+
 from io import StringIO
 
 from fuxi.SPARQL.utilities import sparql_interlocution
@@ -54,7 +55,7 @@ imdb:tt0086979 imdb:principal [ imdb:role "actor" ; imdb:person imdb:nm0315288 ]
                                 imdb:person imdb:nm0615788 ] .
 """
 
-RULES ="""
+RULES = """
 @prefix imdb: <https://www.imdb.com/> .
 @prefix log: <http://www.w3.org/2000/10/swap/log#>.
 
@@ -70,8 +71,8 @@ RULES ="""
 """
 
 DERIVED_PREDICATES = [
-    URIRef('https://www.imdb.com/has_directed_actress_in_movie'),
-    URIRef('https://www.imdb.com/Movie')
+    URIRef("https://www.imdb.com/has_directed_actress_in_movie"),
+    URIRef("https://www.imdb.com/Movie"),
 ]
 
 QUERY = """
@@ -81,6 +82,7 @@ PREFIX imdb: <https://www.imdb.com/>
 SELECT ?director WHERE {
    ?director    imdb:has_directed_actress_in_movie  imdb:nm0000531
 }"""
+
 
 def test_sip():
     from fuxi.Horn.HornRules import horn_from_n3
@@ -98,7 +100,7 @@ def test_sip():
         derived_predicates=DERIVED_PREDICATES,
         idb=rules,
         debug=True,
-        ns_bindings=NS_BINDINGS
+        ns_bindings=NS_BINDINGS,
     )
     for answer in sparql_interlocution(QUERY, top_down_store):
         print("\tInner Answer: ")
@@ -139,8 +141,7 @@ def test_sip_graph_arcs_for_derived_body_literal():
 
     rules = list(horn_from_n3(StringIO(RULES)))
     target_rule = first(
-        r for r in rules
-        if get_op(r.formula.head) == IMDB.has_directed_actress_in_movie
+        r for r in rules if get_op(r.formula.head) == IMDB.has_directed_actress_in_movie
     )
     assert target_rule is not None, "Could not find has_directed_actress_in_movie rule"
 
@@ -166,8 +167,7 @@ def test_sip_graph_arcs_for_derived_body_literal():
     )
 
     movie_lit = first(
-        lit for lit in iter_condition(sip.sipOrder)
-        if get_op(lit) == IMDB.Movie
+        lit for lit in iter_condition(sip.sipOrder) if get_op(lit) == IMDB.Movie
     )
     assert movie_lit is not None, "Movie literal missing from SIP body order"
 

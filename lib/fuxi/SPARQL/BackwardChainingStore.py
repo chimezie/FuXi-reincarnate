@@ -291,7 +291,7 @@ class TopDownSPARQLEntailingStore(Store):
                 bfp.meta_interp_network.inferred_facts.serialize(format="turtle"),
             )
         if is_not_ground is not None:
-            #Has bindings
+            # Has bindings
             if any(len(l) for l in bfp.goal_solutions):
                 for item in bfp.goal_solutions:
                     yield item, None
@@ -360,9 +360,12 @@ class TopDownSPARQLEntailingStore(Store):
             yield bindings
             return
         if bindings:
-            #Unify the remaining triple patterns against the bindings from prior solutions
+            # Unify the remaining triple patterns against the bindings from prior solutions
             goals_remaining = [
-                tuple(bindings.get(term, term) if isinstance(term, Variable) else term for term in goal)
+                tuple(
+                    bindings.get(term, term) if isinstance(term, Variable) else term
+                    for term in goal
+                )
                 for goal in goals_remaining
             ]
         # Take the next pattern to solve and leave the rest for recursive calls.
@@ -394,7 +397,9 @@ class TopDownSPARQLEntailingStore(Store):
             for item in rt:
                 next_bindings = dict(bindings)
                 next_bindings.update(item)
-                yield from self.conjunctive_sip_strategy(rest, fact_graph, next_bindings)
+                yield from self.conjunctive_sip_strategy(
+                    rest, fact_graph, next_bindings
+                )
 
         else:
             # ----------------------------------------------------------------
@@ -459,7 +464,9 @@ class TopDownSPARQLEntailingStore(Store):
             goal = tp
             if goal in self.goal_rule_sip_info:
                 # Preserve the last two elements (inferred_facts, meta_interp_network)
-                _, _, _, existing_inferred, existing_network = self.goal_rule_sip_info[goal]
+                _, _, _, existing_inferred, existing_network = self.goal_rule_sip_info[
+                    goal
+                ]
                 self.goal_rule_sip_info[goal] = (
                     query_lit,
                     copy.deepcopy(self.edb.adorned_program),
@@ -669,7 +676,9 @@ class TopDownSPARQLEntailingStore(Store):
                     print("No SIP graph.")
                 if goal in self.goal_rule_sip_info:
                     # Preserve the last two elements (inferred_facts, meta_interp_network)
-                    _, _, _, existing_inferred, existing_network = self.goal_rule_sip_info[goal]
+                    _, _, _, existing_inferred, existing_network = (
+                        self.goal_rule_sip_info[goal]
+                    )
                     self.goal_rule_sip_info[goal] = (
                         lit,
                         copy.deepcopy(self.edb.adorned_program),

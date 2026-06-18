@@ -29,7 +29,7 @@ def owl_entailment_regime_graph(
     verbose: bool = False,
     namespace_manager: NamespaceManager = None,
     add_pd_semantics: bool = False,
-    tbox_only_graph: Graph = None
+    tbox_only_graph: Graph = None,
 ):
     """
     Build a goal-directed OWL entailment graph for SPARQL interlocution.
@@ -134,7 +134,8 @@ def owl_entailment_regime_graph(
         network.setup_description_logic_programming(
             graph if tbox_only_graph is None else tbox_only_graph,
             add_pd_semantics=add_pd_semantics,
-            construct_network=False)
+            construct_network=False,
+        )
     )
     if not tbox_only_graph:
         for rule in additional_rules(graph):
@@ -149,7 +150,7 @@ def owl_entailment_regime_graph(
         debug=verbose,
         ns_bindings=ns_map,
         identify_hybrid_predicates=identify_hybrid_predicates,
-        hybrid_predicates=hybrid_predicates
+        hybrid_predicates=hybrid_predicates,
     )
     return Graph(top_down_store), closure_delta_graph
 
@@ -215,8 +216,7 @@ def extract_triples_from_query(
         assert isinstance(component, CompValue)
         service_url, _ = extract_triples_from_query(component, ns_binds, triples)
     elif query_structure.name == "GroupGraphPatternSub":
-        for component in extract_list_from_comp_values(query_structure,
-                                                       "part"):
+        for component in extract_list_from_comp_values(query_structure, "part"):
             child_service_url, _ = extract_triples_from_query(
                 component, ns_binds, triples
             )
@@ -224,23 +224,17 @@ def extract_triples_from_query(
                 service_url = child_service_url
     elif query_structure.name in "TriplesBlock":
         if isinstance(query_structure.triples, list) and all(
-
-                isinstance(item, list) and len(item) == 3
-                for item in query_structure.triples
-
+            isinstance(item, list) and len(item) == 3
+            for item in query_structure.triples
         ):
             triples.extend(query_structure.triples)
         else:
-            for item in extract_list_from_comp_values(query_structure,
-                                                      "triples"):
+            for item in extract_list_from_comp_values(query_structure, "triples"):
                 if isinstance(item, list) and len(item) == 3:
                     triples.append(
                         tuple(
                             map(
-                                lambda i: extract_triples_from_triple_part(
-                                    i,
-                                    ns_binds
-                                ),
+                                lambda i: extract_triples_from_triple_part(i, ns_binds),
                                 item,
                             )
                         )
@@ -248,13 +242,15 @@ def extract_triples_from_query(
                 else:
                     for i in item:
                         extract_triples_from_triple_part(i, ns_binds)
-                    triples.extend([
-                        tuple(
-                            extract_triples_from_triple_part(part, ns_binds)
-                            for part in item[i: i + 3]
-                        )
-                        for i in range(0, len(item), 3)
-                    ])
+                    triples.extend(
+                        [
+                            tuple(
+                                extract_triples_from_triple_part(part, ns_binds)
+                                for part in item[i : i + 3]
+                            )
+                            for i in range(0, len(item), 3)
+                        ]
+                    )
     elif query_structure.name == "BGP":
         triples.extend(query_structure.triples)
     elif query_structure.name == "SelectQuery":
@@ -271,15 +267,13 @@ def extract_triples_from_query(
         )
     elif query_structure.name == "ServiceGraphPattern":
         if service_url is not None:
-            raise NotImplementedError(
-                "Multiple SERVICE patterns are not supported")
+            raise NotImplementedError("Multiple SERVICE patterns are not supported")
         service_url = query_structure.term
         child_service_url, _ = extract_triples_from_query(
             query_structure.graph, ns_binds, triples
         )
         if child_service_url is not None:
-            raise NotImplementedError(
-                "Multiple SERVICE patterns are not supported")
+            raise NotImplementedError("Multiple SERVICE patterns are not supported")
     else:
         raise Exception(f"Unknown type: {type(query_structure)}")
     return service_url, triples

@@ -250,7 +250,9 @@ class RIFCoreParser(object):
 
         body = And([first(body)]) if len(body) == 1 else And(body)
         return Rule(
-            Clause(body, head), declare=allVars, ns_mapping=dict(self.graph.namespaces())
+            Clause(body, head),
+            declare=allVars,
+            ns_mapping=dict(self.graph.namespaces()),
         )
 
     def extract_predication(self, predication, pred_type):

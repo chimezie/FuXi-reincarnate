@@ -43,8 +43,7 @@ FOAF_NS = Namespace("http://xmlns.com/foaf/0.1/")
 OWL_NS = Namespace("http://www.w3.org/2002/07/owl#")
 TEST_NS = Namespace("http://metacognition.info/FuXi/DL-SHIOF-test.n3#")
 LOG = Namespace("http://www.w3.org/2000/10/swap/log#")
-RDF_TEST = Namespace(
-    "http://www.w3.org/2000/10/rdf-tests/rdfcore/testSchema#")
+RDF_TEST = Namespace("http://www.w3.org/2000/10/rdf-tests/rdfcore/testSchema#")
 OWL_TEST = Namespace("http://www.w3.org/2002/03owlt/testOntology#")
 LIST = Namespace("http://www.w3.org/2000/10/swap/list#")
 
@@ -134,6 +133,7 @@ TESTS_TO_SKIP = [
 
 PATTERNS_TO_SKIP = ["OWL/cardinality", "OWL/samePropertyAs"]
 
+
 def triple_to_triple_pattern(graph, triple):
     return " ".join([render_term(graph, term) for term in triple])
 
@@ -146,6 +146,7 @@ def render_term(graph, term):
             return isinstance(term, BNode) and term.n3() or graph.qname(term)
         except Exception:
             return term.n3()
+
 
 def calculate_entailments(network, fact_graph):
     start = time.time()
@@ -160,11 +161,11 @@ def calculate_entailments(network, fact_graph):
     print(network)
 
     terminal_node_order = [
-        t_node for t_node in network.terminal_nodes
+        t_node
+        for t_node in network.terminal_nodes
         if network.instantiations.get(t_node, 0)
     ]
-    terminal_node_order.sort(key=lambda x: network.instantiations[x],
-                             reverse=True)
+    terminal_node_order.sort(key=lambda x: network.instantiations[x], reverse=True)
     for term_node in terminal_node_order:
         print(term_node)
         print("\t", term_node.rules)
@@ -173,15 +174,13 @@ def calculate_entailments(network, fact_graph):
     network.inferred_facts.namespace_manager = fact_graph.namespace_manager
     return s_time_str
 
+
 def _owl_test_id(params):
     if not isinstance(params, tuple):
         return str(params)
-    (manifest,
-     premise_file,
-     _conclusion_file,
-     _feature,
-     _description,
-     test_uri) = params
+    (manifest, premise_file, _conclusion_file, _feature, _description, test_uri) = (
+        params
+    )
     short_id = test_uri
     if "http://www.w3.org/2002/03owlt/" in test_uri:
         short_id = test_uri.split("http://www.w3.org/2002/03owlt/")[-1]
@@ -232,16 +231,12 @@ def collect_owl_test_cases():
                 continue
 
             # Extract file names
-            premise = manifest_graph.namespace_manager.compute_qname(
-                premise)[-1]
-            conclusion = manifest_graph.namespace_manager.compute_qname(
-                conclusion
-            )[-1]
+            premise = manifest_graph.namespace_manager.compute_qname(premise)[-1]
+            conclusion = manifest_graph.namespace_manager.compute_qname(conclusion)[-1]
 
             manifest_parent = manifest.parent
             premise_file = str((manifest_parent / premise).relative_to(test_dir))
-            conclusion_file = str((manifest_parent / conclusion).relative_to(
-                test_dir))
+            conclusion_file = str((manifest_parent / conclusion).relative_to(test_dir))
 
             # Check that files exist
             if not (test_dir / f"{premise_file}.rdf").exists():
@@ -258,29 +253,18 @@ def collect_owl_test_cases():
                 str(description),
                 str(test_uri),
             )
-            test_cases.append(
-                pytest.param(*test_params, id=_owl_test_id(test_params))
-            )
+            test_cases.append(pytest.param(*test_params, id=_owl_test_id(test_params)))
     return test_cases
 
 
-def magic_owl_proof(
-        network,
-        goals,
-        rules,
-        fact_graph,
-        options,
-        proof_id=None):
+def magic_owl_proof(network, goals, rules, fact_graph, options, proof_id=None):
     goal_dict = None
     for rule in additional_rules(fact_graph):
         rules.append(rule)
     if not options.ground_query:
         goal_dict: dict[Triple, Identifier] = dict(
             [
-                ((Variable("SUBJECT"),
-                  goalP,
-                  goalO),
-                 goalS)
+                ((Variable("SUBJECT"), goalP, goalO), goalS)
                 for goalS, goalP, goalO in goals
             ]
         )
@@ -294,7 +278,7 @@ def magic_owl_proof(
             idb=rules,
             debug=options.debug,
             ns_bindings=ns_map,
-            identify_hybrid_predicates=True
+            identify_hybrid_predicates=True,
         )
         target_graph = Graph(top_down_store)
         for pref, ns_uri in list(ns_map.items()):
@@ -305,7 +289,7 @@ def magic_owl_proof(
             query_literal = EDBQuery(
                 [build_uniterm_from_tuple(goal)],
                 fact_graph,
-                None if options.ground_query else [goal[0]]
+                None if options.ground_query else [goal[0]],
             )
             query = query_literal.as_sparql()
             print("Goal to solve ", query)
@@ -313,8 +297,7 @@ def magic_owl_proof(
             if options.ground_query:
                 assert bool(rt), "Failed top-down problem"
             else:
-                if not any(row[0] == goal_dict[goal]
-                           for row in rt) or options.debug:
+                if not any(row[0] == goal_dict[goal] for row in rt) or options.debug:
                     for network, _goal in top_down_store.query_networks:
                         print(network, _goal)
                         network.report_conflict_set(True)
@@ -325,8 +308,7 @@ def magic_owl_proof(
                 )
             if proof_id and options.capture_proofs:
                 network_for_goal = _network_for_goal(
-                    top_down_store.query_networks,
-                    goal
+                    top_down_store.query_networks, goal
                 )
                 if network_for_goal is None and top_down_store.query_networks:
                     network_for_goal = top_down_store.query_networks[-1][0]
@@ -341,11 +323,7 @@ def magic_owl_proof(
                         lit.set_operator(URIRef(op + "_derived"))
                         proof_goal = lit.to_rdf_tuple()
                 _render_proof_diagrams(
-                    network_for_goal,
-                    proof_goal,
-                    proof_id,
-                    goal_index,
-                    top_down_store
+                    network_for_goal, proof_goal, proof_id, goal_index, top_down_store
                 )
         s_time = time.perf_counter() - start
         if s_time > 1:
@@ -355,8 +333,8 @@ def magic_owl_proof(
             s_time_str = f"{s_time} milli seconds"
         return s_time_str
     else:
-        raise NotImplementedError(
-            f"Unsupported reasoning strategy: {options.strategy}")
+        raise NotImplementedError(f"Unsupported reasoning strategy: {options.strategy}")
+
 
 @pytest.mark.parametrize(
     "manifest,premise_file,conclusion_file,feature,description,test_uri",
@@ -379,29 +357,29 @@ def test_owl(
     test.
     """
     # Apply single test filter
-    if (owl_test_options.single_test and
-        premise_file != owl_test_options.single_test):
+    if owl_test_options.single_test and premise_file != owl_test_options.single_test:
         pytest.skip(f"Skipping {premise_file} (--singleTest filter active)")
 
     # Apply strategy-specific skips
-    if manifest in NON_NAIVE_SKIP or (owl_test_options.strategy == "bfp" and
-                                      manifest in BFP_TESTS_TO_SKIP):
+    if manifest in NON_NAIVE_SKIP or (
+        owl_test_options.strategy == "bfp" and manifest in BFP_TESTS_TO_SKIP
+    ):
         pytest.skip(
-            f"Incompatible with reasoning strategy: "
-            f"{owl_test_options.strategy}")
+            f"Incompatible with reasoning strategy: {owl_test_options.strategy}"
+        )
 
     if feature in TOP_DOWN_TESTS_TO_SKIP:
         pytest.skip(f"Feature {feature} requires skipping for top-down tests")
 
     from pathlib import Path
+
     base_dir = Path(os.path.relpath(__file__, os.getcwd())).parent
 
     # Verify files exist
     premise_rdf = base_dir / Path(premise_file + ".rdf")
     conclusion_rdf = base_dir / Path(conclusion_file + ".rdf")
     assert premise_rdf.exists(), f"Premise file not found: {premise_rdf}"
-    assert conclusion_rdf.exists(), (f"Conclusion file not found: "
-                                     f"{conclusion_rdf}")
+    assert conclusion_rdf.exists(), f"Conclusion file not found: {conclusion_rdf}"
 
     print(f"\n{'=' * 60}")
     print(f"Test: {premise_file}")
@@ -431,9 +409,8 @@ def test_owl(
     program = list(horn_from_n3(StringIO(NON_DHL_OWL_SEMANTICS)))
     program.extend(
         rete_network.setup_description_logic_programming(
-            fact_graph,
-            add_pd_semantics=False,
-            construct_network=False)
+            fact_graph, add_pd_semantics=False, construct_network=False
+        )
     )
 
     if owl_test_options.debug:
@@ -449,8 +426,10 @@ def test_owl(
         expected_facts = Graph()
         with conclusion_rdf.open() as f:
             for triple in expected_facts.parse(f, format="xml"):
-                if (triple not in rete_network.inferred_facts and
-                    triple not in fact_graph):
+                if (
+                    triple not in rete_network.inferred_facts
+                    and triple not in fact_graph
+                ):
                     print(f"\nMissing triple: {pformat(triple)}")
                     print(f"Manifest: {manifest}")
                     print(f"Feature: {feature}")
@@ -458,8 +437,7 @@ def test_owl(
                     if owl_test_options.debug:
                         print("\n## Inferred Facts ##")
                         print(pformat(list(rete_network.inferred_facts)))
-                    pytest.fail(f"Failed test: {feature} - "
-                                f"Missing expected triple")
+                    pytest.fail(f"Failed test: {feature} - Missing expected triple")
 
         print(f"\n=== PASSED === (Time: {s_time_str})")
     else:
@@ -481,4 +459,3 @@ def test_owl(
             proof_id=test_id,
         )
         print(f"\n=== PASSED === (Time: {timing})")
-

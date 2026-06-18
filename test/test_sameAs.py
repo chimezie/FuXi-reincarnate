@@ -50,10 +50,9 @@ def test_transitivity():
     """Test transitivity of owl:sameAs property."""
     _rule_store, _rule_graph, _network, graph = _make_network_and_graph()
     ns_bindings = {"owl": OWL_NS, "ex": EX}
-    top_down_store = TopDownSPARQLEntailingStore(graph.store,
-                                                 graph,
-                                                 idb=horn_from_n3(StringIO(RULES)),
-                                                 debug=True)
+    top_down_store = TopDownSPARQLEntailingStore(
+        graph.store, graph, idb=horn_from_n3(StringIO(RULES)), debug=True
+    )
     target_graph = Graph(top_down_store)
     for query, solns in QUERIES.items():
         result = set(target_graph.query(query, initNs=ns_bindings))

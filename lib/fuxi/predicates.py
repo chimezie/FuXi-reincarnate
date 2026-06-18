@@ -14,49 +14,58 @@ from .SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
 
 class PredicatePartitioner(ABC):
     """Abstract base class for partitioning EDB/IDB  predicates"""
-    def __init__(self,
-                 fact_graph: Graph | None = None,
-                 rules: list[Rule] | None = None,
-                 edb_predicates: list[URIRef] | None = None,
-                 derived_predicates: list[URIRef] | None = None,
-                 hybrid_predicates: list[URIRef] | None = None,
-                 ):
+
+    def __init__(
+        self,
+        fact_graph: Graph | None = None,
+        rules: list[Rule] | None = None,
+        edb_predicates: list[URIRef] | None = None,
+        derived_predicates: list[URIRef] | None = None,
+        hybrid_predicates: list[URIRef] | None = None,
+    ):
         self.fact_graph = fact_graph
         self.rules = rules if rules is not None else []
         self.edb_predicates = edb_predicates
         self.derived_predicates = derived_predicates
         self.hybrid_predicates = hybrid_predicates
 
+
 class DescriptionLogicCompiler:
     """Handles the common task of extracting rules from an OWL ontology"""
 
-    def compile_rules(self,
-                      ontology_graph: Graph,
-                      add_pd_semantics: bool = False,
-                      introspect_rules: bool = False):
+    def compile_rules(
+        self,
+        ontology_graph: Graph,
+        add_pd_semantics: bool = False,
+        introspect_rules: bool = False,
+    ):
         _, _, network = setup_rule_store(make_network=True)
         rules = []
         rules.extend(
             network.setup_description_logic_programming(
                 ontology_graph,
                 add_pd_semantics=add_pd_semantics,
-                construct_network=False)
+                construct_network=False,
+            )
         )
         if introspect_rules:
             for rule in additional_rules(ontology_graph):
                 rules.append(rule)
         return rules
 
+
 class DefaultPredicatePartitioner(PredicatePartitioner):
     """Default predicate partitioner"""
-    def __init__(self,
-                 fact_graph: Graph | None = None,
-                 rules: list[Rule] | None = None,
-                 edb_predicates: list[URIRef] | None = None,
-                 derived_predicates: list[URIRef] | None = None,
-                 hybrid_predicates: list[URIRef] | None = None,
-                 identify_hybrid_predicates: bool = False
-                 ):
+
+    def __init__(
+        self,
+        fact_graph: Graph | None = None,
+        rules: list[Rule] | None = None,
+        edb_predicates: list[URIRef] | None = None,
+        derived_predicates: list[URIRef] | None = None,
+        hybrid_predicates: list[URIRef] | None = None,
+        identify_hybrid_predicates: bool = False,
+    ):
         super().__init__(
             fact_graph, rules, edb_predicates, derived_predicates, hybrid_predicates
         )
@@ -80,6 +89,7 @@ class DefaultPredicatePartitioner(PredicatePartitioner):
                 derived_predicates.remove(hybrid_pred)
             derived_predicates.append(URIRef(hybrid_pred + "_derived"))
 
+
 SPARQL_PREDICATE_QUERY = """
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 SELECT DISTINCT ?pred
@@ -89,18 +99,20 @@ WHERE {{
     {{ ?subj a     ?pred }}
 }}"""
 
+
 class SPARQLPredicatePartitioner(PredicatePartitioner, DescriptionLogicCompiler):
-    def __init__(self,
-                 fact_graph: Graph | None = None,
-                 rules: list[Rule] | None = None,
-                 edb_predicates: list[URIRef] | None = None,
-                 derived_predicates: list[URIRef] | None = None,
-                 hybrid_predicates: list[URIRef] | None = None,
-                 identify_hybrid_predicates: bool = False,
-                 tbox_only_graph: Graph | None  = None,
-                 add_pd_semantics: bool = False,
-                 introspect_rules: bool = False
-                 ):
+    def __init__(
+        self,
+        fact_graph: Graph | None = None,
+        rules: list[Rule] | None = None,
+        edb_predicates: list[URIRef] | None = None,
+        derived_predicates: list[URIRef] | None = None,
+        hybrid_predicates: list[URIRef] | None = None,
+        identify_hybrid_predicates: bool = False,
+        tbox_only_graph: Graph | None = None,
+        add_pd_semantics: bool = False,
+        introspect_rules: bool = False,
+    ):
         super().__init__(
             fact_graph, rules, edb_predicates, derived_predicates, hybrid_predicates
         )
@@ -112,9 +124,11 @@ class SPARQLPredicatePartitioner(PredicatePartitioner, DescriptionLogicCompiler)
             hybrid_predicates = []
 
         if tbox_only_graph:
-            rules = self.compile_rules(tbox_only_graph,
-                                       add_pd_semantics=add_pd_semantics,
-                                       introspect_rules=introspect_rules)
+            rules = self.compile_rules(
+                tbox_only_graph,
+                add_pd_semantics=add_pd_semantics,
+                introspect_rules=introspect_rules,
+            )
             if self.rules:
                 self.rules.extend(rules)
 
@@ -145,9 +159,9 @@ class SPARQLPredicatePartitioner(PredicatePartitioner, DescriptionLogicCompiler)
                 self.derived_predicates.remove(hybrid_pred)
             self.derived_predicates.append(URIRef(hybrid_pred + "_derived"))
 
-    def create_entailing_store(self,
-                               verbose: bool = False,
-                               ns_map: dict[str, Identifier] = None):
+    def create_entailing_store(
+        self, verbose: bool = False, ns_map: dict[str, Identifier] = None
+    ):
         top_down_store = TopDownSPARQLEntailingStore(
             self.fact_graph.store,
             self.fact_graph,
@@ -156,6 +170,6 @@ class SPARQLPredicatePartitioner(PredicatePartitioner, DescriptionLogicCompiler)
             debug=verbose,
             ns_bindings=ns_map,
             identify_hybrid_predicates=False,
-            hybrid_predicates=self.hybrid_predicates
+            hybrid_predicates=self.hybrid_predicates,
         )
         return Graph(top_down_store)

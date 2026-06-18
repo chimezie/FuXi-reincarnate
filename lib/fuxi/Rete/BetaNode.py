@@ -62,7 +62,11 @@ def collect_variables(node):
         return set()
     if isinstance(node, AlphaNode):
         return set(
-            [term for term in node.triple_pattern if isinstance(term, (Variable, BNode))]
+            [
+                term
+                for term in node.triple_pattern
+                if isinstance(term, (Variable, BNode))
+            ]
         )
     elif node:
         combined_vars = set()
@@ -115,7 +119,9 @@ class ReteMemory(set):
                 common_var_key = []
                 for var in self.successor.common_variables:
                     common_var_key.append(binding.get(var))
-                self.substitution_dict.setdefault(tuple(common_var_key), set()).add(token)
+                self.substitution_dict.setdefault(tuple(common_var_key), set()).add(
+                    token
+                )
         else:
             for var in self.successor.common_variables:
                 common_var_key.append(token.binding_dict.get(var))
@@ -249,7 +255,9 @@ class PartialInstantiation(object):
         for token in self.tokens:
             wme = copy.deepcopy(token)
             token_list.append(wme)
-        return PartialInstantiation(token_list, consistent_bindings=self.joined_bindings)
+        return PartialInstantiation(
+            token_list, consistent_bindings=self.joined_bindings
+        )
 
     def _generate_hash(self):
         token_hashes = [hash(token) for token in self.tokens]
@@ -307,7 +315,9 @@ class PartialInstantiation(object):
             yield {}
             return
         keys = list(disjunctive_dict)
-        for entry in product(*tuple([disjunctive_dict[var] for var in disjunctive_dict])):
+        for entry in product(
+            *tuple([disjunctive_dict[var] for var in disjunctive_dict])
+        ):
             yield dict([(keys[idx], val) for idx, val in enumerate(entry)])
 
     def __hash__(self):
@@ -420,7 +430,7 @@ class PartialInstantiation(object):
                     x
                     for x in new_join_variables
                     if x in token.binding_dict
-                       and right_wme.binding_dict[x] == token.binding_dict[x]
+                    and right_wme.binding_dict[x] == token.binding_dict[x]
                 ]:
                     # consistent token
                     common_vars = True
@@ -560,14 +570,16 @@ class BetaNode(Node):
       # [<PartialInstantiation (joined on ?X): set([<ReteToken: Z->urn:uuid:Bar,W->urn:uuid:Beezle>, <ReteToken: X->urn:uuid:Foo>, <ReteToken: X->urn:uuid:Foo,Y->urn:uuid:Baz>])>, <PartialInstantiation (joined on ?X): set([<ReteToken: Z->urn:uuid:Bar,W->urn:uuid:Bundle>, <ReteToken: X->urn:uuid:Foo>, <ReteToken: X->urn:uuid:Foo,Y->urn:uuid:Baz>])>]
     """
 
-    def __init__(self,
-                 left_node,
-                 right_node,
-                 a_pass_thru=False,
-                 left_variables=None,
-                 right_variables=None,
-                 execute_actions=None,
-                 rete_memory_kind=ReteMemory):
+    def __init__(
+        self,
+        left_node,
+        right_node,
+        a_pass_thru=False,
+        left_variables=None,
+        right_variables=None,
+        execute_actions=None,
+        rete_memory_kind=ReteMemory,
+    ):
         self.rete_memory_kind = rete_memory_kind
         self.instanciating_tokens = set()
         self.a_pass_thru = a_pass_thru
@@ -616,7 +628,9 @@ class BetaNode(Node):
             self.memories[LEFT_MEMORY] = self.rete_memory_kind(self, LEFT_MEMORY)
         if a_pass_thru:
             if right_node:
-                self.left_variables = set() if left_variables is None else left_variables
+                self.left_variables = (
+                    set() if left_variables is None else left_variables
+                )
                 self.right_variables = (
                     collect_variables(self.right_node)
                     if right_variables is None
@@ -678,7 +692,9 @@ class BetaNode(Node):
 
     def __repr__(self):
         if self.execute_actions:
-            action_str = " with %s actions" % (len(list(self.actions_for_terminal_node())))
+            action_str = " with %s actions" % (
+                len(list(self.actions_for_terminal_node()))
+            )
         else:
             action_str = ""
         if self.consequent and self.fed_by_builtin:
@@ -687,7 +703,10 @@ class BetaNode(Node):
                 action_str,
             )
         elif self.consequent:
-            node_type = "TerminalNode%s (%s)" % (action_str, self.clause_representation())
+            node_type = "TerminalNode%s (%s)" % (
+                action_str,
+                self.clause_representation(),
+            )
         elif self.fed_by_builtin:
             node_type = "Builtin(%s)" % (
                 self.memories[self._opposite_memory(self.fed_by_builtin)].filter
@@ -720,11 +739,14 @@ class BetaNode(Node):
                     print("\t", memory.successor.clause_representation())
             # print(self,partInstOrList)
             memory.add_token(part_inst_or_list, debug)
-            if memory.successor.a_pass_thru or not memory.successor.check_null_activation(
-                memory.position
+            if (
+                memory.successor.a_pass_thru
+                or not memory.successor.check_null_activation(memory.position)
             ):
                 if memory.position == LEFT_MEMORY:
-                    memory.successor.propagate(memory.position, debug, part_inst_or_list)
+                    memory.successor.propagate(
+                        memory.position, debug, part_inst_or_list
+                    )
                 else:
                     # print(partInstOrList)
                     memory.successor.propagate(None, debug, part_inst_or_list)
@@ -857,12 +879,14 @@ class BetaNode(Node):
             # end
             matches = set()
             if self.fed_by_builtin:
-                builtin = self.memories[self._opposite_memory(self.fed_by_builtin)].filter
+                builtin = self.memories[
+                    self._opposite_memory(self.fed_by_builtin)
+                ].filter
                 new_consistent_bindings = [
                     term
                     for term in [builtin.argument, builtin.result]
                     if isinstance(term, Variable)
-                       and term not in partial_inst.joined_bindings
+                    and term not in partial_inst.joined_bindings
                 ]
                 partial_inst.add_consistent_binding(new_consistent_bindings)
                 for binding in partial_inst.bindings:
@@ -907,11 +931,14 @@ class BetaNode(Node):
                     for right_wme in r_wmes:
                         if isinstance(right_wme, ReteToken):
                             matches.add(
-                                partial_inst.new_join(right_wme, [
-                                    x
-                                    for x in self.common_variables
-                                    if x not in partial_inst.joined_bindings
-                                ])
+                                partial_inst.new_join(
+                                    right_wme,
+                                    [
+                                        x
+                                        for x in self.common_variables
+                                        if x not in partial_inst.joined_bindings
+                                    ],
+                                )
                             )
                         else:
                             # Joining two Beta/Join nodes!
@@ -971,11 +998,14 @@ class BetaNode(Node):
                             partial_inst
                         )
                         matches.add(
-                            partial_inst.new_join(wme, [
-                                x
-                                for x in self.common_variables
-                                if x not in partial_inst.joined_bindings
-                            ])
+                            partial_inst.new_join(
+                                wme,
+                                [
+                                    x
+                                    for x in self.common_variables
+                                    if x not in partial_inst.joined_bindings
+                                ],
+                            )
                         )
             for p_inst in matches:
                 self._activate(p_inst, debug)
@@ -1012,7 +1042,9 @@ class PartialInstantiationTests(unittest.TestCase):
             self.a_node11,
         ]
         p_token = PartialInstantiation(
-            tokens=[populate_token_from_a_node(aNode, all_bindings) for aNode in a_nodes],
+            tokens=[
+                populate_token_from_a_node(aNode, all_bindings) for aNode in a_nodes
+            ],
             consistent_bindings=self.joinedBindings,
         )
         # print(p_token)

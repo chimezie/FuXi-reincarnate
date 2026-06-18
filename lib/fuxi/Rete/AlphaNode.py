@@ -212,7 +212,10 @@ def default_intra_element_test(a_rete_token, triple_pattern):
     for idx in [SUBJECT, PREDICATE, OBJECT]:
         token_term = token_terms[idx]
         pattern_term = triple_pattern[idx]
-        if not isinstance(pattern_term, (Variable, BNode)) and token_term != pattern_term:
+        if (
+            not isinstance(pattern_term, (Variable, BNode))
+            and token_term != pattern_term
+        ):
             return False
         elif pattern_term in var_bindings and var_bindings[pattern_term] != token_term:
             return False
@@ -263,8 +266,8 @@ class AlphaNode(Node):
                     term
                     for term in self.triple_pattern
                     if not isinstance(term, (BNode, Variable))
-                       or isinstance(term, BNode)
-                       and term in skolem_terms
+                    or isinstance(term, BNode)
+                    and term in skolem_terms
                 ]
             )
         else:
@@ -336,8 +339,9 @@ class AlphaNode(Node):
             if a_rete_token.debug:
                 print("Added %s to %s" % (a_rete_token, memory.successor))
 
-            if memory.successor.a_pass_thru or not memory.successor.check_null_activation(
-                memory.position
+            if (
+                memory.successor.a_pass_thru
+                or not memory.successor.check_null_activation(memory.position)
             ):
                 if a_rete_token.debug:
                     print("Propagated from %s" % (self))
@@ -356,6 +360,7 @@ class AlphaNode(Node):
                         "skipped null right activation of %s from %s"
                         % (memory.successor, self)
                     )
+
 
 class BuiltInAlphaNode(AlphaNode):
     """

@@ -61,14 +61,14 @@ class TestReteAction:
         _rule_store, _rule_graph, network = setup_rule_store(make_network=True)
         for rule in horn_from_n3(StringIO(N3_PROGRAM), additional_builtins=None):
             network.build_network_from_clause(rule)
-        network.register_rete_action(matching_head_triple,
-                                     False,
-                                     encode_action)
+        network.register_rete_action(matching_head_triple, False, encode_action)
         network.feed_facts_to_add(generate_token_set(fact_graph))
 
-        resulting_triple = (EX.chimezie,
-                            FOAF["mbox_sha1sum"],
-                            Literal(expected_sha1_hex))
+        resulting_triple = (
+            EX.chimezie,
+            FOAF["mbox_sha1sum"],
+            Literal(expected_sha1_hex),
+        )
         assert resulting_triple in network.inferred_facts
 
     def test_rete_action_creates_four_inferred_facts(self):
@@ -77,19 +77,15 @@ class TestReteAction:
         (2 rule patterns + 2 computed hashes).
         """
         fact_graph = Graph().parse(StringIO(N3_FACTS), format="n3")
-        _rule_store, _rule_graph, network = setup_rule_store(
-            make_network=True)
-        for rule in horn_from_n3(StringIO(N3_PROGRAM),
-                                 additional_builtins=None):
+        _rule_store, _rule_graph, network = setup_rule_store(make_network=True)
+        for rule in horn_from_n3(StringIO(N3_PROGRAM), additional_builtins=None):
             network.build_network_from_clause(rule)
-        network.register_rete_action(matching_head_triple,
-                                     False,
-                                     encode_action)
+        network.register_rete_action(matching_head_triple, False, encode_action)
         network.feed_facts_to_add(generate_token_set(fact_graph))
 
-        sha1_triples = list(network.inferred_facts.triples((None,
-                                                            FOAF["mbox_sha1sum"],
-                                                            None)))
+        sha1_triples = list(
+            network.inferred_facts.triples((None, FOAF["mbox_sha1sum"], None))
+        )
         assert len(sha1_triples) == 4
 
 

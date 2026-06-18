@@ -91,28 +91,39 @@ nameMap = {
 
 
 def setup_ddl_and_adorn_program(
-        fact_graph,
-        rules,
-        goals,
-        derived_preds=None,
-        strict_check=DDL_STRICTNESS_FALLBACK_DERIVED,
-        default_predicates=None,
-        ignore_unbound_d_preds=False,
-        hybrid_preds_to_replace=None,
-        ns_bindings=None):
+    fact_graph,
+    rules,
+    goals,
+    derived_preds=None,
+    strict_check=DDL_STRICTNESS_FALLBACK_DERIVED,
+    default_predicates=None,
+    ignore_unbound_d_preds=False,
+    hybrid_preds_to_replace=None,
+    ns_bindings=None,
+):
     if not default_predicates:
         default_predicates = [], []
     if not derived_preds:
-        _derived_preds = derived_predicate_iterator(fact_graph, rules, strict=strict_check,
-                                                    default_predicates=default_predicates)
+        _derived_preds = derived_predicate_iterator(
+            fact_graph,
+            rules,
+            strict=strict_check,
+            default_predicates=default_predicates,
+        )
         if not isinstance(derived_preds, (set, list)):
             derived_preds = list(_derived_preds)
         else:
             derived_preds.extend(_derived_preds)
     hybrid_preds_to_replace = hybrid_preds_to_replace or []
-    adorned_program = adorn_program(fact_graph, rules, goals, derived_preds, ignore_unbound_d_preds,
-                                    hybrid_preds_to_replace=hybrid_preds_to_replace,
-                                    ns_bindings=ns_bindings)
+    adorned_program = adorn_program(
+        fact_graph,
+        rules,
+        goals,
+        derived_preds,
+        ignore_unbound_d_preds,
+        hybrid_preds_to_replace=hybrid_preds_to_replace,
+        ns_bindings=ns_bindings,
+    )
     if adorned_program != set([]):
         rt = reduce(
             lambda l, r: l + r,
@@ -158,14 +169,16 @@ def setup_ddl_and_adorn_program(
         fact_graph.adorned_program = adorned_program
     return adorned_program
 
+
 def magic_set_transformation(
-        fact_graph,
-        rules,
-        goals,
-        derived_preds=None,
-        strict_check=DDL_STRICTNESS_FALLBACK_DERIVED,
-        no_magic=None,
-        default_predicates=None):
+    fact_graph,
+    rules,
+    goals,
+    derived_preds=None,
+    strict_check=DDL_STRICTNESS_FALLBACK_DERIVED,
+    no_magic=None,
+    default_predicates=None,
+):
     """
     Apply the magic set transformation to a ruleset.
 
@@ -183,12 +196,14 @@ def magic_set_transformation(
     """
     no_magic = no_magic and no_magic or []
     magic_predicates = set()
-    adorned_program = setup_ddl_and_adorn_program(fact_graph,
-                                                  rules,
-                                                  goals,
-                                                  derived_preds=derived_preds,
-                                                  strict_check=strict_check,
-                                                  default_predicates=default_predicates)
+    adorned_program = setup_ddl_and_adorn_program(
+        fact_graph,
+        rules,
+        goals,
+        derived_preds=derived_preds,
+        strict_check=strict_check,
+        default_predicates=default_predicates,
+    )
     new_rules = []
     for rule in adorned_program:
         if rule.is_second_order():
@@ -221,7 +236,9 @@ def magic_set_transformation(
                     magic_positions[idx] = (magic_pred, pred)
                     in_arcs = [
                         (N, x)
-                        for (N, x) in incoming_sip_arcs(rule.sip, get_occurrence_id(pred))
+                        for (N, x) in incoming_sip_arcs(
+                            rule.sip, get_occurrence_id(pred)
+                        )
                         if not set(x).difference(get_args(pred))
                     ]
                     if len(in_arcs) > 1:
@@ -245,9 +262,13 @@ def magic_set_transformation(
                         additional_rules = []
                         for idxSip, (N, x) in enumerate(in_arcs):
                             new_pred = pred.clone()
-                            set_op(new_pred, URIRef("%s_label_%s" % (new_pred.op, idxSip)))
+                            set_op(
+                                new_pred, URIRef("%s_label_%s" % (new_pred.op, idxSip))
+                            )
                             rule_body = And(
-                                build_magic_body(N, prev_preds, rule.formula.head, derived_preds)
+                                build_magic_body(
+                                    N, prev_preds, rule.formula.head, derived_preds
+                                )
                             )
                             additional_rules.append(Rule(Clause(rule_body, new_pred)))
                             _body.extend(new_pred)
@@ -259,7 +280,13 @@ def magic_set_transformation(
                     else:
                         for idxSip, (N, x) in enumerate(in_arcs):
                             rule_body = And(
-                                build_magic_body(N, prev_preds, rule.formula.head, derived_preds, no_magic)
+                                build_magic_body(
+                                    N,
+                                    prev_preds,
+                                    rule.formula.head,
+                                    derived_preds,
+                                    no_magic,
+                                )
                             )
                             new_rule = Rule(Clause(rule_body, magic_pred))
                             new_rules.append(new_rule)
@@ -347,7 +374,13 @@ def normalize_uniterm(term):
         return Uniterm(term.uri, term.argument, term.naf)
 
 
-def adorn_rule(derived_preds, clause, new_head, ignore_unbound_d_preds=False, hybrid_preds_to_replace=None):
+def adorn_rule(
+    derived_preds,
+    clause,
+    new_head,
+    ignore_unbound_d_preds=False,
+    hybrid_preds_to_replace=None,
+):
     """
     Adorns a horn clause using the given new head and list of
     derived predicates
@@ -380,7 +413,7 @@ def adorn_rule(derived_preds, clause, new_head, ignore_unbound_d_preds=False, hy
         op = get_op(literal)
         args = get_args(literal)
         if op in derived_preds or (
-                op in hybrid_preds_to_replace if hybrid_preds_to_replace else False
+            op in hybrid_preds_to_replace if hybrid_preds_to_replace else False
         ):
             for N, x in incoming_sip_arcs(sip, get_occurrence_id(literal)):
                 head_arc = len(N) == 1 and N[0] == get_op(new_head)
@@ -408,7 +441,9 @@ def adorn_rule(derived_preds, clause, new_head, ignore_unbound_d_preds=False, hy
         atom_pred = get_op(adorned_head)
         if atom_pred in hybrid_preds_to_replace:
             adorned_head.set_operator(URIRef(atom_pred + "_derived"))
-        for body_atom in [body_pred_replace.get(p, p) for p in iter_condition(sip.sipOrder)]:
+        for body_atom in [
+            body_pred_replace.get(p, p) for p in iter_condition(sip.sipOrder)
+        ]:
             body_pred = get_op(body_atom)
             if body_pred in hybrid_preds_to_replace:
                 body_atom.set_operator(URIRef(body_pred + "_derived"))
@@ -443,20 +478,22 @@ def compare_adorned_pred_to_rule_head(adorned_pred, head, hybrid_preds_to_replac
             head_predicate_term == adorned_pred_term
             or isinstance(head_predicate_term, Variable)
             or (
-                    is_hybrid_predicate(adorned_pred, hybrid_preds_to_replace)
-                    and adorned_pred_term[:-8] == head_predicate_term
+                is_hybrid_predicate(adorned_pred, hybrid_preds_to_replace)
+                and adorned_pred_term[:-8] == head_predicate_term
             )
         )
     return False
 
 
-def adorn_program(fact_graph,
-                  rs,
-                  goals,
-                  derived_preds=None,
-                  ignore_unbound_d_preds=False,
-                  hybrid_preds_to_replace=None,
-                  ns_bindings=None):
+def adorn_program(
+    fact_graph,
+    rs,
+    goals,
+    derived_preds=None,
+    ignore_unbound_d_preds=False,
+    hybrid_preds_to_replace=None,
+    ns_bindings=None,
+):
     """
     The process starts from the given query. The query determines bindings for q, and we replace
     q by an adorned version, in which precisely the positions bound in the query are designated as
@@ -502,11 +539,18 @@ def adorn_program(fact_graph,
                     and clause.head.formula
                     or clause.head
                 )
-                if compare_adorned_pred_to_rule_head(term, head, hybrid_preds_to_replace):
+                if compare_adorned_pred_to_rule_head(
+                    term, head, hybrid_preds_to_replace
+                ):
                     # for each rule that has p in its head, we generate an
                     # adorned version for the rule
-                    adorned_rule = adorn_rule(derived_preds, clause, term, ignore_unbound_d_preds=ignore_unbound_d_preds,
-                                             hybrid_preds_to_replace=hybrid_preds_to_replace)
+                    adorned_rule = adorn_rule(
+                        derived_preds,
+                        clause,
+                        term,
+                        ignore_unbound_d_preds=ignore_unbound_d_preds,
+                        hybrid_preds_to_replace=hybrid_preds_to_replace,
+                    )
                     adorned_program.add(adorned_rule)
                     # The adorned version of a rule contains additional adorned
                     # predicates, and these are added
@@ -515,15 +559,17 @@ def adorn_program(fact_graph,
                             adorned_pred = pred
                         else:
                             adorned_pred = (
-                                    not isinstance(pred, AdornedUniTerm)
-                                    and adorn_literal(pred.to_rdf_tuple(), nsBindings, pred.naf)
-                                    or pred
+                                not isinstance(pred, AdornedUniTerm)
+                                and adorn_literal(
+                                    pred.to_rdf_tuple(), nsBindings, pred.naf
+                                )
+                                or pred
                             )
                         op = get_op(pred)
                         if (
-                                op in derived_preds
-                                or (
-                                        op in hybrid_preds_to_replace
+                            op in derived_preds
+                            or (
+                                op in hybrid_preds_to_replace
                                 if hybrid_preds_to_replace
                                 else False
                             )
@@ -692,17 +738,25 @@ def adorn_literal(rdf_tuple, new_nss=None, naf=False):
     return AdornedUniTerm(uniterm, adornment, naf)
 
 
-def derived_predicate_iterator(facts_or_base_preds,
-                               ruleset,
-                               strict=DDL_STRICTNESS_FALLBACK_DERIVED,
-                               default_predicates=None,
-                               predicates_given=False):
+def derived_predicate_iterator(
+    facts_or_base_preds,
+    ruleset,
+    strict=DDL_STRICTNESS_FALLBACK_DERIVED,
+    default_predicates=None,
+    predicates_given=False,
+):
     if not default_predicates:
         default_predicates = [], []
     default_base_preds, default_derived_preds = default_predicates
-    base_preds = facts_or_base_preds if predicates_given else [
-        get_op(build_uniTerm(fact)) for fact in facts_or_base_preds if fact[1] != LOG.implies
-    ]
+    base_preds = (
+        facts_or_base_preds
+        if predicates_given
+        else [
+            get_op(build_uniTerm(fact))
+            for fact in facts_or_base_preds
+            if fact[1] != LOG.implies
+        ]
+    )
     processed = {True: set(), False: set()}
     derived_preds = set()
     uncertain_preds = set()
@@ -885,7 +939,9 @@ def identify_derived_predicates(ddl_meta_graph, tbox, ruleset=None):
     for derived_prop_prefix_list in ddl_meta_graph.subjects(
         predicate=RDF.type, object=ddl.DerivedPropertyPrefix
     ):
-        derived_prop_prefixes.extend(Collection(ddl_meta_graph, derived_prop_prefix_list))
+        derived_prop_prefixes.extend(
+            Collection(ddl_meta_graph, derived_prop_prefix_list)
+        )
     for basePropPrefixList in ddl_meta_graph.subjects(
         predicate=RDF.type, object=ddl.BasePropertyPrefix
     ):
@@ -908,7 +964,9 @@ def identify_derived_predicates(ddl_meta_graph, tbox, ruleset=None):
     for derived_cls_prefix_list in ddl_meta_graph.subjects(
         predicate=RDF.type, object=ddl.DerivedClassPrefix
     ):
-        derived_class_prefixes.extend(Collection(ddl_meta_graph, derived_cls_prefix_list))
+        derived_class_prefixes.extend(
+            Collection(ddl_meta_graph, derived_cls_prefix_list)
+        )
     base_class_prefixes = []
     for base_cls_prefix_list in ddl_meta_graph.subjects(
         predicate=RDF.type, object=ddl.BaseClassPrefix
@@ -945,5 +1003,3 @@ def identify_derived_predicates(ddl_meta_graph, tbox, ruleset=None):
 
     d_preds.difference_update(base_preds)
     return d_preds
-
-

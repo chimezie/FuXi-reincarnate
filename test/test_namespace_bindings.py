@@ -237,8 +237,7 @@ class TestQNameManagerBindsProvidedNamespaces:
                 f"found prefixes: {list(prefixes.keys())}"
             )
             assert str(prefixes["ex"]) == str(EX), (
-                f"ns_manager['ex'] should map to {EX}; "
-                f"got {prefixes['ex']}"
+                f"ns_manager['ex'] should map to {EX}; got {prefixes['ex']}"
             )
 
     def test_adorned_term_ns_manager_has_ex_binding(self):
@@ -255,8 +254,7 @@ class TestQNameManagerBindsProvidedNamespaces:
                     f"found prefixes: {list(prefixes.keys())}"
                 )
                 assert str(prefixes["ex"]) == str(EX), (
-                    f"ns_manager['ex'] should map to {EX}; "
-                    f"got {prefixes['ex']}"
+                    f"ns_manager['ex'] should map to {EX}; got {prefixes['ex']}"
                 )
 
     def test_goal_lit_belongs_to_uniterm_class(self):
@@ -304,12 +302,8 @@ ex:alice a ex:Parent .
         Derived predicate via rdf:type (class-based) should also use
         proper namespace prefixes after adornment.
         """
-        fact_graph = Graph().parse(
-            StringIO(self.RDF_TYPE_FACTS_N3), format="n3"
-        )
-        rules = list(
-            horn_from_n3(StringIO(self.RDF_TYPE_RULES_N3))
-        )
+        fact_graph = Graph().parse(StringIO(self.RDF_TYPE_FACTS_N3), format="n3")
+        rules = list(horn_from_n3(StringIO(self.RDF_TYPE_RULES_N3)))
 
         partitioner = SPARQLPredicatePartitioner(
             fact_graph=fact_graph,
@@ -368,8 +362,7 @@ class TestStoreDoesNotContainNsPrefixes:
         for _, (goal_lit, *_) in store.goal_rule_sip_info.items():
             goal_repr = repr(goal_lit)
             assert "ex:" not in goal_repr, (
-                f"Without ns_map, goal repr should not contain 'ex:'; "
-                f"got {goal_repr!r}"
+                f"Without ns_map, goal repr should not contain 'ex:'; got {goal_repr!r}"
             )
 
     def test_no_ns_bindings_head_no_full_uri(self):
@@ -417,9 +410,7 @@ class TestRoundtripQuery:
         store = entailing_graph.store
 
         x, y = Variable("x"), Variable("y")
-        results = list(
-            store.batch_unify([(x, EX.ancestorOf, y, None)])
-        )
+        results = list(store.batch_unify([(x, EX.ancestorOf, y, None)]))
 
         assert len(results) > 0, "Should have inferred at least one binding"
         found = {(str(r[x]), str(r[y])) for r in results if x in r and y in r}
@@ -436,8 +427,6 @@ class TestRoundtripQuery:
 
         # Use batch_unify for an EDB-only predicate.
         x, y = Variable("x"), Variable("y")
-        results = list(
-            store.batch_unify([(x, EX.parentOf, y, None)])
-        )
+        results = list(store.batch_unify([(x, EX.parentOf, y, None)]))
 
         assert len(results) > 0, "Should have base facts"

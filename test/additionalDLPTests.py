@@ -63,7 +63,7 @@ class TestGCIWithDisjunction:
             ontology_graph,
             add_pd_semantics=False,
             construct_network=False,
-            derived_preds=[ex_ns.Bar]
+            derived_preds=[ex_ns.Bar],
         )
 
         assert len(rules) == 2, f"Expected 2 rules, got {len(rules)}"
@@ -87,9 +87,7 @@ class TestBasePredicateEquivalence:
 
         _rule_store, _rule_graph, network = setup_rule_store(make_network=True)
         rules = network.setup_description_logic_programming(
-            ontology_graph,
-            add_pd_semantics=False,
-            construct_network=False
+            ontology_graph, add_pd_semantics=False, construct_network=False
         )
 
         assert len(rules) == 2, f"Expected 2 rules, got {len(rules)}"
@@ -129,9 +127,7 @@ class TestExistentialRestrictions:
 
         _rule_store, _rule_graph, network = setup_rule_store(make_network=True)
         rules = network.setup_description_logic_programming(
-            ontology_graph,
-            add_pd_semantics=False,
-            construct_network=False
+            ontology_graph, add_pd_semantics=False, construct_network=False
         )
 
         assert len(rules) == 1, f"Expected 1 rule, got {len(rules)}"
@@ -149,23 +145,18 @@ class TestNestedConjunctions:
         nested_conj = (ex_factory.Foo & ex_factory.Bar) & ex_factory.Baz
         ex_factory.Omega += nested_conj
 
-        _rule_store, _rule_graph, network = setup_rule_store(
-            make_network=True
-        )
+        _rule_store, _rule_graph, network = setup_rule_store(make_network=True)
         rules = network.setup_description_logic_programming(
-            ontology_graph,
-            add_pd_semantics=False,
-            construct_network=False
+            ontology_graph, add_pd_semantics=False, construct_network=False
         )
 
-        omega_rules = [r for r in rules
-                       if r.formula.head.arg[-1] == ex_ns.Omega]
-        assert len(omega_rules) == 1, (f"Expected 1 rule for Omega, "
-                                       f"got {len(omega_rules)}")
+        omega_rules = [r for r in rules if r.formula.head.arg[-1] == ex_ns.Omega]
+        assert len(omega_rules) == 1, (
+            f"Expected 1 rule for Omega, got {len(omega_rules)}"
+        )
 
         omega_rule = omega_rules[0]
-        assert len(
-            omega_rule.formula.body) == 2, "Body should have 2 elements"
+        assert len(omega_rule.formula.body) == 2, "Body should have 2 elements"
 
         skolem_predicates = [
             term.arg[-1]
@@ -178,53 +169,56 @@ class TestNestedConjunctions:
 class TestComplexClassExpressions:
     """Tests for complex OWL class expressions."""
 
-    def test_other_form_complex_expression(self,
-                                           ontology_graph,
-                                           ex_ns,
-                                           ex_factory):
+    def test_other_form_complex_expression(self, ontology_graph, ex_ns, ex_factory):
         """Test complex class expression with multiple existentials."""
         contains = Property(ex_ns.contains)
         located_in = Property(ex_ns.locatedIn)
 
         top_conjunct = (
             ex_factory.Cath
-            & (contains | some | (ex_factory.MajorStenosis &
-                                  (located_in | value | ex_ns.LAD)))
-            & (contains | some | (ex_factory.MajorStenosis &
-                                  (located_in | value | ex_ns.RCA)))
+            & (
+                contains
+                | some
+                | (ex_factory.MajorStenosis & (located_in | value | ex_ns.LAD))
+            )
+            & (
+                contains
+                | some
+                | (ex_factory.MajorStenosis & (located_in | value | ex_ns.RCA))
+            )
         )
         ex_factory.NumDisV2D += top_conjunct
 
         from fuxi.DLP.DLNormalization import normal_form_reduction
+
         normal_form_reduction(ontology_graph)
 
-        _rule_store, _rule_graph, network = setup_rule_store(
-            make_network=True
-        )
+        _rule_store, _rule_graph, network = setup_rule_store(make_network=True)
         rules = network.setup_description_logic_programming(
             ontology_graph,
             add_pd_semantics=False,
             construct_network=False,
-            derived_preds=[ex_ns.NumDisV2D]
+            derived_preds=[ex_ns.NumDisV2D],
         )
 
         assert len(rules) > 0, "Should produce at least one rule"
 
         from fuxi.Rete.Magic import pretty_print_rule
+
         for rule in rules:
             pretty_print_rule(rule)
 
-    def test_enumerated_class_in_existential(self,
-                                             ontology_graph,
-                                             ex_ns,
-                                             ex_factory):
+    def test_enumerated_class_in_existential(self, ontology_graph, ex_ns, ex_factory):
         """Test enumerated class used within existential restriction."""
         has_coronary_bypass_conduit = Property(ex_ns.hasCoronaryBypassConduit)
 
         ita_left = ex_factory.ITALeft
-        members = EnumeratedClass(members=[
-            ex_ns.CoronaryBypassConduit_internal_thoracic_artery_left_insitu,
-            ex_ns.CoronaryBypassConduit_internal_thoracic_artery_left_free])
+        members = EnumeratedClass(
+            members=[
+                ex_ns.CoronaryBypassConduit_internal_thoracic_artery_left_insitu,
+                ex_ns.CoronaryBypassConduit_internal_thoracic_artery_left_free,
+            ]
+        )
         ita_left += has_coronary_bypass_conduit | some | members
 
         from fuxi.DLP.DLNormalization import normal_form_reduction

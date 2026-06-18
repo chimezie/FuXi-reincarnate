@@ -13,3 +13,6 @@ FuXi.sublime-*
 *__pycache__
 test/coverage*
 docs/_build*
+
+# Embedded standalone repo (managed via chimezie/semantic-web-reasoner-skill)
+/semantic-web-reasoner-skill/

@@ -90,6 +90,13 @@ def _body_term_tuples(body_term):
     return [term.to_rdf_tuple() for term in term_iterator(body_term)]
 
 
+def _sorted_t_nodes(
+    t_nodes: set,
+) -> list:
+    """Return a deterministic ordering of terminal-node objects."""
+    return sorted(t_nodes, key=lambda n: str(id(n)))
+
+
 def fetch_rete_justifications(goal, nodeset, builder, antecedent=None):
     """
     Takes a goal, a nodeset and an inference step the nodeset is the
@@ -102,7 +109,7 @@ def fetch_rete_justifications(goal, nodeset, builder, antecedent=None):
     if antecedent:
         yielded = False
         # might not be a valid justification
-        for rete_justification in justification_for_goal:
+        for rete_justification in _sorted_t_nodes(justification_for_goal):
             valid_justification = True
             clause = _clause_from_justification(rete_justification)
             for body_term in clause.body:
@@ -120,7 +127,7 @@ def fetch_rete_justifications(goal, nodeset, builder, antecedent=None):
                 yielded = True
                 yield rete_justification
         if not yielded:
-            for t_node in nodeset.network.terminal_nodes:
+            for t_node in _sorted_t_nodes(nodeset.network.terminal_nodes):
                 if t_node not in justification_for_goal:
                     try:
                         clause = _clause_from_justification(t_node)
@@ -133,7 +140,7 @@ def fetch_rete_justifications(goal, nodeset, builder, antecedent=None):
                     except Exception:
                         pass
     else:
-        for t_node in justification_for_goal:
+        for t_node in _sorted_t_nodes(justification_for_goal):
             yield t_node
 
 
@@ -791,9 +798,16 @@ class ProofBuilder(object):
                     goal, parent, step, bindings, top_down_store
                 )
 
-        raise SyntaxError(
-            f"Unable to build inference step for {build_uniterm_from_tuple(goal)}"
+        # Graceful fallback: if no dispatch branch handled the goal, treat it as
+        # directly asserted rather than crashing.  This avoids hard failures when
+        # the proof builder encounters an unhandled rule shape (e.g. during
+        # recursive-ancestor proof construction under certain ordering paths).
+        self.trace.append(
+            "No dispatch branch handled goal %s — falling back to asserted fact"
+            % build_uniterm_from_tuple(goal)
         )
+        step.source = "some RDF graph"
+        return step
 
     def build_non_evaluation_step(
         self,

@@ -7,7 +7,7 @@
 
 from io import StringIO
 
-from fuxi.SPARQL.utilities import sparql_interlocution
+from fuxi.SPARQL.utilities import owl_entailment_regime_graph
 from rdflib import RDFS, Graph, Namespace, URIRef, Variable
 
 IMDB = Namespace("https://www.imdb.com/")
@@ -86,23 +86,21 @@ SELECT ?director WHERE {
 
 def test_sip():
     from fuxi.Horn.HornRules import horn_from_n3
-    from fuxi.Rete.RuleStore import setup_rule_store
-    from fuxi.SPARQL.BackwardChainingStore import (
-        TopDownSPARQLEntailingStore,
-    )
 
-    _, _, network = setup_rule_store(make_network=True)
     rules = list(horn_from_n3(StringIO(RULES)))
     graph = Graph().parse(StringIO(FACTS), format="n3")
-    top_down_store = TopDownSPARQLEntailingStore(
-        graph.store,
+
+    entailing_graph, _ = owl_entailment_regime_graph(
         graph,
+        NS_BINDINGS,
+        identify_hybrid_predicates=True,
         derived_predicates=DERIVED_PREDICATES,
-        idb=rules,
-        debug=True,
-        ns_bindings=NS_BINDINGS,
+        extra_rulesets=rules,
+        verbose=True,
     )
-    for answer in sparql_interlocution(QUERY, top_down_store):
+    result = entailing_graph.query(QUERY, initNs=NS_BINDINGS)
+    assert len(result.bindings) > 0, "Expected at least one answer for director query"
+    for answer in result.bindings:
         print("\tInner Answer: ")
         print("\t", {f"?{k} -> {v.n3()}" for k, v in answer.items()})
 

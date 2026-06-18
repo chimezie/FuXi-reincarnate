@@ -22,8 +22,7 @@ from fuxi.Rete.Util import collapse_dictionary, generate_token_set
 from fuxi.SPARQL.service import SPARQLServiceGraph
 from fuxi.SPARQL.utilities import (
     extract_triples_from_query,
-    owl_entailment_regime_graph,
-    sparql_interlocution,
+    owl_entailment_regime_graph
 )
 from fuxi.Syntax.InfixOWL import (
     OWL_NS,
@@ -506,7 +505,7 @@ def run_bfp(
 
     start = time.time()
     answers: list = []
-    for answer in sparql_interlocution(options.why, top_down_store):
+    for answer in entailing_graph.query(options.why):
         answers.append(answer)
         s_time = time.time() - start
         logger.debug(

@@ -246,11 +246,6 @@ def _render_rdf(
         network.inferred_facts = network.filtered_facts
 
     fmt = options.output
-    if fmt == OutputFormat.N3:
-        rules = rule_set if rule_set else network.rules if network.rules else []
-        for rule in rules:
-            print(rule)
-
     if options.closure and fmt in OutputFormat.rdf_formats():
         closure_graph = network.closure_graph(fact_graph)
         closure_graph.namespace_manager = namespace_manager

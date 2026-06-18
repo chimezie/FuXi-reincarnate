@@ -302,9 +302,15 @@ class TopDownSPARQLEntailingStore(Store):
                 query = EDBQuery(
                     [goal_literal], bfp.meta_interp_network.inferred_facts
                 ).as_sparql()
-                for item in bfp.meta_interp_network.inferred_facts.query(query):
+                result = bfp.meta_interp_network.inferred_facts.query(query)
+                # Bind each projected variable to its own column *by name* rather
+                # than by positional index.  The SELECT projection order produced
+                # by EDBQuery.as_sparql() is not deterministic (it derives from a
+                # set), so zipping by index could swap variable/value pairs.
+                projected_vars = list(result.vars) if result.vars else variables
+                for item in result:
                     yield (
-                        {variables[idx]: item[idx] for idx in range(len(variables))},
+                        {var: item[var] for var in projected_vars},
                         None,
                     )
         else:

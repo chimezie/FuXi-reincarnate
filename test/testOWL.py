@@ -1,7 +1,7 @@
-import os
-import time
 from io import StringIO
+import os
 from pprint import pformat
+import time
 
 import pytest
 from rdflib.graph import Graph

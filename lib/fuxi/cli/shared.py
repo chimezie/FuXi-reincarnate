@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass, field
+from enum import StrEnum
 import importlib.util
 import logging
 import sys
 import time
-from dataclasses import dataclass, field
-from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from rdflib.graph import Graph

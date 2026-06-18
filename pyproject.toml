@@ -118,4 +118,5 @@ directory = "htmlcov"
 
 [tool.ruff.lint.isort]
 known-first-party = ["fuxi"]
+force-sort-within-sections = true
 

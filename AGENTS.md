@@ -26,10 +26,10 @@ uv run pytest test/testOWL2.py
 uv run pytest test/testOWL.py --single-test OWL/TransitiveProperty/premises001 --ground-query
 
 # Lint with ruff (replaces flake8, isort, black)
-uv run ruff check .
+uv run ruff check lib/fuxi/ test/
 
 # Format with ruff
-uv run ruff format .
+uv run ruff format lib/fuxi/ test/
 
 # Generate Sphinx docs
 tox -e docs
@@ -50,16 +50,16 @@ FuXi uses **ruff** as the single tool for linting and formatting. It replaces fl
 
 ```bash
 # Lint
-uv run ruff check .
+uv run ruff check lib/fuxi/ test/
 
 # Auto-fix
-uv run ruff check --fix .
+uv run ruff check --fix lib/fuxi/ test/
 
 # Format
-uv run ruff format .
+uv run ruff format lib/fuxi/ test/
 
 # Check formatting without changes
-uv run ruff format --check .
+uv run ruff format --check lib/fuxi/ test/
 ```
 
 **Enabled rules** (from pyproject.toml):
@@ -196,7 +196,7 @@ DATALOG_SAFETY_LOOSE  # Relaxed safety with warnings
 
 ## Practical Tips for Agents
 
-1. **Before suggesting changes**: Always run `uv run ruff check .` and `uv run pytest <file>` to verify code quality.
+1. **Before suggesting changes**: Always run `uv run ruff check lib/fuxi/ test/` and `uv run pytest <file>` to verify code quality.
 
 2. **Use the right CLI command for examples/tests**:
    - `fuxi.core` for forward-chaining examples and RETE diagnostics
@@ -206,7 +206,7 @@ DATALOG_SAFETY_LOOSE  # Relaxed safety with warnings
 
 3. **When working on FuXi**: Use pytest for all new tests. Legacy nose-based tests may have `@known_issue` markers in `setup.cfg`.
 
-4. **Import ordering and formatting**: Use `uv run ruff check --fix .` to auto-fix imports and formatting issues.
+4. **Import ordering and formatting**: Use `uv run ruff check --fix lib/fuxi/ test/` to auto-fix imports and formatting issues.
 
 5. **Type annotations**: Add types to new public APIs and complex internal functions. Legacy code may have minimal typing.
 

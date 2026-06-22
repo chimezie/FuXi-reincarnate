@@ -525,22 +525,26 @@ any reasoning capabilities of the service.
 
 ### Querying TopDownSPARQLEntailingStore
 
-The ``sparql_interlocution`` function provides a convenient way to execute SPARQL queries 
-against a ``TopDownSPARQLEntailingStore`` and yield solutions:
+The ``sparql_interlocution_basic_graph_pattern`` function evaluates SELECT
+basic graph patterns over a ``TopDownSPARQLEntailingStore``, joining derived
+(IDB) and base (EDB) predicates with correct join semantics:
 
 ```python
-from rdflib import Variable
-from fuxi.SPARQL.utilities import sparql_interlocution
+from fuxi.SPARQL.utilities import sparql_interlocution_basic_graph_pattern
 
-for answer in sparql_interlocution(query, top_down_store):
-  movie = answer[Variable('movie')]
-  print(f"Movie: {movie}")
+# Returns an rdflib SPARQLResult (drop-in with query())
+result = sparql_interlocution_basic_graph_pattern(query, top_down_store)
+
+# With proof capture
+result, proofs = sparql_interlocution_basic_graph_pattern(
+    query, top_down_store, generate_proofs=True
+)
 ```
 
-This function bridges SPARQL query text and FuXi's backwards-chaining evaluation engine. 
-It parses the query, extracts the basic graph pattern, converts triples to quads, and uses 
-the store's ``batch_unify`` to retrieve matching solutions. Only solutions where all query 
-variables are bound are yielded.
+Unlike ``solve_triple_pattern`` (used by ``query()``), this function drives
+``batch_unify`` — the conjunctive SIP join path — which threads bindings
+left-to-right across patterns so that mixed IDB/EDB joins produce correct
+results.  See ``test/SPARQL/test_sparql_interlocution.py`` for examples.
 
 ## Testing
 
@@ -555,11 +559,12 @@ Fuxi comes with harnesses to run the various OWL tests suites:
 - `pytest test/testOWL.py` - ["OWL 1"](http://www.w3.org/2002/03owlt/approved.zip) - harness for the original OWL test cases
 - `pytest test/testOWL2.py` - ["OWL 2"](http://www.w3.org/2009/01/pr-owl2-test-cases-20100301/) - similar harness for OWL 2 test cases (conformance conditions)
 
-FuXi also includes a SPARQL entailment harness for selected W3C SPARQL 1.1
-entailment tests:
+FuXi also includes SPARQL harnesses:
 
 - `pytest test/SPARQL/test_sparql_entailment.py` - manifest-driven SPARQL
   entailment regression harness over `ent:RDFS` and `ent:RDF` regimes
+- `pytest test/SPARQL/test_sparql_interlocution.py` - SPARQL interlocution
+  BGP API tests covering SELECT results, mixed IDB/EDB joins, and proof capture
 
 Run the OWL test suite (each APPROVED test is an individual pytest case):
 
@@ -615,6 +620,9 @@ uv run pytest test/SPARQL/test_sparql_entailment.py --single-test rdfs04
 
 # Run a focused SPARQL entailment subset
 uv run pytest test/SPARQL/test_sparql_entailment.py -k "paper-sparqldl-Q1-rdfs or sparqldl-05"
+
+# Run SPARQL interlocution BGP API tests
+uv run pytest test/SPARQL/test_sparql_interlocution.py
 ```
 
 ### SPARQL Entailment Harness Notes

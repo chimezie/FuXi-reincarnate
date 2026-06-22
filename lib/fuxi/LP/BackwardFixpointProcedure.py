@@ -51,7 +51,7 @@ from fuxi.Rete.Util import generate_token_set
 from fuxi.Horn.HornRules import Clause
 from fuxi.Rete.RuleStore import N3Builtin, FILTERS
 
-from fuxi.Horn.PositiveConditions import And
+from fuxi.Horn.PositiveConditions import And, update_ns_managers
 from fuxi.Horn.PositiveConditions import Uniterm
 from fuxi.Horn.PositiveConditions import build_uniterm_from_tuple
 
@@ -1031,7 +1031,10 @@ class BackwardFixpointProcedure(object):
                     # evaluate(ruleNo, j+1, X) :- evaluate(ruleNo, j, X)
                     # body_literal(..)
                     new_rule = self.make_adorned_rule(
-                        And([prior_evaluate_term, body_literal]), evaluate_term
+                        And([prior_evaluate_term, body_literal]),
+                        evaluate_term,
+                        rule.ns_mapping,
+                        ns_mgd_uniterm=body_literal,
                     )
                     self.bfp_lookup[("c", idx + 1, body_idx + 1)] = new_rule
                     rules.add(new_rule)
@@ -1043,23 +1046,25 @@ class BackwardFixpointProcedure(object):
                     new_rule = self.make_adorned_rule(
                         prior_evaluate_term,
                         self.make_derived_query_predicate(body_literal),
+                        rule.ns_mapping,
+                        ns_mgd_uniterm=body_literal,
                     )
                     self.bfp_lookup[("d", idx + 1, body_idx + 1)] = new_rule
                     rules.add(new_rule)
         return rules
 
-    def make_adorned_rule(self, body, head):
+    def make_adorned_rule(self, body, head, ns_mapping=None, ns_mgd_uniterm=None):
+        ns_mapping = (
+            ns_mapping
+            if ns_mapping is not None and ns_mapping
+            else (dict(ns_mgd_uniterm.ns_manager.namespaces()))
+            if ns_mgd_uniterm is not None
+            else None
+        )
         all_vars = set()
-        # first we identify body variables
-        # bodyVars = set(reduce(lambda x, y:x+y,
-        #                       [ list(extractVariables(i, existential=False))
-        #                                 for i in iterCondition(body) ]))
-        # then we identify head variables
-        # headVars = set(reduce(lambda x, y:x+y,
-        #                       [ list(extractVariables(i, existential=False))
-        #                                 for i in iterCondition(head) ]))
-
-        return AdornedRule(Clause(body, head), declare=all_vars)
+        update_ns_managers(body, ns_mapping)
+        update_ns_managers(head, ns_mapping)
+        return AdornedRule(Clause(body, head), declare=all_vars, ns_mapping=ns_mapping)
 
     def rule1(self, rule, label, body_len):
         """
@@ -1085,6 +1090,8 @@ class BackwardFixpointProcedure(object):
         return self.make_adorned_rule(
             And([self.make_derived_query_predicate(rule.formula.head), evaluate_term]),
             rule.formula.head,
+            rule.ns_mapping,
+            ns_mgd_uniterm=rule.formula.head,
         )
 
     def rule2(self, rule, label, body_len):
@@ -1107,7 +1114,10 @@ class BackwardFixpointProcedure(object):
             BFP_NS.evaluate, [label, Literal(0)], new_nss=self.namespaces
         )
         return self.make_adorned_rule(
-            self.make_derived_query_predicate(rule.formula.head), evaluate_term
+            self.make_derived_query_predicate(rule.formula.head),
+            evaluate_term,
+            rule.ns_mapping,
+            ns_mgd_uniterm=rule.formula.head,
         )
 
 

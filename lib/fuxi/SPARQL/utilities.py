@@ -1,18 +1,39 @@
+from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from pyparsing import ParseResults
 from rdflib.graph import Graph
 from rdflib.namespace import NamespaceManager
+from rdflib.plugins.sparql.parser import parseQuery
 from rdflib.plugins.sparql.parserutils import CompValue
 from rdflib.plugins.sparql.processor import SPARQLResult
 from rdflib.query import Result
 from rdflib.term import Identifier, Literal
 
+from fuxi.DLP import SKOLEMIZED_CLASS_NS
+from fuxi.Rete.Magic import MAGIC
 from fuxi.types import Triple
-from rdflib import RDF, URIRef
+from rdflib import RDF, RDFS, BNode, Namespace, URIRef, Variable
+
+BFP_NS = Namespace("http://dx.doi.org/10.1016/0169-023X(90)90017-8#")
+BFP_RULE = Namespace("http://code.google.com/p/python-dlp/wiki/BFPSpecializedRule#")
+PML = Namespace("http://inferenceweb.stanford.edu/2004/07/iw.owl#")
+PML_PROV = Namespace("http://inferenceweb.stanford.edu/2006/06/pml-provenance.owl#")
+
+namespaces_bindings = {
+    "rdf": RDF,
+    "bfp": BFP_NS,
+    "rule": BFP_RULE,
+    "rdfs": RDFS,
+    "skolem": SKOLEMIZED_CLASS_NS,
+    "pml": PML,
+    "pml-prov": PML_PROV,
+    "magic": MAGIC,
+}
 
 if TYPE_CHECKING:
     from fuxi.Horn.HornRules import Ruleset
+    from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
 
 
 def owl_entailment_regime_graph(
@@ -158,7 +179,7 @@ def sparql_query_from_result(result: Result) -> SPARQLResult:
     if ask_answer is None:
         ask_answer = getattr(result, "ask_answer", None)
     if ask_answer is None and result.type == "SELECT":
-        ask_answer = bool(result.bindings)
+        ask_answer = not bool(result.bindings)
     mapping = {
         "type_": result.type,
         "vars_": result.vars,
@@ -275,3 +296,230 @@ def extract_triples_from_query(
     else:
         raise Exception(f"Unknown type: {type(query_structure)}")
     return service_url, triples
+
+
+def check(triple_1: tuple[Identifier], triple_2: list(tuple[Identifier])):
+    """
+    Matches a ground triple against a list of ungrounded triples,
+    to identify which it can unify to.
+
+    :param triple_1: A goal solved during BFP as a ground triple
+    :param triple_2: A list of ungrounded triples solved during BFP
+    :return: A ``(uniterm, matching_uniterm)`` tuple
+    """
+    from fuxi.Horn.PositiveConditions import build_uniterm_from_tuple
+    from fuxi.Rete.SidewaysInformationPassing import get_op
+
+    uniterm1 = build_uniterm_from_tuple(triple_1)
+    for i in triple_2:
+        uniterm2 = build_uniterm_from_tuple(i)
+        arg_cmp = [
+            tuple(
+                (arg1 == arg2, isinstance(arg2, Variable))
+                for arg1, arg2 in zip(uniterm1.arg, i.arg)
+            )
+            for i in uniterm2
+        ]
+        if get_op(uniterm1) == get_op(uniterm2) and all(
+            same_arg or other_is_var for same_arg, other_is_var in arg_cmp
+        ):
+            # Same predicate and at least one match or variable placeholder
+            return uniterm1, uniterm2
+
+
+def reify_rdf_statement(graph: Graph, triple: Triple) -> BNode:
+    """
+    Reify an RDF statement into a blank node.
+    """
+    proof_stmt = BNode()
+    graph.add((proof_stmt, RDF.type, RDF.Statement))
+    graph.add((proof_stmt, RDF.subject, triple[0]))
+    graph.add((proof_stmt, RDF.predicate, triple[1]))
+    graph.add((proof_stmt, RDF.object, triple[2]))
+    return proof_stmt
+
+
+def sparql_interlocution_basic_graph_pattern(
+    query: str,
+    top_down_store: "TopDownSPARQLEntailingStore",
+    generate_proofs: bool = False,
+    ns_bindings: dict[str, Namespace] | None = None,
+) -> SPARQLResult | tuple[SPARQLResult, dict[Triple, tuple]]:
+    """
+    Evaluate a SELECT BGP over a SPARQL Entailment regime that *joins* base
+    (EDB) and derived (IDB) predicates, returning a ``SPARQLResult``.
+
+    If generate_proofs is True, also returns truth maintainance information
+    from the interlocutor.
+
+    This function *augments* -- it does not replace -- the standard rdflib
+    ``Graph.query`` entry point that dispatches to
+    ``TopDownSPARQLEntailingStore.query`` -> ``solve_triple_pattern``.
+
+    ``solve_triple_pattern`` partitions the BGP into an EDB group and an IDB
+    group, evaluates the EDB group as a *single* SPARQL query, then evaluates
+    each IDB pattern *independently* via the BFP and accumulates every binding
+    into one flat list.  It deliberately does **not** thread bindings between
+    patterns
+
+    This function instead drives ``batch_unify`` -> ``conjunctive_sip_strategy``,
+    the nested-loop SIP join that threads each pattern's bindings forward into
+    the remaining patterns.  It is therefore the correct path for *mixed* BGPs
+    that must join IDB and EDB results, while still returning the same
+    ``SPARQLResult`` shape as ``query()`` so callers can use it interchangeably.
+
+    Scope and return contract
+    -------------------------
+    * Only SELECT queries are supported; ASK/CONSTRUCT/DESCRIBE raise
+      ``NotImplementedError`` (use ``Graph.query`` for ASK).
+    * Only fully-bound solutions are returned: a candidate is kept only if every
+      variable appearing in the BGP is bound (closed-world projection), matching
+      the historical ``sparql_interlocution`` semantics.
+    * When ``generate_proofs`` is ``False`` (default) a bare ``SPARQLResult`` is
+      returned -- a drop-in replacement for ``Graph.query`` output.
+    * When ``generate_proofs`` is ``True`` a ``(SPARQLResult, proofs)`` tuple is
+      returned.  ``proofs`` maps each proved *ground* goal triple to the
+      a 4 item tuple:
+       - truth maintainance graph (the SIP collection and PML graph for the solution)
+       - the ordered list of adorned rules referenced / compiled by the meta-interpreter
+       - The meta interpetation network
+       - An RDF graph of inferred statements from the network
+
+      Note that for hybrid predicates the ground goal uses the ``_derived`` suffixed
+      predicate the adornment machinery assigns to the IDB role.
+
+    :param query: A SPARQL SELECT query string.
+    :param top_down_store: A ``TopDownSPARQLEntailingStore`` configured with the
+        rule program (IDB) and the fact graph (EDB).
+    :param generate_proofs: When ``True`` also capture and return PML proofs for
+        the derived goals solved while answering the query.
+    :param ns_bindings: Additional namespace prefix bindings for the query.
+    :returns: A ``SPARQLResult`` (``generate_proofs=False``) or a
+        ``(SPARQLResult, dict[Triple, tuple])`` tuple (``generate_proofs=True``).
+
+    :raises NotImplementedError: If ``query`` is not a SELECT query.
+
+    Example:
+        >>> # SELECT BGP that joins a derived predicate with a base predicate
+        >>> result = sparql_interlocution_basic_graph_pattern(
+        ...     query, top_down_store
+        ... )  # doctest: +SKIP
+        >>> for row in result:  # doctest: +SKIP
+        ...     city = row["city"]
+        >>> # Capture proofs alongside the answers
+        >>> result, proofs = sparql_interlocution_basic_graph_pattern(
+        ...     query, top_down_store, generate_proofs=True
+        ... )  # doctest: +SKIP
+    """
+    # NOTE: ``extract_triples_from_query`` lives in this same module; this import
+    # is retained for explicitness but is effectively a no-op (module is already
+    # resolved in ``sys.modules`` by the time this function runs).
+    from fuxi.SPARQL.utilities import extract_triples_from_query
+
+    # 1. Parse and gate on form. We only handle SELECT here; ASK has a dedicated
+    #    short-circuiting path in ``solve_triple_pattern`` reached via query().
+    _, parsed_query = parseQuery(query)
+    if parsed_query.name != "SelectQuery":
+        raise NotImplementedError("ASK/CONSTRUCT/DESCRIBE not supported")
+
+    # 2. Flatten the WHERE clause into the BGP triple patterns to solve.
+    _, triples = extract_triples_from_query(parsed_query, top_down_store.ns_bindings)
+
+    # 3. Collect every variable occurring anywhere in the BGP. These double as
+    #    both the "must be bound" closed-world filter (step 5) and the SELECT
+    #    projection columns (step 6).
+    variables: list[Variable] = []
+    for triple in triples:
+        for part in triple:
+            if isinstance(part, Variable):
+                variables.append(part)
+    projected_vars: list[Variable] = list(dict.fromkeys(variables))
+
+    # 4. ``batch_unify`` expects quad patterns (triple + graph slot); the trailing
+    #    ``None`` means "any/default graph".
+    quads = [triple + tuple([None]) for triple in triples]
+
+    # 5. Drive the conjunctive SIP join. Each yielded answer is a
+    #    ``dict[Variable, Identifier]``; keep only fully-bound solutions so the
+    #    result set contains no partial rows.
+    select_bindings: list[Mapping[Variable, Identifier]] = []
+    for answer in top_down_store.batch_unify(quads):
+        if isinstance(answer, Mapping) and set(variables).issubset(answer.keys()):
+            select_bindings.append(answer)
+
+    # 6. Package the joined bindings as an rdflib SELECT ``Result`` -> ``SPARQLResult``
+    #    (the same shape ``query()`` returns), projecting onto the BGP variables.
+    result = Result("SELECT")
+    result.vars = projected_vars
+    result.bindings = [
+        {var: b[var] for var in projected_vars if var in b} for b in select_bindings
+    ]
+    sparql_result = sparql_query_from_result(result)
+
+    if not generate_proofs:
+        return sparql_result
+
+    # 7. Proof capture:
+    from fuxi.Rete.Proof import generate_proof
+
+    proofs: dict[Triple, tuple] = {}
+    for network, goal_pattern in top_down_store.query_networks:
+        for binding in select_bindings:
+            ground = tuple(
+                binding.get(t, t) if isinstance(t, Variable) else t
+                for t in goal_pattern
+            )
+            if ground in network.inferred_facts:
+                proofs[ground] = generate_proof(network, ground, top_down_store)
+    proof_info = {}
+
+    ns_binds = namespaces_bindings
+    if ns_bindings:
+        ns_binds.update(ns_bindings)
+
+    # We build a truth maintainance graph comprising:
+    # - A reification of each statement derived via entailment
+    # - The (RDF) SIP representation of each SIP collection used to derive
+    #   the entailment
+    # - A serialization of the PML proof of each derived entailment,
+    #   referencing the derived, reified statement
+    # - A rendering of each adorned rule used by the BFP and referenced by
+    #   the meta programs
+    for proof_goal, (blder, pf) in proofs.items():
+        proof_goal_uniterm, uniterm = check(
+            proof_goal, list(top_down_store.goal_rule_sip_info)
+        )
+        (
+            goal_lit,
+            adorned_program,
+            sip_collections,
+            inferred_facts,
+            meta_interp_network,
+        ) = top_down_store.goal_rule_sip_info[uniterm.to_rdf_tuple()]
+        truth_maintainance_graph = Graph()
+        for prefix, uri in ns_binds.items():
+            truth_maintainance_graph.namespace_manager.bind(prefix, uri)
+        stmt_bnode = reify_rdf_statement(truth_maintainance_graph, proof_goal)
+
+        truth_maintainance_graph += sip_collections
+        blder.serialize(
+            pf,
+            truth_maintainance_graph,
+            ns_mapping=ns_bindings,
+            top_goal_statement=stmt_bnode,
+        )
+        for idx, rule in enumerate(adorned_program):
+            truth_maintainance_graph.add(
+                (
+                    BFP_RULE[str(idx + 1)],
+                    RDFS.label,
+                    Literal(repr(rule).replace('"', "'")),
+                )
+            )
+        proof_info[proof_goal] = (
+            truth_maintainance_graph,
+            adorned_program,
+            meta_interp_network,
+            inferred_facts,
+        )
+    return (sparql_result, proof_info)

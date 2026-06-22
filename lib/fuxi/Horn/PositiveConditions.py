@@ -60,6 +60,16 @@ def get_uterm(term: "Condition") -> "Uniterm":
         raise Exception("Unknown term: %s" % term)
 
 
+def update_ns_managers(formula, ns_mapping):
+    if isinstance(formula, And):
+        for f in formula.formulae:
+            update_ns_managers(f, ns_mapping)
+    elif isinstance(formula, Uniterm):
+        for prefix, ns in ns_mapping.items():
+            formula.ns_manager.bind(prefix, ns)
+    else:
+        raise ValueError("Unsupported formula type: {}".format(type(formula)))
+
 class QNameManager(object):
     def __init__(self, ns_dict: "Mapping[str, URIRef] | None" = None) -> None:
         self.ns_dict: dict[str, URIRef] = dict(ns_dict) if ns_dict else {}

@@ -267,7 +267,7 @@ class TopDownSPARQLEntailingStore(Store):
         goal_lit, adorned_program, sip_collections, _, _ = self.goal_rule_sip_info[tp]
         self.goal_rule_sip_info[tp] = (
             goal_lit,
-            adorned_program,
+            list(adorned_program),
             sip_collections,
             bfp.meta_interp_network.inferred_facts,
             bfp.meta_interp_network,
@@ -444,6 +444,7 @@ class TopDownSPARQLEntailingStore(Store):
                 hybrid_preds_to_replace=self.hybrid_predicates,
                 ns_bindings=self.ns_bindings,
             )
+            enumerated_adorned_program = list(self.edb.adorned_program)
 
             # Hybrid predicates appear in both EDB and IDB.  The adornment
             # machinery renames the IDB variant to "<pred>_derived" so the two
@@ -463,19 +464,19 @@ class TopDownSPARQLEntailingStore(Store):
             if self.debug and sip_collection:
                 for sip in sip_representation(sip_collection):
                     print(sip)
-                pprint(list(self.edb.adorned_program), sys.stderr)
+                pprint(enumerated_adorned_program, sys.stderr)
             elif self.debug:
                 print("No SIP graph.")
 
             goal = tp
             if goal in self.goal_rule_sip_info:
                 # Preserve the last two elements (inferred_facts, meta_interp_network)
-                _, _, _, existing_inferred, existing_network = self.goal_rule_sip_info[
-                    goal
-                ]
+                _, adorned_program, _, existing_inferred, existing_network = (
+                    self.goal_rule_sip_info[goal]
+                )
                 self.goal_rule_sip_info[goal] = (
                     query_lit,
-                    copy.deepcopy(self.edb.adorned_program),
+                    adorned_program,
                     sip_collection,
                     existing_inferred,
                     existing_network,
@@ -483,7 +484,7 @@ class TopDownSPARQLEntailingStore(Store):
             else:
                 self.goal_rule_sip_info[goal] = (
                     query_lit,
-                    copy.deepcopy(self.edb.adorned_program),
+                    enumerated_adorned_program,
                     sip_collection,
                     None,
                     None,
@@ -651,6 +652,7 @@ class TopDownSPARQLEntailingStore(Store):
                     hybrid_preds_to_replace=self.hybrid_predicates,
                     ns_bindings=self.ns_bindings,
                 )
+                enumerated_adorned_program = list(self.edb.adorned_program)
 
                 # Step 3b — hybrid-predicate renaming: if this goal's predicate
                 # also appears in the EDB (a "hybrid" predicate), the adornment
@@ -670,24 +672,22 @@ class TopDownSPARQLEntailingStore(Store):
                 sip_collection = prepare_sip_collection(self.edb.adorned_program)
                 if self.debug and sip_collection:
                     print("Adorned Program:")
-                    print("Adorned Program:")
-                    for rule in self.edb.adorned_program:
+                    for rule in enumerated_adorned_program:
                         print("\t", rule)
                     print(f"{len(sip_collection)} SIP Collection(s)")
                     print(sip_collection.serialize(format="turtle"))
                     for sip in sip_representation(sip_collection):
                         print(sip)
-                    pprint(list(self.edb.adorned_program))
                 elif self.debug:
                     print("No SIP graph.")
                 if goal in self.goal_rule_sip_info:
                     # Preserve the last two elements (inferred_facts, meta_interp_network)
-                    _, _, _, existing_inferred, existing_network = (
+                    _, adorned_program, _, existing_inferred, existing_network = (
                         self.goal_rule_sip_info[goal]
                     )
                     self.goal_rule_sip_info[goal] = (
                         lit,
-                        copy.deepcopy(self.edb.adorned_program),
+                        adorned_program,
                         sip_collection,
                         existing_inferred,
                         existing_network,
@@ -695,7 +695,7 @@ class TopDownSPARQLEntailingStore(Store):
                 else:
                     self.goal_rule_sip_info[goal] = (
                         lit,
-                        copy.deepcopy(self.edb.adorned_program),
+                        enumerated_adorned_program,
                         sip_collection,
                         None,
                         None,

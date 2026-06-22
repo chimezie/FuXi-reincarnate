@@ -112,6 +112,7 @@ Use pytest for all new tests.
 - SPARQL-specific tests: `FuXi-reincarnate-chimezie/test/SPARQL/`
 - OWL test suites: `test/testOWL.py` (OWL 1), `test/testOWL2.py` (OWL 2)
 - SPARQL entailment harness: `test/SPARQL/test_sparql_entailment.py`
+- SPARQL interlocution BGP API: `test/SPARQL/test_sparql_interlocution.py`
 
 ### Running FuXi Tests
 
@@ -183,7 +184,7 @@ complexity.
 | `fuxi.DLP` | Description Logic Programs (OWL→rules) | DLProgram, translation utilities |
 | `fuxi.LP` | Backwards Fixpoint Procedure (BFP) | Query answering engine |
 | `fuxi.SPARQL` | Backward-chaining SPARQL store | Entailment registry |
-| `fuxi.SPARQL.service` | SPARQL service graph wrapper | SPARQLServiceGraph, sparql_interlocution |
+| `fuxi.SPARQL.service` | SPARQL service graph wrapper | SPARQLServiceGraph, sparql_interlocution_basic_graph_pattern |
 
 ### Rule Safety Levels (`fuxi.Horn`)
 ```python
@@ -212,6 +213,6 @@ DATALOG_SAFETY_LOOSE  # Relaxed safety with warnings
 
 6. **Testing edge cases**: Review existing tests in `test/` for patterns before writing new ones.
 
-7. **SPARQL queries in FuXi**: Use `sparql_interlocution` from `fuxi.SPARQL.service` for querying `TopDownSPARQLEntailingStore`. Check `test/SPARQL/` for query test templates and expected result formats.
+7. **SPARQL queries in FuXi**: Use `sparql_interlocution_basic_graph_pattern` from `fuxi.SPARQL.utilities` for SELECT BGPs that join derived and base predicates over a `TopDownSPARQLEntailingStore`. It drives `batch_unify` (conjunctive SIP join) rather than `solve_triple_pattern`'s flat accumulation. Check `test/SPARQL/` for query test templates and expected result formats.
 
 8. **Building documentation**: Run `tox -e docs` to build Sphinx documentation locally.

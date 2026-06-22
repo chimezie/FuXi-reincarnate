@@ -269,6 +269,7 @@ def add_owl_arguments(parser: argparse.ArgumentParser) -> None:
         help="Add pD semantics ruleset with --dlp",
     )
 
+
 def add_man_owl_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--class",
@@ -498,7 +499,7 @@ def run_bfp(
         namespace_manager=namespace_manager,
         extra_rulesets=rule_set if rule_set.formulae else None,
         verbose=options.debug,
-        add_pd_semantics=getattr(options, "pd_semantics", False)
+        add_pd_semantics=getattr(options, "pd_semantics", False),
     )
 
     top_down_store = entailing_graph.store

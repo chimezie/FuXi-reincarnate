@@ -211,6 +211,28 @@ Why this matters for extension:
 - You can plug in large/remote RDF stores because only relevant subqueries execute.
 - The approach is sound and complete with respect to naive rule materialization, but much cheaper in practice.
 
+##### Two evaluation paths for SPARQL BGPs
+
+FuXi's `TopDownSPARQLEntailingStore` exposes two distinct evaluation paths
+for basic graph patterns:
+
+1. **`query()` / `solve_triple_pattern`** — the standard rdflib entry point.
+   It partitions the BGP into an EDB group (base predicates queried directly
+   against the SPARQL endpoint) and an IDB group (derived predicates solved
+   via the BFP).  Each IDB pattern is evaluated *independently* and all
+   bindings are accumulated into one flat list.  This path **does not thread
+   bindings** between patterns.
+
+2. **`batch_unify` / `sparql_interlocution_basic_graph_pattern`** — the
+   conjunctive SIP join path.  It evaluates patterns left-to-right, threading
+   each pattern's variable bindings forward into the remaining patterns via
+   `conjunctive_sip_strategy`.  This is the correct path for mixed IDB/EDB
+   BGPs that must join derived and base results.  It also supports optional
+   PML proof capture via `generate_proofs=True`.
+
+See `fuxi.SPARQL.utilities.sparql_interlocution_basic_graph_pattern` and
+`test/SPARQL/test_sparql_interlocution.py` for details.
+
 #### SPARQL entailment regression harness
 
 FuXi includes a dedicated manifest-driven harness at

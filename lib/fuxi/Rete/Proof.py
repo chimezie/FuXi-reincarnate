@@ -42,6 +42,7 @@ from rdflib import (
     RDF,
     URIRef,
     Variable,
+    RDFS,
 )
 
 
@@ -253,8 +254,21 @@ class ProofBuilder(object):
             for ant in node.antecedents:
                 self.extract_goals_from_node(ant)
 
-    def serialize(self, proof, proofGraph):
-        proof.serialize(self, proofGraph)
+    def serialize(
+        self,
+        proof,
+        proofGraph,
+        ns_mapping: dict | None = None,
+        top_goal_statement: BNode | None = None,
+        is_top: bool = False,
+    ):
+        proof.serialize(
+            self,
+            proofGraph,
+            ns_mapping=ns_mapping,
+            top_goal_statement=top_goal_statement,
+            is_top=True,
+        )
 
     def render_proof(self, proof, ns_map=None, format="png"):
         """Render the proof tree as a graphviz directed graph (Digraph).
@@ -1301,7 +1315,14 @@ class NodeSet(object):
             for step in self.steps:
                 step.traverse_and_check(namespaces_dict, goals, issues)
 
-    def serialize(self, builder, proof_graph):
+    def serialize(
+        self,
+        builder,
+        proof_graph,
+        ns_mapping: dict | None = None,
+        top_goal_statement: BNode | None = None,
+        is_top: bool = False,
+    ):
         conclusion_prefix = self.naf and "not " or ""
         proof_graph.add(
             (
@@ -1311,9 +1332,11 @@ class NodeSet(object):
                     "%s%s"
                     % (
                         conclusion_prefix,
-                        repr(build_uniTerm(self.conclusion, self.network.ns_map)),
+                        repr(build_uniTerm(self.conclusion, ns_mapping)),
                     )
-                ),
+                )
+                if not is_top and not top_goal_statement is None
+                else top_goal_statement,
             )
         )
         # proofGraph.add((self.identifier, PML.hasLanguage, URIRef('http://inferenceweb.stanford.edu/registry/LG/RIF.owl')))
@@ -1321,7 +1344,13 @@ class NodeSet(object):
         for step in self.steps:
             proof_graph.add((self.identifier, PML.isConsequentOf, step.identifier))
             builder.serialized_node_sets.add(self.identifier)
-            step.serialize(builder, proof_graph)
+            step.serialize(
+                builder,
+                proof_graph,
+                ns_mapping=ns_mapping,
+                top_goal_statement=top_goal_statement,
+                is_top=is_top,
+            )
 
     def generate_graph_node(self, dot, idx, proof_root=False, ns_map=None):
         ns_map = (
@@ -1426,8 +1455,15 @@ class InferenceStep(object):
     def propagate_bindings(self, bindings):
         self.bindings.update(bindings)
 
-    def serialize(self, builder, proof_graph):
-        if self.rule and not self.source:
+    def serialize(
+        self,
+        builder,
+        proof_graph,
+        ns_mapping: dict | None = None,
+        top_goal_statement: BNode | None = None,
+        is_top: bool = False,
+    ):
+        if self.rule:  # and not self.source:
             proof_graph.add(
                 (self.identifier, PML.englishDescription, Literal(repr(self)))
             )
@@ -1442,6 +1478,14 @@ class InferenceStep(object):
         elif self.source:
             some_doc = BNode()
             proof_graph.add((self.identifier, PML_P.hasSource, some_doc))
+            if self.source != "Goal query assertion":
+                src = self.source
+            else:
+                uniterm = build_uniterm_from_tuple(self.parent.conclusion)
+                for prefix, uri in ns_mapping.items():
+                    uniterm.ns_manager.bind(prefix, uri)
+                src = f"Goal query assertion: {uniterm}"
+            # proof_graph.add((self.identifier, RDFS.label, Literal(src)))
             proof_graph.add((some_doc, RDF.type, PML_P.Document))
 
         # proofGraph.add((self.identifier, PML.hasLanguage, URIRef('http://inferenceweb.stanford.edu/registry/LG/RIF.owl')))
@@ -1450,8 +1494,15 @@ class InferenceStep(object):
         proof_graph.add((self.identifier, PML.hasRule, GMP_NS.GMP))
         proof_graph.add((self.identifier, PML.consequent, self.parent.identifier))
         for ant in self.antecedents:
-            proof_graph.add((self.identifier, PML.hasAntecedent, ant.identifier))
-            ant.serialize(builder, proof_graph)
+            if (self.identifier, PML.hasAntecedent, ant.identifier) not in proof_graph:
+                proof_graph.add((self.identifier, PML.hasAntecedent, ant.identifier))
+                ant.serialize(
+                    builder,
+                    proof_graph,
+                    ns_mapping=ns_mapping,
+                    top_goal_statement=top_goal_statement,
+                    is_top=False,
+                )
         for k, v in list(self.bindings.items()):
             mapping = BNode()
             proof_graph.add((self.identifier, PML.hasVariableMapping, mapping))

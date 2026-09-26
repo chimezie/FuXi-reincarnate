@@ -228,8 +228,6 @@ def test_bgp_generate_proofs_returns_result_and_proofs():
 
 def test_bgp_generate_proofs_captures_derived_goal():
     """Proofs include an entry for the transitively-derived ground goal."""
-    from fuxi.Horn.PositiveConditions import build_uniterm_from_tuple
-    from fuxi.Rete.SidewaysInformationPassing import get_op
 
     store = _make_entailing_graph().store
 

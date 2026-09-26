@@ -669,9 +669,14 @@ class AnnotatibleTerms(Individual):
         literal = Literal(value, lang=lang) if lang else Literal(value)
         self.graph.add((self.identifier, pred, literal))
 
-    def declare_annotation_property(self, predicate: "Property | Identifier"):
+    def declare_annotation_property(
+        self, predicate: "Property | Identifier | None" = None
+    ) -> "Property":
+        target = (
+            self.identifier if predicate is None else class_or_identifier(predicate)
+        )
         return Property(
-            class_or_identifier(predicate),
+            target,
             base_type=OWL_NS.AnnotationProperty,
             graph=self.graph,
         )

@@ -9,9 +9,11 @@ OWL/RDF
 """
 
 from collections.abc import Mapping
+from fuxi.Horn import HornRules
 from typing import Any, Optional, Tuple, Union, Iterable, List
 
 from frozendict import frozendict
+
 from rdflib.term import Identifier
 
 
@@ -22,7 +24,7 @@ def _get_graphviz():
         raise ImportError("graphviz is required for proof rendering") from exc
     return graphviz
 
-
+from fuxi.Horn.HornRules import Clause
 from fuxi.Horn.PositiveConditions import (
     build_uniTerm,
     Exists,
@@ -34,7 +36,7 @@ from fuxi.types import Triple
 from .BetaNode import project, BetaNode, PartialInstantiation
 from fuxi.Rete.RuleStore import N3Builtin
 from fuxi.Rete.AlphaNode import ReteToken
-from fuxi.Rete.Magic import AdornedUniTerm
+from fuxi.Rete.Magic import AdornedUniTerm, AdornedRule
 from rdflib import (
     BNode,
     Literal,
@@ -43,6 +45,7 @@ from rdflib import (
     URIRef,
     Variable,
     RDFS,
+    Graph,
 )
 
 
@@ -1482,8 +1485,9 @@ class InferenceStep(object):
                 src = self.source
             else:
                 uniterm = build_uniterm_from_tuple(self.parent.conclusion)
-                for prefix, uri in ns_mapping.items():
-                    uniterm.ns_manager.bind(prefix, uri)
+                if ns_mapping is not None:
+                    for prefix, uri in ns_mapping.items():
+                        uniterm.ns_manager.bind(prefix, uri)
                 src = f"Goal query assertion: {uniterm}"
             # proof_graph.add((self.identifier, RDFS.label, Literal(src)))
             proof_graph.add((some_doc, RDF.type, PML_P.Document))
@@ -1569,3 +1573,121 @@ class InferenceStep(object):
                 return "magic predicate justification\\n%s" % (self.rule)
             else:
                 return repr(self.rule)  # self.prettyPrintRule()
+
+META_RULE_EXPLAINER = """\
+Where, for each of the following rules the meta rules for the meta interpreter are based on:
+    {rule_list}
+    
+when evaluate(N 0) appears in the body (or antecedent) of a meta rule it means none of the terms in the body of the 
+corresponding rule we are evaluating have been evaluated.
+
+When it appears in the head of a meta rule, it indicates an action to begin evaluating the 1st term in the body. 
+
+When evaluate(N 1) appears in the body of a meta rule it means only the 1st term has been evaluated , etc. 
+
+and N is 1, 2, or up to any of the rules given above
+
+A rule term with a `_query` suffix indicates a request by the meta interpreter to solve for the predicate as a main or 
+subgoal.
+
+A rule term with a `_derived` suffix indicates an inference of a predicate that has instances in the IDB as well as the 
+EDB (i.e., derived *and* asserted)
+"""
+
+class TruthMaintenanceGraphSerializer:
+
+    INITIAL_NODESET_QUERY = """
+PREFIX pml: <http://inferenceweb.stanford.edu/2004/07/iw.owl#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    
+SELECT ?nodeset ?inference_step ?conclusion ?descr ?from ?to WHERE {{
+    ?nodeset    pml:hasConclusion   [   a                   rdf:Statement ;
+                                        rdf:object          {object} ;
+                                        rdf:predicate       {predicate} ;
+                                        rdf:subject         {subject} ] ;
+                pml:isConsequentOf  ?inference_step .
+    OPTIONAL {{ ?nodeset            pml:hasAntecedent       ?conclusion }}                
+    OPTIONAL {{ ?nodeset            pml:englishDescription  ?descr }}
+    OPTIONAL {{
+        ?nodeset pml:hasVariableMapping [ a             pml:Mapping; 
+                                          pml:mapFrom   ?from; 
+                                          pml:mapTo     ?to ] 
+    }}        
+}}
+    """
+
+    def __init__(self,
+                 truth_maintenance_graph: Graph,
+                 adorned_program: list[AdornedRule],
+                 ns_map: dict[str, Identifier] | None = None):
+
+        self.truth_maintenance_graph = truth_maintenance_graph
+        self.adorned_program = adorned_program
+        self.ns_map = ns_map
+
+    def meta_rule_explainer(self):
+        return META_RULE_EXPLAINER.format(rule_list='\n'.join(f'{idx + 1}: {rule}'
+                                                              for idx, rule in enumerate(self.adorned_program)))
+
+    def human_readable_serialize(self,
+                                 proof_object: NodeSet | InferenceStep,
+                                 proof_goal: Triple,
+                                 as_uniterm: Uniterm | None = None,
+                                 ns_bindings: dict[str, Identifier] | None = None,
+                                 indentation: str | None = None,
+                                 skip_front_indent: bool = False) -> str:
+        indentation = indentation or ""
+        ns_bindings = ns_bindings or {}
+        if isinstance(proof_object, InferenceStep):
+            if isinstance(proof_object.rule, Clause):
+                if proof_object.source:
+                    return (f"{'' if skip_front_indent else indentation}The rule: {proof_object.rule}, "
+                            f"the response from the query below and any bindings it may have used, and the antecedent(s) that follow:\n"
+                            f"{indentation + '  '}{proof_object.source}\n"
+                            f"{self.render_bindings(proof_object.bindings, indentation + '  ')}\n"
+                            f"{indentation+','.join(self.human_readable_serialize(ant, 
+                                                              proof_goal, 
+                                                              indentation=indentation + '  ', 
+                                                              ns_bindings=ns_bindings) 
+                                for ant in proof_object.antecedents) + '\n\n'}")
+                else:
+                    return (f"{'' if skip_front_indent else indentation}The rule: {proof_object.rule}, "
+                            f"any bindings shown below, and the antecedent(s) that follow:\n"
+                            f"{self.render_bindings(proof_object.bindings, indentation)}\n"
+                            f"{','.join(self.human_readable_serialize(ant, 
+                                                              proof_goal, 
+                                                              indentation=indentation + '  ',
+                                                              ns_bindings=ns_bindings)
+                                for ant in proof_object.antecedents)}\n\n")
+            else:
+                return 'Goal query assertion'
+        query = self.INITIAL_NODESET_QUERY.format(object=proof_goal[2].n3(),
+                                                  predicate=proof_goal[1].n3(),
+                                                  subject=proof_goal[0].n3())
+        for nodeset, inference_step, conclusion, descr, _from, to in self.truth_maintenance_graph.query(query):
+            if isinstance(inference_step, Literal):
+                #Meta interpreter conclusion (intermediary inference)
+                raise Exception(inference_step)
+            elif isinstance(inference_step, BNode):
+                assert len(proof_object.steps) == 1# and proof_object.steps[0].identifier == inference_step
+                inference_step = proof_object.steps[0]
+                
+                if as_uniterm:
+                    conclusion_text = repr(as_uniterm)
+                else:
+                    goal_lit = build_uniterm_from_tuple(proof_object.conclusion)
+                    for prefix, uri in ns_bindings.items():
+                        goal_lit.ns_manager.bind(prefix, uri)
+                    conclusion_text = repr(goal_lit)
+                rt = (f"{'' if skip_front_indent else indentation}The conclusion {conclusion_text} is justified by:\n"
+                      f"{self.human_readable_serialize(inference_step,
+                                                       proof_goal,
+                                                       indentation=indentation + '  ',
+                                                       ns_bindings=ns_bindings,
+                                                       skip_front_indent=False)}\n\n")
+                return rt.strip()
+            else:
+                raise ValueError(f"Unexpected antecedent type: {type(inference_step)}")
+
+    def render_bindings(self, bindings: dict[str, Identifier], indendation: str):
+        return "\n".join([f"{indendation}{k} -> {v.n3()}" for k, v in bindings.items()])

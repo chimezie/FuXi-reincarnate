@@ -346,8 +346,8 @@ def sparql_interlocution_basic_graph_pattern(
     ns_bindings: dict[str, Namespace] | None = None,
 ) -> SPARQLResult | tuple[SPARQLResult, dict[Triple, tuple]]:
     """
-    Evaluate a SELECT BGP over a SPARQL Entailment regime that *joins* base
-    (EDB) and derived (IDB) predicates, returning a ``SPARQLResult``.
+    Evaluate a SELECT or ASK BGP over a SPARQL Entailment regime that *joins*
+    base (EDB) and derived (IDB) predicates, returning a ``SPARQLResult``.
 
     If generate_proofs is True, also returns truth maintainance information
     from the interlocutor.
@@ -368,10 +368,14 @@ def sparql_interlocution_basic_graph_pattern(
     that must join IDB and EDB results, while still returning the same
     ``SPARQLResult`` shape as ``query()`` so callers can use it interchangeably.
 
+    For ASK queries the function returns True when the conjunctive BGP has at
+    least one solution, and False otherwise.  Proofs are captured for each
+    ground goal term in the conjunctive BGP, the same as for SELECT.
+
     Scope and return contract
     -------------------------
-    * Only SELECT queries are supported; ASK/CONSTRUCT/DESCRIBE raise
-      ``NotImplementedError`` (use ``Graph.query`` for ASK).
+    * Only SELECT and ASK queries are supported; CONSTRUCT/DESCRIBE raise
+      ``NotImplementedError`` (use ``Graph.query`` for those forms).
     * Only fully-bound solutions are returned: a candidate is kept only if every
       variable appearing in the BGP is bound (closed-world projection), matching
       the historical ``sparql_interlocution`` semantics.
@@ -379,16 +383,17 @@ def sparql_interlocution_basic_graph_pattern(
       returned -- a drop-in replacement for ``Graph.query`` output.
     * When ``generate_proofs`` is ``True`` a ``(SPARQLResult, proofs)`` tuple is
       returned.  ``proofs`` maps each proved *ground* goal triple to the
-      a 4 item tuple:
+      a 5 item tuple:
        - truth maintainance graph (the SIP collection and PML graph for the solution)
        - the ordered list of adorned rules referenced / compiled by the meta-interpreter
        - The meta interpetation network
        - An RDF graph of inferred statements from the network
+       - The Proof object
 
       Note that for hybrid predicates the ground goal uses the ``_derived`` suffixed
       predicate the adornment machinery assigns to the IDB role.
 
-    :param query: A SPARQL SELECT query string.
+    :param query: A SPARQL SELECT or ASK query string.
     :param top_down_store: A ``TopDownSPARQLEntailingStore`` configured with the
         rule program (IDB) and the fact graph (EDB).
     :param generate_proofs: When ``True`` also capture and return PML proofs for
@@ -397,7 +402,7 @@ def sparql_interlocution_basic_graph_pattern(
     :returns: A ``SPARQLResult`` (``generate_proofs=False``) or a
         ``(SPARQLResult, dict[Triple, tuple])`` tuple (``generate_proofs=True``).
 
-    :raises NotImplementedError: If ``query`` is not a SELECT query.
+    :raises NotImplementedError: If ``query`` is not a SELECT or ASK query.
 
     Example:
         >>> # SELECT BGP that joins a derived predicate with a base predicate
@@ -410,17 +415,24 @@ def sparql_interlocution_basic_graph_pattern(
         >>> result, proofs = sparql_interlocution_basic_graph_pattern(
         ...     query, top_down_store, generate_proofs=True
         ... )  # doctest: +SKIP
+        >>> # ASK query
+        >>> result = sparql_interlocution_basic_graph_pattern(
+        ...     "ASK { :s :p :o }", top_down_store
+        ... )  # doctest: +SKIP
+        >>> result.askAnswer  # doctest: +SKIP
+        True
     """
     # NOTE: ``extract_triples_from_query`` lives in this same module; this import
     # is retained for explicitness but is effectively a no-op (module is already
     # resolved in ``sys.modules`` by the time this function runs).
     from fuxi.SPARQL.utilities import extract_triples_from_query
 
-    # 1. Parse and gate on form. We only handle SELECT here; ASK has a dedicated
-    #    short-circuiting path in ``solve_triple_pattern`` reached via query().
+    # 1. Parse and gate on form. We handle SELECT and ASK here;
+    #    ASK is resolved by checking whether the conjunctive BGP
+    #    has any solution via the same SIP join used for SELECT.
     _, parsed_query = parseQuery(query)
-    if parsed_query.name != "SelectQuery":
-        raise NotImplementedError("ASK/CONSTRUCT/DESCRIBE not supported")
+    if parsed_query.name not in ("SelectQuery", "AskQuery"):
+        raise NotImplementedError("CONSTRUCT/DESCRIBE not supported")
 
     # 2. Flatten the WHERE clause into the BGP triple patterns to solve.
     _, triples = extract_triples_from_query(parsed_query, top_down_store.ns_bindings)
@@ -447,13 +459,16 @@ def sparql_interlocution_basic_graph_pattern(
         if isinstance(answer, Mapping) and set(variables).issubset(answer.keys()):
             select_bindings.append(answer)
 
-    # 6. Package the joined bindings as an rdflib SELECT ``Result`` -> ``SPARQLResult``
-    #    (the same shape ``query()`` returns), projecting onto the BGP variables.
-    result = Result("SELECT")
-    result.vars = projected_vars
-    result.bindings = [
-        {var: b[var] for var in projected_vars if var in b} for b in select_bindings
-    ]
+    # 6. Package the joined bindings as an rdflib ``Result`` -> ``SPARQLResult``.
+    if parsed_query.name == "AskQuery":
+        result = Result("ASK")
+        result.askAnswer = bool(select_bindings)
+    else:
+        result = Result("SELECT")
+        result.vars = projected_vars
+        result.bindings = [
+            {var: b[var] for var in projected_vars if var in b} for b in select_bindings
+        ]
     sparql_result = sparql_query_from_result(result)
 
     if not generate_proofs:
@@ -521,5 +536,7 @@ def sparql_interlocution_basic_graph_pattern(
             adorned_program,
             meta_interp_network,
             inferred_facts,
+            pf,
+            goal_lit
         )
     return (sparql_result, proof_info)

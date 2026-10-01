@@ -9,12 +9,12 @@ These tests verify:
 from io import StringIO
 
 import pytest
+from rdflib import RDF, Graph, Namespace, URIRef
 
 from fuxi.Horn.HornRules import horn_from_n3
 from fuxi.Rete.Network import ReteNetwork
 from fuxi.Rete.RuleStore import N3RuleStore, setup_rule_store
 from fuxi.Rete.Util import generate_token_set
-from rdflib import RDF, Graph, Namespace, URIRef
 
 N3_PROGRAM = """\
 @prefix m: <http://example.com/#>.

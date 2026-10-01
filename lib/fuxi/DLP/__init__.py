@@ -49,6 +49,7 @@ from functools import reduce
 import logging
 import warnings
 
+from rdflib import BNode, URIRef, Variable
 from rdflib.collection import Collection
 from rdflib.namespace import RDF, RDFS, Namespace
 from rdflib.util import first
@@ -65,7 +66,6 @@ from fuxi.Horn.PositiveConditions import (
     SetOperator,
     Uniterm,
 )
-from rdflib import BNode, URIRef, Variable
 
 from .LPNormalForms import normalize_disjunctions
 

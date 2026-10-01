@@ -11,6 +11,7 @@ from urllib.parse import urljoin
 from urllib.request import urlopen
 
 import pytest
+from rdflib import Graph, Namespace
 from rdflib.collection import Collection
 from rdflib.namespace import RDF, RDFS
 from rdflib.plugins.sparql.results.xmlresults import XMLResult
@@ -18,7 +19,6 @@ from rdflib.term import BNode, Identifier, URIRef
 
 from fuxi.Horn.HornRules import horn_from_n3
 from fuxi.SPARQL.utilities import owl_entailment_regime_graph
-from rdflib import Graph, Namespace
 from test.conftest import OwlTestOptions
 
 pytestmark = pytest.mark.integration

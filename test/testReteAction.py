@@ -10,11 +10,11 @@ from hashlib import sha1
 from io import StringIO
 
 import pytest
+from rdflib import Graph, Literal, Namespace, Variable
 
 from fuxi.Horn.HornRules import horn_from_n3
 from fuxi.Rete.RuleStore import setup_rule_store
 from fuxi.Rete.Util import generate_token_set
-from rdflib import Graph, Literal, Namespace, Variable
 
 FOAF = Namespace("http://xmlns.com/foaf/0.1/")
 EX = Namespace("http://example.com/#")

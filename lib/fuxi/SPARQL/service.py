@@ -1,13 +1,13 @@
 from collections.abc import Mapping
 from typing import Any
 
+from rdflib import Graph
 from rdflib.plugins.sparql.sparql import Query
 from rdflib.query import Processor, Result
 from rdflib.term import Identifier
 
 from fuxi.Horn.PositiveConditions import build_uniterm_from_tuple
 from fuxi.SPARQL import EDBQuery
-from rdflib import Graph
 
 
 class SPARQLServiceGraph(Graph):

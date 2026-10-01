@@ -1,5 +1,6 @@
-from fuxi.Rete.Network import HashablePatternList
 from rdflib import Literal, URIRef
+
+from fuxi.Rete.Network import HashablePatternList
 
 
 def test_combine_uri_and_literal():

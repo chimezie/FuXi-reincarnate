@@ -4,6 +4,7 @@ from pprint import pformat
 import time
 
 import pytest
+from rdflib import RDF, RDFS, BNode, Literal, Namespace, URIRef
 from rdflib.graph import Graph
 from rdflib.term import Identifier
 
@@ -19,7 +20,6 @@ from fuxi.SPARQL import EDBQuery
 from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
 from fuxi.Syntax.InfixOWL import Individual, Variable, all_classes
 from fuxi.types import Triple
-from rdflib import RDF, RDFS, BNode, Literal, Namespace, URIRef
 
 from .conftest import (
     OwlTestOptions,

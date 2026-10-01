@@ -2,6 +2,7 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from pyparsing import ParseResults
+from rdflib import RDF, RDFS, BNode, Namespace, URIRef, Variable
 from rdflib.graph import Graph
 from rdflib.namespace import NamespaceManager
 from rdflib.plugins.sparql.parser import parseQuery
@@ -13,7 +14,6 @@ from rdflib.term import Identifier, Literal
 from fuxi.DLP import SKOLEMIZED_CLASS_NS
 from fuxi.Rete.Magic import MAGIC
 from fuxi.types import Triple
-from rdflib import RDF, RDFS, BNode, Namespace, URIRef, Variable
 
 BFP_NS = Namespace("http://dx.doi.org/10.1016/0169-023X(90)90017-8#")
 BFP_RULE = Namespace("http://code.google.com/p/python-dlp/wiki/BFPSpecializedRule#")

@@ -29,6 +29,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from rdflib import Graph, Namespace, Variable
 from rdflib.plugins.sparql.processor import SPARQLResult
 
 from fuxi.cli.shared import _compute_derived_predicates, _extract_goals
@@ -39,7 +40,6 @@ from fuxi.SPARQL.utilities import (
     owl_entailment_regime_graph,
     sparql_interlocution_basic_graph_pattern,
 )
-from rdflib import Graph, Namespace, Variable
 
 pytestmark = pytest.mark.integration
 

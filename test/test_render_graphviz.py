@@ -1,12 +1,12 @@
 """Unit tests for graphviz-based rendering of RETE networks and SIP collections."""
 
+from rdflib import RDF, BNode, Graph, URIRef, Variable
 from rdflib.collection import Collection
 
 from fuxi.Horn.HornRules import horn_from_n3
 from fuxi.Rete.RuleStore import setup_rule_store
 from fuxi.Rete.SidewaysInformationPassing import MAGIC, render_sip_collection
 from fuxi.Rete.Util import render_network
-from rdflib import RDF, BNode, Graph, URIRef, Variable
 
 TEST_DIR_RULES = "test/command_line_test_rules.n3"
 FAM_NS = "http://dev.w3.org/2000/10/swap/test/cwm/fam.n3#"

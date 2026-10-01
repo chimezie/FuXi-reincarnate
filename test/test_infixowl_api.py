@@ -5,6 +5,7 @@ These tests verify that InfixOWL class constructors and helpers work correctly.
 """
 
 import pytest
+from rdflib import Graph, Literal, Namespace
 
 from fuxi.Syntax.InfixOWL import (
     OWL_NS,
@@ -14,7 +15,6 @@ from fuxi.Syntax.InfixOWL import (
     Property,
     Restriction,
 )
-from rdflib import Graph, Literal, Namespace
 
 
 @pytest.fixture
@@ -152,4 +152,4 @@ class TestInfixOWLAPI:
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, '-v'])
+    pytest.main([__file__, "-v"])

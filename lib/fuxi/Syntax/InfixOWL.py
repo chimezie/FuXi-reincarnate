@@ -207,6 +207,7 @@ class GraphContext:
         >>> with GraphContext(g, {"ex": EX_NS}, declare_common_annotations=True):
         ...     pass  # rdfs:label, rdfs:comment, skos:* etc. are now declared
     """
+
     def __init__(
         self,
         graph: Graph,
@@ -234,7 +235,9 @@ class GraphContext:
             for prefix, uri in self.namespace_bindings.items():
                 self.graph.namespace_manager.bind(prefix, uri, override=False)
         if self.declare_common_annotations:
-            declare_common_annotations_fn(self.graph, include=self.common_annotation_sets)
+            declare_common_annotations_fn(
+                self.graph, include=self.common_annotation_sets
+            )
         return self.graph
 
     def __exit__(self, exc_type, exc, tb):
@@ -666,9 +669,14 @@ class AnnotatibleTerms(Individual):
         literal = Literal(value, lang=lang) if lang else Literal(value)
         self.graph.add((self.identifier, pred, literal))
 
-    def declare_annotation_property(self, predicate: "Property | Identifier"):
+    def declare_annotation_property(
+        self, predicate: "Property | Identifier | None" = None
+    ) -> "Property":
+        target = (
+            self.identifier if predicate is None else class_or_identifier(predicate)
+        )
         return Property(
-            class_or_identifier(predicate),
+            target,
             base_type=OWL_NS.AnnotationProperty,
             graph=self.graph,
         )

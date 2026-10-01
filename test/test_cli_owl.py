@@ -1,7 +1,7 @@
 """Unit and integration tests for the fuxi.owl sub-command."""
 
-import subprocess
 from pathlib import Path
+import subprocess
 
 import pytest
 

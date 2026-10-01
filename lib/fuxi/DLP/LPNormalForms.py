@@ -89,7 +89,12 @@ def apply_demorgans(clause):
 
 
 def handle_non_disjunctive_clauses(
-    ruleset, network, construct_network, negative_stratus, ignore_negative_stratus, clause
+    ruleset,
+    network,
+    construct_network,
+    negative_stratus,
+    ignore_negative_stratus,
+    clause,
 ):
     from fuxi.DLP import normalize_clause, extend_n3_rules, make_rule
 
@@ -108,7 +113,7 @@ def normalize_disjunctions(
     network,
     construct_network,
     negative_stratus,
-    ignore_negative_stratus = False,
+    ignore_negative_stratus=False,
 ):
     """
     Removes disjunctions from logic programs (if possible)
@@ -130,7 +135,9 @@ def normalize_disjunctions(
             # First we want to replace the entire disjunct with an item within
             # it
             list(
-                breadth_first_replace(clause.body, candidate=orig_disj, replacement=item)
+                breadth_first_replace(
+                    clause.body, candidate=orig_disj, replacement=item
+                )
             )
             clause_clone = copy.deepcopy(clause)
             disj = [i for i in breadth_first(clause_clone.body) if isinstance(i, Or)]
@@ -160,7 +167,9 @@ def normalize_disjunctions(
                 )
             # restore the replaced term (for the subsequent iteration)
             list(
-                breadth_first_replace(clause.body, candidate=item, replacement=orig_disj)
+                breadth_first_replace(
+                    clause.body, candidate=item, replacement=orig_disj
+                )
             )
     else:
         # The disjunction has been handled by normal form transformation, we just need to

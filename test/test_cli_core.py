@@ -1,10 +1,9 @@
 """Unit and integration tests for the fuxi.core sub-command."""
 
-import subprocess
 from pathlib import Path
+import subprocess
 
 import pytest
-
 from rdflib import Graph, Namespace
 
 TEST_DIR = Path(__file__).parent

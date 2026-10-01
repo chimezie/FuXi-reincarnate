@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass, field
+from enum import StrEnum
 import importlib.util
 import logging
 import sys
 import time
-from dataclasses import dataclass, field
-from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from rdflib import RDF, Namespace, URIRef
 from rdflib.graph import Graph
 from rdflib.namespace import NamespaceManager
 from rdflib.plugins.sparql.parser import parseQuery
@@ -23,12 +24,10 @@ from fuxi.SPARQL.service import SPARQLServiceGraph
 from fuxi.SPARQL.utilities import (
     extract_triples_from_query,
     owl_entailment_regime_graph,
-    sparql_interlocution,
 )
 from fuxi.Syntax.InfixOWL import (
     OWL_NS,
 )
-from rdflib import RDF, Namespace, URIRef
 
 if TYPE_CHECKING:
     from fuxi.Rete.Network import ReteNetwork
@@ -269,12 +268,6 @@ def add_owl_arguments(parser: argparse.ArgumentParser) -> None:
         default=False,
         help="Add pD semantics ruleset with --dlp",
     )
-    parser.add_argument(
-        "--add-non-dhl-owl-rules",
-        action="store_true",
-        default=True,
-        help="Add non-DHL OWL rules (default: True)",
-    )
 
 
 def add_man_owl_arguments(parser: argparse.ArgumentParser) -> None:
@@ -507,14 +500,13 @@ def run_bfp(
         extra_rulesets=rule_set if rule_set.formulae else None,
         verbose=options.debug,
         add_pd_semantics=getattr(options, "pd_semantics", False),
-        add_non_dhl_owl_rules=getattr(options, "add_non_dhl_owl_rules", True),
     )
 
     top_down_store = entailing_graph.store
 
     start = time.time()
     answers: list = []
-    for answer in sparql_interlocution(options.why, top_down_store):
+    for answer in entailing_graph.query(options.why):
         answers.append(answer)
         s_time = time.time() - start
         logger.debug(

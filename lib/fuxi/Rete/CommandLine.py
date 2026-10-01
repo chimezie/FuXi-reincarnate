@@ -15,9 +15,7 @@ def _route_to_subcommand(argv: list[str] | None = None) -> None:
         and raw[raw.index("--output") + 1] == "man-owl"
     )
     has_class = "--class" in raw or any(a.startswith("--class=") for a in raw)
-    has_property = "--property" in raw or any(
-        a.startswith("--property=") for a in raw
-    )
+    has_property = "--property" in raw or any(a.startswith("--property=") for a in raw)
 
     is_owl_cmd = has_man_owl or has_class or has_property or (has_dlp and has_why)
     is_proof_cmd = has_why and not is_owl_cmd

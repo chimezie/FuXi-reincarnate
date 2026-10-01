@@ -60,7 +60,9 @@ def network_from_n3(n3_source, additional_builtins=None):
     """
     from fuxi.Rete.RuleStore import setup_rule_store
 
-    rule_store, rule_graph, network = setup_rule_store(additional_builtins=additional_builtins, make_network=True)
+    rule_store, rule_graph, network = setup_rule_store(
+        additional_builtins=additional_builtins, make_network=True
+    )
     if isinstance(n3_source, Dataset):
         for ctx in n3_source.graphs():
             for s, p, o in ctx:
@@ -74,10 +76,12 @@ def network_from_n3(n3_source, additional_builtins=None):
     return network
 
 
-def horn_from_dl(owl_graph,
-                 safety: int = DATALOG_SAFETY_NONE,
-                 derived_preds: list | None = None,
-                 compl_skip: list | None = None):
+def horn_from_dl(
+    owl_graph,
+    safety: int = DATALOG_SAFETY_NONE,
+    derived_preds: list | None = None,
+    compl_skip: list | None = None,
+):
     """
     Convert an OWL/RDF graph into a Ruleset of Horn clauses.
 
@@ -95,13 +99,26 @@ def horn_from_dl(owl_graph,
     from fuxi.Rete.RuleStore import setup_rule_store
 
     rule_store, rule_graph, network = setup_rule_store(make_network=True)
-    return network.setup_description_logic_programming(owl_graph, expanded=compl_skip, add_pd_semantics=False,
-                                                       construct_network=False, derived_preds=derived_preds,
-                                                       safety=safety)
+    return network.setup_description_logic_programming(
+        owl_graph,
+        expanded=compl_skip,
+        add_pd_semantics=False,
+        construct_network=False,
+        derived_preds=derived_preds,
+        safety=safety,
+    )
 
 
-def horn_from_n3(n3_source: IO[bytes] | TextIO | InputSource | str | bytes | pathlib.PurePath | Dataset,
-                 additional_builtins: Mapping[Identifier, Callable] = None) -> Ruleset:
+def horn_from_n3(
+    n3_source: IO[bytes]
+    | TextIO
+    | InputSource
+    | str
+    | bytes
+    | pathlib.PurePath
+    | Dataset,
+    additional_builtins: Mapping[Identifier, Callable] = None,
+) -> Ruleset:
     """
     Load a Ruleset from an N3 document or dataset.
 
@@ -118,7 +135,9 @@ def horn_from_n3(n3_source: IO[bytes] | TextIO | InputSource | str | bytes | pat
             for s, p, o in ctx:
                 store.add((s, p, o), ctx)
     else:
-        store, graph = setup_rule_store(n3_source, additional_builtins=additional_builtins)
+        store, graph = setup_rule_store(
+            n3_source, additional_builtins=additional_builtins
+        )
     store._finalize()
     return Ruleset(n3_rules=store.rules, ns_mapping=store.ns_mgr)
 
@@ -174,7 +193,9 @@ class Ruleset(object):
                     isinstance(term, N3Builtin)
                     and term
                     or Uniterm(
-                        list(term)[1], [list(term)[0], list(term)[-1]], new_nss=ns_mapping
+                        list(term)[1],
+                        [list(term)[0], list(term)[-1]],
+                        new_nss=ns_mapping,
                     )
                     for term in lhs
                 ]
@@ -297,7 +318,8 @@ class Rule(object):
             "Safety can only be checked on rules in normal form"
         )
         for var in filter(
-            lambda term: isinstance(term, (Variable, BNode)), get_args(self.formula.head)
+            lambda term: isinstance(term, (Variable, BNode)),
+            get_args(self.formula.head),
         ):
             if not self.formula.body.is_safe_for_variable(var):
                 return False

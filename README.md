@@ -1,5 +1,5 @@
 FuXi is a highly efficient, Python-based, semantic web logical reasoning system. It is
-being re-written for modern Python 3.9+ and adapted for use with transformer-based AI systems and their frameworks.
+being re-written for modern Python 3.13+ and adapted for use with transformer-based AI systems and their frameworks.
 
 ## Changelog
 
@@ -48,6 +48,8 @@ flowchart LR
     LP --> SPARQL
     SPARQL <--> Stores
 ```
+
+> Note: `fuxi.Horn` implements a dialect of definite Horn rules with equality, providing semantics equivalent to **RIF-BLD**.
 
 ## RETE Network Flows
 
@@ -233,7 +235,7 @@ g = Graph()
 
 with GraphContext(g, {"health": HEALTH, "ptrec": PTREC}):
         has_part = Property(OBO_NS.BFO_0000051, label="has part")
-        ice = Class(OBO.IAO_0000030, label="information content entity")
+        ice = Class(OBO_NS.IAO_0000030, label="information content entity")
         contains = Property(DNODE.contains, label="contains", domain=[ice], range=[ice],
                             subproperty_of=[has_part]) #has part
         contains.declare_annotation_property(singular_phrase)
@@ -251,7 +253,7 @@ with GraphContext(g, {"health": HEALTH, "ptrec": PTREC}):
                                 "a core relation that holds between a whole and its part")
         
         history_and_physical_event = Class(PTREC.Event_evaluation_history_and_physical, label="History and physical event")
-        history_and_physical_event.sub_class_of [Class(PTREC.Event, label="Medical Record Event")]         
+        history_and_physical_event.sub_class_of = [Class(PTREC.Event, label="Medical Record Event")]         
         
         h_and_p_with_htn_dx = Class(HEALTH.H_and_P_with_htn_dx, label="Historical Htx Dx from H/P event")
         h_and_p_with_htn_dx.set_annotation(OWL_DSL.IAO_0000115, 
@@ -268,11 +270,12 @@ And this is how the equivalent can be done with owlready2, a more declarative ap
 from owlready2 import Thing, ObjectProperty, AnnotationProperty, World
 
 world = World()
-onto = world.get_ontology("[..]")
+onto = world.get_ontology("https://example.org/onto")
+OWL_DSL = "https://github.com/chimezie/OWL_DSL/tree/main/ontology_configurations/"
 owl_dsl_ns = onto.get_namespace(OWL_DSL)
-PTREC_NS = ontology.get_namespace([..])
-DNODE_NS = ontology.get_namespace([..])
-OBO_NS = ontology.get_namespace("http://purl.obolibrary.org/obo/")
+PTREC_NS = onto.get_namespace("https://example.org/ptrec#")
+DNODE_NS = onto.get_namespace("https://example.org/dnode#")
+OBO_NS = onto.get_namespace("http://purl.obolibrary.org/obo/")
 with onto:
     with owl_dsl_ns: #OWL_DSL OWL CNL template annotation vocabulary
         class OWL_DSL_000001(AnnotationProperty): pass
@@ -525,22 +528,35 @@ any reasoning capabilities of the service.
 
 ### Querying TopDownSPARQLEntailingStore
 
-The ``sparql_interlocution`` function provides a convenient way to execute SPARQL queries 
-against a ``TopDownSPARQLEntailingStore`` and yield solutions:
+The ``sparql_interlocution_basic_graph_pattern`` function evaluates SELECT
+basic graph patterns over a ``TopDownSPARQLEntailingStore``, joining derived
+(IDB) and base (EDB) predicates with correct join semantics:
 
 ```python
-from rdflib import Variable
-from fuxi.SPARQL.utilities import sparql_interlocution
+from fuxi.SPARQL.utilities import sparql_interlocution_basic_graph_pattern
 
-for answer in sparql_interlocution(query, top_down_store):
-  movie = answer[Variable('movie')]
-  print(f"Movie: {movie}")
+# Returns an rdflib SPARQLResult (drop-in with query())
+result = sparql_interlocution_basic_graph_pattern(query, top_down_store)
+
+# With proof capture
+result, proofs = sparql_interlocution_basic_graph_pattern(
+    query, top_down_store, generate_proofs=True
+)
 ```
 
-This function bridges SPARQL query text and FuXi's backwards-chaining evaluation engine. 
-It parses the query, extracts the basic graph pattern, converts triples to quads, and uses 
-the store's ``batch_unify`` to retrieve matching solutions. Only solutions where all query 
-variables are bound are yielded.
+Unlike ``solve_triple_pattern`` (used by ``query()``), this function drives
+``batch_unify`` — the conjunctive SIP join path — which threads bindings
+left-to-right across patterns so that mixed IDB/EDB joins produce correct
+results.  See ``test/SPARQL/test_sparql_interlocution.py`` for examples.
+
+### SPARQL Entailment Support
+FuXi mediates query evaluation over various SPARQL 1.1 entailment regimes:
+
+| Regime | Status | Description |
+|---|---|---|
+| `ent:RDF` | Supported | Standard RDF graph matching. |
+| `ent:RDFS` | Supported | Augmented with RDFS axiomatic rules. |
+| `ent:OWL` | Subset (DLP) | Uses `fuxi.DLP` to map a tractable subset of OWL DL axioms to Horn rules. |
 
 ## Testing
 
@@ -555,11 +571,12 @@ Fuxi comes with harnesses to run the various OWL tests suites:
 - `pytest test/testOWL.py` - ["OWL 1"](http://www.w3.org/2002/03owlt/approved.zip) - harness for the original OWL test cases
 - `pytest test/testOWL2.py` - ["OWL 2"](http://www.w3.org/2009/01/pr-owl2-test-cases-20100301/) - similar harness for OWL 2 test cases (conformance conditions)
 
-FuXi also includes a SPARQL entailment harness for selected W3C SPARQL 1.1
-entailment tests:
+FuXi also includes SPARQL harnesses:
 
 - `pytest test/SPARQL/test_sparql_entailment.py` - manifest-driven SPARQL
   entailment regression harness over `ent:RDFS` and `ent:RDF` regimes
+- `pytest test/SPARQL/test_sparql_interlocution.py` - SPARQL interlocution
+  BGP API tests covering SELECT results, mixed IDB/EDB joins, and proof capture
 
 Run the OWL test suite (each APPROVED test is an individual pytest case):
 
@@ -615,6 +632,9 @@ uv run pytest test/SPARQL/test_sparql_entailment.py --single-test rdfs04
 
 # Run a focused SPARQL entailment subset
 uv run pytest test/SPARQL/test_sparql_entailment.py -k "paper-sparqldl-Q1-rdfs or sparqldl-05"
+
+# Run SPARQL interlocution BGP API tests
+uv run pytest test/SPARQL/test_sparql_interlocution.py
 ```
 
 ### SPARQL Entailment Harness Notes
@@ -681,7 +701,7 @@ followed by the later instance graph.
 
 ```python
 from fuxi.Horn.HornRules import horn_from_dl
-from rdflib.Graph import Graph
+from rdflib.graph import Graph
 from rdflib.util import first
 
 first([r for r in horn_from_dl(Graph().parse('http://www.lehigh.edu/%7Ezhp2/2004/0401/univ-bench.owl')) if

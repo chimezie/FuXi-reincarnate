@@ -3,9 +3,8 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, MutableMapping
 from typing import Protocol
 
-from rdflib.term import Identifier
-
 from rdflib import BNode, Literal, URIRef, Variable
+from rdflib.term import Identifier
 
 RDFTerm = Identifier
 RDFNode = URIRef | BNode | Literal | Variable

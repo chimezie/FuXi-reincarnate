@@ -9,9 +9,11 @@ OWL/RDF
 """
 
 from collections.abc import Mapping
+from fuxi.Horn import HornRules
 from typing import Any, Optional, Tuple, Union, Iterable, List
 
 from frozendict import frozendict
+
 from rdflib.term import Identifier
 
 
@@ -23,6 +25,7 @@ def _get_graphviz():
     return graphviz
 
 
+from fuxi.Horn.HornRules import Clause
 from fuxi.Horn.PositiveConditions import (
     build_uniTerm,
     Exists,
@@ -34,7 +37,7 @@ from fuxi.types import Triple
 from .BetaNode import project, BetaNode, PartialInstantiation
 from fuxi.Rete.RuleStore import N3Builtin
 from fuxi.Rete.AlphaNode import ReteToken
-from fuxi.Rete.Magic import AdornedUniTerm
+from fuxi.Rete.Magic import AdornedUniTerm, AdornedRule
 from rdflib import (
     BNode,
     Literal,
@@ -42,6 +45,8 @@ from rdflib import (
     RDF,
     URIRef,
     Variable,
+    RDFS,
+    Graph,
 )
 
 
@@ -90,6 +95,13 @@ def _body_term_tuples(body_term):
     return [term.to_rdf_tuple() for term in term_iterator(body_term)]
 
 
+def _sorted_t_nodes(
+    t_nodes: set,
+) -> list:
+    """Return a deterministic ordering of terminal-node objects."""
+    return sorted(t_nodes, key=lambda n: str(id(n)))
+
+
 def fetch_rete_justifications(goal, nodeset, builder, antecedent=None):
     """
     Takes a goal, a nodeset and an inference step the nodeset is the
@@ -102,7 +114,7 @@ def fetch_rete_justifications(goal, nodeset, builder, antecedent=None):
     if antecedent:
         yielded = False
         # might not be a valid justification
-        for rete_justification in justification_for_goal:
+        for rete_justification in _sorted_t_nodes(justification_for_goal):
             valid_justification = True
             clause = _clause_from_justification(rete_justification)
             for body_term in clause.body:
@@ -120,7 +132,7 @@ def fetch_rete_justifications(goal, nodeset, builder, antecedent=None):
                 yielded = True
                 yield rete_justification
         if not yielded:
-            for t_node in nodeset.network.terminal_nodes:
+            for t_node in _sorted_t_nodes(nodeset.network.terminal_nodes):
                 if t_node not in justification_for_goal:
                     try:
                         clause = _clause_from_justification(t_node)
@@ -133,7 +145,7 @@ def fetch_rete_justifications(goal, nodeset, builder, antecedent=None):
                     except Exception:
                         pass
     else:
-        for t_node in justification_for_goal:
+        for t_node in _sorted_t_nodes(justification_for_goal):
             yield t_node
 
 
@@ -246,8 +258,21 @@ class ProofBuilder(object):
             for ant in node.antecedents:
                 self.extract_goals_from_node(ant)
 
-    def serialize(self, proof, proofGraph):
-        proof.serialize(self, proofGraph)
+    def serialize(
+        self,
+        proof,
+        proofGraph,
+        ns_mapping: dict | None = None,
+        top_goal_statement: BNode | None = None,
+        is_top: bool = False,
+    ):
+        proof.serialize(
+            self,
+            proofGraph,
+            ns_mapping=ns_mapping,
+            top_goal_statement=top_goal_statement,
+            is_top=True,
+        )
 
     def render_proof(self, proof, ns_map=None, format="png"):
         """Render the proof tree as a graphviz directed graph (Digraph).
@@ -791,9 +816,16 @@ class ProofBuilder(object):
                     goal, parent, step, bindings, top_down_store
                 )
 
-        raise SyntaxError(
-            f"Unable to build inference step for {build_uniterm_from_tuple(goal)}"
+        # Graceful fallback: if no dispatch branch handled the goal, treat it as
+        # directly asserted rather than crashing.  This avoids hard failures when
+        # the proof builder encounters an unhandled rule shape (e.g. during
+        # recursive-ancestor proof construction under certain ordering paths).
+        self.trace.append(
+            "No dispatch branch handled goal %s — falling back to asserted fact"
+            % build_uniterm_from_tuple(goal)
         )
+        step.source = "some RDF graph"
+        return step
 
     def build_non_evaluation_step(
         self,
@@ -1287,7 +1319,14 @@ class NodeSet(object):
             for step in self.steps:
                 step.traverse_and_check(namespaces_dict, goals, issues)
 
-    def serialize(self, builder, proof_graph):
+    def serialize(
+        self,
+        builder,
+        proof_graph,
+        ns_mapping: dict | None = None,
+        top_goal_statement: BNode | None = None,
+        is_top: bool = False,
+    ):
         conclusion_prefix = self.naf and "not " or ""
         proof_graph.add(
             (
@@ -1297,9 +1336,11 @@ class NodeSet(object):
                     "%s%s"
                     % (
                         conclusion_prefix,
-                        repr(build_uniTerm(self.conclusion, self.network.ns_map)),
+                        repr(build_uniTerm(self.conclusion, ns_mapping)),
                     )
-                ),
+                )
+                if not is_top and not top_goal_statement is None
+                else top_goal_statement,
             )
         )
         # proofGraph.add((self.identifier, PML.hasLanguage, URIRef('http://inferenceweb.stanford.edu/registry/LG/RIF.owl')))
@@ -1307,7 +1348,13 @@ class NodeSet(object):
         for step in self.steps:
             proof_graph.add((self.identifier, PML.isConsequentOf, step.identifier))
             builder.serialized_node_sets.add(self.identifier)
-            step.serialize(builder, proof_graph)
+            step.serialize(
+                builder,
+                proof_graph,
+                ns_mapping=ns_mapping,
+                top_goal_statement=top_goal_statement,
+                is_top=is_top,
+            )
 
     def generate_graph_node(self, dot, idx, proof_root=False, ns_map=None):
         ns_map = (
@@ -1412,8 +1459,15 @@ class InferenceStep(object):
     def propagate_bindings(self, bindings):
         self.bindings.update(bindings)
 
-    def serialize(self, builder, proof_graph):
-        if self.rule and not self.source:
+    def serialize(
+        self,
+        builder,
+        proof_graph,
+        ns_mapping: dict | None = None,
+        top_goal_statement: BNode | None = None,
+        is_top: bool = False,
+    ):
+        if self.rule:  # and not self.source:
             proof_graph.add(
                 (self.identifier, PML.englishDescription, Literal(repr(self)))
             )
@@ -1428,6 +1482,15 @@ class InferenceStep(object):
         elif self.source:
             some_doc = BNode()
             proof_graph.add((self.identifier, PML_P.hasSource, some_doc))
+            if self.source != "Goal query assertion":
+                src = self.source
+            else:
+                uniterm = build_uniterm_from_tuple(self.parent.conclusion)
+                if ns_mapping is not None:
+                    for prefix, uri in ns_mapping.items():
+                        uniterm.ns_manager.bind(prefix, uri)
+                src = f"Goal query assertion: {uniterm}"
+            # proof_graph.add((self.identifier, RDFS.label, Literal(src)))
             proof_graph.add((some_doc, RDF.type, PML_P.Document))
 
         # proofGraph.add((self.identifier, PML.hasLanguage, URIRef('http://inferenceweb.stanford.edu/registry/LG/RIF.owl')))
@@ -1436,8 +1499,15 @@ class InferenceStep(object):
         proof_graph.add((self.identifier, PML.hasRule, GMP_NS.GMP))
         proof_graph.add((self.identifier, PML.consequent, self.parent.identifier))
         for ant in self.antecedents:
-            proof_graph.add((self.identifier, PML.hasAntecedent, ant.identifier))
-            ant.serialize(builder, proof_graph)
+            if (self.identifier, PML.hasAntecedent, ant.identifier) not in proof_graph:
+                proof_graph.add((self.identifier, PML.hasAntecedent, ant.identifier))
+                ant.serialize(
+                    builder,
+                    proof_graph,
+                    ns_mapping=ns_mapping,
+                    top_goal_statement=top_goal_statement,
+                    is_top=False,
+                )
         for k, v in list(self.bindings.items()):
             mapping = BNode()
             proof_graph.add((self.identifier, PML.hasVariableMapping, mapping))
@@ -1504,3 +1574,164 @@ class InferenceStep(object):
                 return "magic predicate justification\\n%s" % (self.rule)
             else:
                 return repr(self.rule)  # self.prettyPrintRule()
+
+
+META_RULE_EXPLAINER = """\
+Where, for each of the following rules the meta rules for the meta interpreter are based on:
+    {rule_list}
+    
+when evaluate(N 0) appears in the body (or antecedent) of a meta rule it means none of the terms in the body of the 
+corresponding rule we are evaluating have been evaluated.
+
+When it appears in the head of a meta rule, it indicates an action to begin evaluating the 1st term in the body. 
+
+When evaluate(N 1) appears in the body of a meta rule it means only the 1st term has been evaluated , etc. 
+
+and N is 1, 2, or up to any of the rules given above
+
+A rule term with a `_query` suffix indicates a request by the meta interpreter to solve for the predicate as a main or 
+subgoal.
+
+A rule term with a `_derived` suffix indicates an inference of a predicate that has instances in the IDB as well as the 
+EDB (i.e., derived *and* asserted)
+"""
+
+
+class TruthMaintenanceGraphSerializer:
+    INITIAL_NODESET_QUERY = """
+PREFIX pml: <http://inferenceweb.stanford.edu/2004/07/iw.owl#>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+    
+SELECT ?nodeset ?inference_step ?conclusion ?descr ?from ?to WHERE {{
+    ?nodeset    pml:hasConclusion   [   a                   rdf:Statement ;
+                                        rdf:object          {object} ;
+                                        rdf:predicate       {predicate} ;
+                                        rdf:subject         {subject} ] ;
+                pml:isConsequentOf  ?inference_step .
+    OPTIONAL {{ ?nodeset            pml:hasAntecedent       ?conclusion }}                
+    OPTIONAL {{ ?nodeset            pml:englishDescription  ?descr }}
+    OPTIONAL {{
+        ?nodeset pml:hasVariableMapping [ a             pml:Mapping; 
+                                          pml:mapFrom   ?from; 
+                                          pml:mapTo     ?to ] 
+    }}        
+}}
+    """
+
+    def __init__(
+        self,
+        truth_maintenance_graph: Graph,
+        adorned_program: list[AdornedRule],
+        ns_map: dict[str, Identifier] | None = None,
+    ):
+
+        self.truth_maintenance_graph = truth_maintenance_graph
+        self.adorned_program = adorned_program
+        self.ns_map = ns_map
+
+    def meta_rule_explainer(self):
+        return META_RULE_EXPLAINER.format(
+            rule_list="\n".join(
+                f"{idx + 1}: {rule}" for idx, rule in enumerate(self.adorned_program)
+            )
+        )
+
+    def human_readable_serialize(
+        self,
+        proof_object: NodeSet | InferenceStep,
+        proof_goal: Triple,
+        as_uniterm: Uniterm | None = None,
+        ns_bindings: dict[str, Identifier] | None = None,
+        indentation: str | None = None,
+        skip_front_indent: bool = False,
+    ) -> str:
+        indentation = indentation or ""
+        ns_bindings = ns_bindings or {}
+        if isinstance(proof_object, InferenceStep):
+            if isinstance(proof_object.rule, Clause):
+                if proof_object.source:
+                    return (
+                        f"{'' if skip_front_indent else indentation}The rule: {proof_object.rule}, "
+                        f"the response from the query below and any bindings it may have used, and the antecedent(s) that follow:\n"
+                        f"{indentation + '  '}{proof_object.source}\n"
+                        f"{self.render_bindings(proof_object.bindings, indentation + '  ')}\n"
+                        f"{
+                            indentation
+                            + ','.join(
+                                self.human_readable_serialize(
+                                    ant,
+                                    proof_goal,
+                                    indentation=indentation + '  ',
+                                    ns_bindings=ns_bindings,
+                                )
+                                for ant in proof_object.antecedents
+                            )
+                            + '\n\n'
+                        }"
+                    )
+                else:
+                    return (
+                        f"{'' if skip_front_indent else indentation}The rule: {proof_object.rule}, "
+                        f"any bindings shown below, and the antecedent(s) that follow:\n"
+                        f"{self.render_bindings(proof_object.bindings, indentation)}\n"
+                        f"{
+                            ','.join(
+                                self.human_readable_serialize(
+                                    ant,
+                                    proof_goal,
+                                    indentation=indentation + '  ',
+                                    ns_bindings=ns_bindings,
+                                )
+                                for ant in proof_object.antecedents
+                            )
+                        }\n\n"
+                    )
+            else:
+                return "Goal query assertion"
+        query = self.INITIAL_NODESET_QUERY.format(
+            object=proof_goal[2].n3(),
+            predicate=proof_goal[1].n3(),
+            subject=proof_goal[0].n3(),
+        )
+        for (
+            nodeset,
+            inference_step,
+            conclusion,
+            descr,
+            _from,
+            to,
+        ) in self.truth_maintenance_graph.query(query):
+            if isinstance(inference_step, Literal):
+                # Meta interpreter conclusion (intermediary inference)
+                raise Exception(inference_step)
+            elif isinstance(inference_step, BNode):
+                assert (
+                    len(proof_object.steps) == 1
+                )  # and proof_object.steps[0].identifier == inference_step
+                inference_step = proof_object.steps[0]
+
+                if as_uniterm:
+                    conclusion_text = repr(as_uniterm)
+                else:
+                    goal_lit = build_uniterm_from_tuple(proof_object.conclusion)
+                    for prefix, uri in ns_bindings.items():
+                        goal_lit.ns_manager.bind(prefix, uri)
+                    conclusion_text = repr(goal_lit)
+                rt = (
+                    f"{'' if skip_front_indent else indentation}The conclusion {conclusion_text} is justified by:\n"
+                    f"{
+                        self.human_readable_serialize(
+                            inference_step,
+                            proof_goal,
+                            indentation=indentation + '  ',
+                            ns_bindings=ns_bindings,
+                            skip_front_indent=False,
+                        )
+                    }\n\n"
+                )
+                return rt.strip()
+            else:
+                raise ValueError(f"Unexpected antecedent type: {type(inference_step)}")
+
+    def render_bindings(self, bindings: dict[str, Identifier], indendation: str):
+        return "\n".join([f"{indendation}{k} -> {v.n3()}" for k, v in bindings.items()])

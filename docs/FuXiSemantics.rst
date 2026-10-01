@@ -4,7 +4,7 @@ FuXi Semantics
 
 A sketch of a semantics for FuXi based on Classic Logic Programming formalisms.
 
--  *This page may later be superseded by or become aligned with *
+-  *This page may later be superseded by or become aligned with*
    `N3Logic: A Logical Framework For the World Wide
    Web <http://arxiv.org/abs/0711.1533>`_
 

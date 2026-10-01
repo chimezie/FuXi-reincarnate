@@ -4,6 +4,24 @@ Tests for the sparql_interlocution function.
 sparql_interlocution is the query-evaluation bridge between the CLI
 and the TopDownSPARQLEntailingStore.  It must correctly handle
 ground ASK queries that the BFP solver proves.
+
+This module also covers ``sparql_interlocution_basic_graph_pattern``, the
+SELECT/ASK bridge that drives ``TopDownSPARQLEntailingStore.batch_unify`` (the
+conjunctive SIP join path).  Unlike ``store.query()``/``solve_triple_pattern``
+-- which partitions EDB and IDB patterns and evaluates them independently --
+this API threads bindings across patterns so that basic graph patterns mixing
+base (EDB) and derived (IDB) predicates join correctly.  Its contract:
+
+* SELECT queries return an rdflib ``SPARQLResult`` (drop-in with ``query()``).
+* ASK queries return an rdflib ``SPARQLResult`` of type ASK whose
+  ``askAnswer`` is true when the conjunctive BGP has a solution.
+* CONSTRUCT/DESCRIBE (and other non-SELECT/ASK forms) raise
+  ``NotImplementedError``.
+* ``generate_proofs=True`` returns a ``(SPARQLResult, proofs)`` tuple, where
+  ``proofs`` maps each proved ground goal triple to its 6-item
+  ``(truth_maintenance_graph, adorned_program, meta_interp_network,
+  inferred_facts, proof, goal_lit)`` tuple drawn from the store's
+  ``goal_rule_sip_info`` BFP state.
 """
 
 from __future__ import annotations
@@ -11,6 +29,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from rdflib import Graph, Namespace, Variable
+from rdflib.plugins.sparql.processor import SPARQLResult
 
 from fuxi.cli.shared import _compute_derived_predicates, _extract_goals
 from fuxi.DLP.DLNormalization import normal_form_reduction
@@ -18,16 +38,13 @@ from fuxi.Horn.HornRules import Ruleset
 from fuxi.Rete.RuleStore import setup_rule_store
 from fuxi.SPARQL.utilities import (
     owl_entailment_regime_graph,
-    sparql_interlocution,
+    sparql_interlocution_basic_graph_pattern,
 )
-from rdflib import Graph, Namespace
 
 pytestmark = pytest.mark.integration
 
 TEST_DIR = Path(__file__).parent.parent
-FIRST = Namespace(
-    "http://www.w3.org/2002/03owlt/TransitiveProperty/premises001#"
-)
+FIRST = Namespace("http://www.w3.org/2002/03owlt/TransitiveProperty/premises001#")
 PREMISE_RDF = TEST_DIR / "OWL" / "TransitiveProperty" / "premises001.rdf"
 
 ASK_QUERY = "ASK { first:Ghent first:path first:Amsterdam }"
@@ -71,7 +88,6 @@ def _make_entailing_graph():
         extra_rulesets=rule_set if rule_set.formulae else None,
         verbose=False,
         add_pd_semantics=False,
-        add_non_dhl_owl_rules=True,
     )
     return entailing_graph
 
@@ -85,13 +101,9 @@ def test_sparql_interlocution_ground_ask_proved():
     yielded ``True`` (a boolean) for a successfully proved ground goal.
     """
     entailing_graph = _make_entailing_graph()
-    top_down_store = entailing_graph.store
+    answers = list(entailing_graph.query(ASK_QUERY))
 
-    answers = list(sparql_interlocution(ASK_QUERY, top_down_store))
-
-    assert len(answers) > 0, (
-        "Expected at least one answer for a provable ground goal"
-    )
+    assert len(answers) > 0, "Expected at least one answer for a provable ground goal"
     assert answers[0] is True
 
 
@@ -104,15 +116,11 @@ def test_sparql_interlocution_ground_ask_not_proved():
     ``False``).
     """
     entailing_graph = _make_entailing_graph()
-    top_down_store = entailing_graph.store
 
     # Antwerp path Ghent is NOT a fact and cannot be derived (no
     # chain from any known fact to this combination).
-    query = "ASK { first:Antwerp first:path first:Ghent }"
-    answers = list(sparql_interlocution(query, top_down_store))
-
-    assert len(answers) == 0, (
-        "Expected no answers for an unprovable ground goal"
+    assert not bool(
+        entailing_graph.query("ASK { first:Antwerp first:path first:Ghent }")
     )
 
 
@@ -122,15 +130,156 @@ def test_sparql_interlocution_select_open():
     return binding dicts (not bools).
     """
     entailing_graph = _make_entailing_graph()
-    top_down_store = entailing_graph.store
-
-    query = "SELECT ?city WHERE { first:Ghent first:path ?city }"
-    answers = list(sparql_interlocution(query, top_down_store))
-
-    assert len(answers) > 0, (
-        "Expected at least one answer for Ghent path ?city"
+    answers = list(
+        entailing_graph.query("SELECT ?city WHERE { first:Ghent first:path ?city }")
     )
-    for answer in answers:
-        assert isinstance(answer, dict), (
-            f"Expected dict, got {type(answer).__name__}"
+    assert len(answers) > 0, "Expected at least one answer for Ghent path ?city"
+
+
+# ---------------------------------------------------------------------------
+# sparql_interlocution_basic_graph_pattern (SELECT BGP + proof) API
+#
+# These tests pin the planned contract for the augmenting BGP bridge.  They
+# exercise the conjunctive-join path (batch_unify) and the proof-capture hook,
+# neither of which the standard query() path provides.
+# ---------------------------------------------------------------------------
+
+# Self-join over the transitive ``path`` predicate.  With EDB facts
+# (Ghent->Antwerp, Antwerp->Amsterdam) and transitivity, the only consistent
+# join solution is (mid=Antwerp, dest=Amsterdam): Ghent path Antwerp (base)
+# joined with Antwerp path Amsterdam (base).  This requires threading the
+# ?mid binding from the first pattern into the second -- the behavior that
+# distinguishes batch_unify from solve_triple_pattern's flat accumulation.
+MIXED_JOIN_QUERY = (
+    "SELECT ?mid ?dest WHERE { first:Ghent first:path ?mid . ?mid first:path ?dest . }"
+)
+
+SELECT_DERIVED_QUERY = "SELECT ?city WHERE { first:Ghent first:path ?city }"
+
+
+def test_bgp_select_returns_sparql_result():
+    """A SELECT query returns an rdflib ``SPARQLResult`` (drop-in with query())."""
+    store = _make_entailing_graph().store
+
+    result = sparql_interlocution_basic_graph_pattern(SELECT_DERIVED_QUERY, store)
+
+    assert isinstance(result, SPARQLResult)
+    assert result.type == "SELECT"
+    assert Variable("city") in result.vars
+
+
+def test_bgp_select_projects_only_requested_variables():
+    """SELECT bindings are projected onto the query's projection variables."""
+    store = _make_entailing_graph().store
+
+    result = sparql_interlocution_basic_graph_pattern(SELECT_DERIVED_QUERY, store)
+
+    assert set(result.vars) == {Variable("city")}
+    assert len(result.bindings) > 0
+    for binding in result.bindings:
+        assert set(binding).issubset({Variable("city")})
+
+
+def test_bgp_select_returns_derived_solution():
+    """The transitively-derived city (Amsterdam) appears among the answers."""
+    store = _make_entailing_graph().store
+
+    result = sparql_interlocution_basic_graph_pattern(SELECT_DERIVED_QUERY, store)
+    cities = {row["city"] for row in result}
+
+    assert FIRST.Amsterdam in cities, (
+        "Expected the transitively-derived 'Amsterdam' binding for Ghent path ?city"
+    )
+
+
+def test_bgp_mixed_idb_edb_join():
+    """A self-join over a hybrid predicate threads bindings across patterns."""
+    store = _make_entailing_graph().store
+
+    result = sparql_interlocution_basic_graph_pattern(MIXED_JOIN_QUERY, store)
+    pairs = {(row["mid"], row["dest"]) for row in result}
+
+    assert (FIRST.Antwerp, FIRST.Amsterdam) in pairs, (
+        "Expected the joined solution (mid=Antwerp, dest=Amsterdam)"
+    )
+    # Every returned row must bind both projected variables (no partial rows).
+    for binding in result.bindings:
+        assert Variable("mid") in binding
+        assert Variable("dest") in binding
+
+
+def test_bgp_ask_returns_true_when_solution_exists():
+    """ASK returns true when the conjunctive BGP has at least one solution."""
+    store = _make_entailing_graph().store
+
+    result = sparql_interlocution_basic_graph_pattern(ASK_QUERY, store)
+
+    assert isinstance(result, SPARQLResult)
+    assert result.type == "ASK"
+    assert result.askAnswer is True
+
+
+def test_bgp_ask_returns_false_when_no_solution():
+    """ASK returns false when the conjunctive BGP has no solution."""
+    store = _make_entailing_graph().store
+
+    result = sparql_interlocution_basic_graph_pattern(
+        "ASK { first:Antwerp first:path first:Ghent }", store
+    )
+
+    assert isinstance(result, SPARQLResult)
+    assert result.type == "ASK"
+    assert result.askAnswer is False
+
+
+def test_bgp_construct_raises_not_implemented():
+    """CONSTRUCT queries are out of scope and must raise ``NotImplementedError``."""
+    store = _make_entailing_graph().store
+
+    with pytest.raises(NotImplementedError):
+        sparql_interlocution_basic_graph_pattern(
+            "CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }", store
         )
+
+
+def test_bgp_generate_proofs_returns_result_and_proofs():
+    """``generate_proofs=True`` returns a (SPARQLResult, proofs-dict) tuple."""
+    store = _make_entailing_graph().store
+
+    returned = sparql_interlocution_basic_graph_pattern(
+        SELECT_DERIVED_QUERY, store, generate_proofs=True
+    )
+
+    assert isinstance(returned, tuple)
+    assert len(returned) == 2
+    result, proofs = returned
+    assert isinstance(result, SPARQLResult)
+    assert isinstance(proofs, dict)
+
+
+def test_bgp_generate_proofs_captures_derived_goal():
+    """Proofs include an entry for the transitively-derived ground goal."""
+
+    store = _make_entailing_graph().store
+
+    _result, proof_info = sparql_interlocution_basic_graph_pattern(
+        SELECT_DERIVED_QUERY, store, generate_proofs=True
+    )
+
+    derived_goal = (FIRST.Ghent, FIRST.path_derived, FIRST.Amsterdam)
+    assert derived_goal[1] in store.derived_predicates
+    assert derived_goal in proof_info, (
+        "Expected a captured proof for the derived goal (Ghent path Amsterdam)"
+    )
+
+    assert len(proof_info) > 1
+    (
+        truth_maintenance_graph,
+        adorned_program,
+        meta_interp_network,
+        inferred_facts,
+        _proof,
+        _goal_lit,
+    ) = proof_info[derived_goal]
+    assert truth_maintenance_graph is not None
+    assert len(adorned_program) > 0

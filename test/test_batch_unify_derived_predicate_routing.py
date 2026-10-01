@@ -44,11 +44,10 @@ case::
 
 from unittest.mock import Mock
 
-import pytest
+from rdflib import RDF, RDFS, Graph, Namespace, URIRef, Variable
 
 from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
 from fuxi.SPARQL.service import _SelectResult
-from rdflib import RDF, RDFS, Graph, Namespace, URIRef, Variable
 
 EX = Namespace("http://example.org/")
 

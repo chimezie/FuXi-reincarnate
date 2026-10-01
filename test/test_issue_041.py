@@ -8,9 +8,10 @@ before trying to call rule.formula.head.to_rdf_tuple().
 
 from io import StringIO
 
+from rdflib import Variable
+
 from fuxi.Horn.HornRules import horn_from_n3
 from fuxi.Rete.RuleStore import setup_rule_store
-from rdflib import Variable
 
 rule_fixture = """\
 @prefix test: <http://example.org/>.

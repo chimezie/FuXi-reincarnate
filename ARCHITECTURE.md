@@ -102,7 +102,7 @@ The thesis also describes methods for using hash tables to improve efficiency of
 Instances of the fuxi.Rete.ReteNetwork class are RETE-UL networks. So, to programmatically build a RETE-UL network, a developer would write: ```
 
 ```python
-from rdflib.Graph import Graph
+from rdflib.graph import Graph
 from fuxi.Rete.RuleStore import setup_rule_store
 
 rule_store, rule_graph, network = setup_rule_store(additional_builtins=..., make_network=True) 
@@ -210,6 +210,28 @@ Why this matters for extension:
 - You can add or modify rules without changing storage backends.
 - You can plug in large/remote RDF stores because only relevant subqueries execute.
 - The approach is sound and complete with respect to naive rule materialization, but much cheaper in practice.
+
+##### Two evaluation paths for SPARQL BGPs
+
+FuXi's `TopDownSPARQLEntailingStore` exposes two distinct evaluation paths
+for basic graph patterns:
+
+1. **`query()` / `solve_triple_pattern`** — the standard rdflib entry point.
+   It partitions the BGP into an EDB group (base predicates queried directly
+   against the SPARQL endpoint) and an IDB group (derived predicates solved
+   via the BFP).  Each IDB pattern is evaluated *independently* and all
+   bindings are accumulated into one flat list.  This path **does not thread
+   bindings** between patterns.
+
+2. **`batch_unify` / `sparql_interlocution_basic_graph_pattern`** — the
+   conjunctive SIP join path.  It evaluates patterns left-to-right, threading
+   each pattern's variable bindings forward into the remaining patterns via
+   `conjunctive_sip_strategy`.  This is the correct path for mixed IDB/EDB
+   BGPs that must join derived and base results.  It also supports optional
+   PML proof capture via `generate_proofs=True`.
+
+See `fuxi.SPARQL.utilities.sparql_interlocution_basic_graph_pattern` and
+`test/SPARQL/test_sparql_interlocution.py` for details.
 
 #### SPARQL entailment regression harness
 
@@ -337,7 +359,7 @@ network.feed_facts_to_add(generateTokenSet(tBoxGraph))
 network.feed_facts_to_add(generateTokenSet(someRDFGraph1))
 network.reset()
 network.feed_facts_to_add(generateTokenSet(tBoxGraph))
-network.feed_facts_to_add(generateTokenSet(someRDFGraph2))..etc..
+network.feed_facts_to_add(generateTokenSet(someRDFGraph2))  # ... etc.
 ```
 
 Or, consider
@@ -354,7 +376,7 @@ directly:
 
 ```python
 from fuxi.Horn.HornRules import horn_from_dl
-from rdflib.Graph import Graph
+from rdflib.graph import Graph
 from rdflib.util import first
 
 first(

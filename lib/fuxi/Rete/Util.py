@@ -456,8 +456,12 @@ def _add_rete_node(dot, node, namespace_manager, identifier):
         peripheries = "1"
         shape = "plaintext"
         canonicalFunc = _rete_label(namespace_manager.normalizeUri(node.n3builtin.uri))
-        canonicalArg1 = _rete_label(namespace_manager.normalizeUri(node.n3builtin.argument))
-        canonicalArg2 = _rete_label(namespace_manager.normalizeUri(node.n3builtin.result))
+        canonicalArg1 = _rete_label(
+            namespace_manager.normalizeUri(node.n3builtin.argument)
+        )
+        canonicalArg2 = _rete_label(
+            namespace_manager.normalizeUri(node.n3builtin.result)
+        )
         label = "%s(%s,%s)" % (canonicalFunc, canonicalArg1, canonicalArg2)
 
     elif isinstance(node, AlphaNode):

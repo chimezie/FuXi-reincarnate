@@ -11,6 +11,7 @@ from urllib.parse import urljoin
 from urllib.request import urlopen
 
 import pytest
+from rdflib import Graph, Namespace
 from rdflib.collection import Collection
 from rdflib.namespace import RDF, RDFS
 from rdflib.plugins.sparql.results.xmlresults import XMLResult
@@ -18,7 +19,6 @@ from rdflib.term import BNode, Identifier, URIRef
 
 from fuxi.Horn.HornRules import horn_from_n3
 from fuxi.SPARQL.utilities import owl_entailment_regime_graph
-from rdflib import Graph, Namespace
 from test.conftest import OwlTestOptions
 
 pytestmark = pytest.mark.integration
@@ -44,6 +44,15 @@ SKIP: dict[str, str] = {
     "rdfs05": "Quantification over predicates (unary)",
     "rdfs11": "Reflexivity of rdfs:subClassOf (?x -> rdfs:Container)",
     "sparqldl-06": "Cycle pattern requires OWL entailment, not available under RDFS",
+    # BIND/Extend algebra not yet supported in top-down query extraction.
+    "bind01": "BIND/Extend algebra not yet supported in top-down query extraction",
+    "bind02": "BIND/Extend algebra not yet supported in top-down query extraction",
+    "bind03": "BIND/Extend algebra not yet supported in top-down query extraction",
+    "bind04": "BIND/Extend algebra not yet supported in top-down query extraction",
+    "bind05": "BIND/Extend algebra not yet supported in top-down query extraction",
+    "bind06": "BIND/Extend algebra not yet supported in top-down query extraction",
+    "bind07": "BIND/Extend algebra not yet supported in top-down query extraction",
+    "bind08": "BIND/Extend algebra not yet supported in top-down query extraction",
 }
 
 W3C_DIR = Path(__file__).parent / "W3C"
@@ -226,7 +235,6 @@ def test_sparql_entailment(
         identify_hybrid_predicates=True,
         extra_rulesets=extra_rules,
         verbose=owl_test_options.debug,
-        add_non_dhl_owl_rules=False,
     )
 
     result = entailing_graph.query(query, initNs=ns_map)

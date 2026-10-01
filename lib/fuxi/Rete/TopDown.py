@@ -94,7 +94,8 @@ def get_bindings_from_literal(ground_tuple, unground_literal):
         [
             (term, ground_tuple[idx])
             for idx, term in enumerate(unground_tuple)
-            if isinstance(term, Variable) and not isinstance(ground_tuple[idx], Variable)
+            if isinstance(term, Variable)
+            and not isinstance(ground_tuple[idx], Variable)
         ]
     )
 
@@ -104,10 +105,12 @@ def triple_to_triple_pattern(graph, term):
         template = graph.template_map[term.uri]
         return "FILTER(%s)" % (template % (term.argument.n3(), term.result.n3()))
     else:
-        return "%s %s %s" % tuple([render_term(graph, trm) for trm in term.to_rdf_tuple()])
+        return "%s %s %s" % tuple(
+            [render_term(graph, trm) for trm in term.to_rdf_tuple()]
+        )
 
 
-#@selective_memoize([0])
+# @selective_memoize([0])
 def normalize_uri(rdf_term, rev_ns_map):
     """
     Takes an RDF Term and 'normalizes' it into a QName (using the registered
@@ -133,7 +136,7 @@ def normalize_uri(rdf_term, rev_ns_map):
         return ":".join([q_name_parts[0], q_name_parts[-1]])
 
 
-#@selective_memoize([0])
+# @selective_memoize([0])
 def compute_qname(uri, rev_ns_map):
     namespace, name = split_uri(uri)
     namespace = URIRef(namespace)
@@ -148,9 +151,12 @@ def render_term(graph, term):
     if term == RDF.type:
         return " a "
     elif isinstance(term, URIRef):
-        qname = normalize_uri(term, hasattr(graph, "revNsMap")
-                              and graph.revNsMap
-                              or dict([(u, p) for p, u in graph.namespaces()]))
+        qname = normalize_uri(
+            term,
+            hasattr(graph, "revNsMap")
+            and graph.revNsMap
+            or dict([(u, p) for p, u in graph.namespaces()]),
+        )
         return qname[0] == "_" and "<%s>" % term or qname
     else:
         try:
@@ -187,7 +193,9 @@ def rdf_tuples_to_sparql(
     else:
         subquery = query_shell % (
             query_type,
-            " .\n".join(["\t" + triple_to_triple_pattern(edb, lit) for lit in conjunct]),
+            " .\n".join(
+                ["\t" + triple_to_triple_pattern(edb, lit) for lit in conjunct]
+            ),
         )
     return subquery
 
@@ -280,6 +288,7 @@ def invoke_rule(
 
     """
     from fuxi.Rete.Util import lazy_generator_peek
+
     assert not build_proof or step is not None
 
     (
@@ -385,8 +394,12 @@ def invoke_rule(
                 # the body as an open query
                 open_vars = base_predicate_vars
 
-            query_conj = EDBQuery([copy.deepcopy(lit) for lit in conj_ground_literals], fact_graph, open_vars,
-                                  projected_bindings)
+            query_conj = EDBQuery(
+                [copy.deepcopy(lit) for lit in conj_ground_literals],
+                fact_graph,
+                open_vars,
+                projected_bindings,
+            )
 
             query, answers = query_conj.evaluate(debug)
 
@@ -396,7 +409,9 @@ def invoke_rule(
             else:
                 if projected_bindings:
                     combined_answers = (
-                        merge_mappings1_to2(ans, projected_bindings, make_immutable=True)
+                        merge_mappings1_to2(
+                            ans, projected_bindings, make_immutable=True
+                        )
                         for ans in answers
                     )
                 else:
@@ -463,7 +478,9 @@ def invoke_rule(
                         # positive answer means we can continue processing the
                         # rule body
                         if build_proof:
-                            ns = NodeSet(body_literal.to_rdf_tuple(), identifier=BNode())
+                            ns = NodeSet(
+                                body_literal.to_rdf_tuple(), identifier=BNode()
+                            )
                             step.antecedents.append(ns)
                         for rt, _step in invoke_rule(
                             [projected_bindings],
@@ -704,8 +721,12 @@ def sip_strategy(
             )
         for answers in memoize_memory[query_literal]:
             yield answers
-    elif AlphaNode(goal_rdf_statement).alpha_network_hash(True, skolem_terms=list(bindings.values())) in [
-        AlphaNode(r.to_rdf_tuple()).alpha_network_hash(True, skolem_terms=list(bindings.values()))
+    elif AlphaNode(goal_rdf_statement).alpha_network_hash(
+        True, skolem_terms=list(bindings.values())
+    ) in [
+        AlphaNode(r.to_rdf_tuple()).alpha_network_hash(
+            True, skolem_terms=list(bindings.values())
+        )
         for r in processed_rules
         if adorn_literal(goal_rdf_statement).adornment == r.adornment
     ]:
@@ -757,7 +778,9 @@ def sip_strategy(
             body_list = list(iter_condition(rule.formula.body))
             body = first(body_list)
             return (
-                    get_op(body) not in d_preds and len(body_list) == 1 and body.op == RDF.type
+                get_op(body) not in d_preds
+                and len(body_list) == 1
+                and body.op == RDF.type
             )
 
         atomic_inclusion_axioms = list(filter(is_atomic_inclusion_axiom_rhs, rules))
@@ -818,7 +841,9 @@ def sip_strategy(
             # An exception is the special predicate ph; it is treated as a base
             # predicate and the tuples in it are those supplied for qb by
             # unification.
-            head_bindings = get_bindings_from_literal(goal_rdf_statement, rule.formula.head)
+            head_bindings = get_bindings_from_literal(
+                goal_rdf_statement, rule.formula.head
+            )
             # comboBindings = dict([(k, v) for k, v in itertools.chain(
             #                                           bindings.items(),
             #                                           head_bindings.items())])
@@ -853,12 +878,12 @@ def sip_strategy(
                     iter(iter_condition(rule.formula.body)),
                     rule.sip,
                     (
-                            proof_level + 1,
-                            memoize_memory,
-                            sip_collection,
-                            fact_graph,
-                            derived_preds,
-                            processed_rules.union([adorn_literal(query)]),
+                        proof_level + 1,
+                        memoize_memory,
+                        sip_collection,
+                        fact_graph,
+                        derived_preds,
+                        processed_rules.union([adorn_literal(query)]),
                     ),
                     step=step,
                     debug=debug,
@@ -900,11 +925,16 @@ def sip_strategy(
                 fact_step = InferenceStep(ns, source="some RDF graph")
                 ns.steps.append(fact_step)
             if not is_ground:
-                subquery, rt = EDBQuery([query_literal], fact_graph, [
-                    v
-                    for v in get_args(query_literal, second_order=True)
-                    if isinstance(v, Variable)
-                ], bindings).evaluate(debug)
+                subquery, rt = EDBQuery(
+                    [query_literal],
+                    fact_graph,
+                    [
+                        v
+                        for v in get_args(query_literal, second_order=True)
+                        if isinstance(v, Variable)
+                    ],
+                    bindings,
+                ).evaluate(debug)
                 if build_proof:
                     fact_step.ground_query = subquery
                 for ans in rt:
@@ -946,4 +976,3 @@ def test():
 
 if __name__ == "__main__":
     test()
-

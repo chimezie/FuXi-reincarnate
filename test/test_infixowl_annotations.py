@@ -1,3 +1,5 @@
+from rdflib import RDF, RDFS, Graph, Literal, Namespace
+
 from fuxi.Syntax.InfixOWL import (
     IAO_NS,
     OWL_NS,
@@ -7,7 +9,6 @@ from fuxi.Syntax.InfixOWL import (
     Property,
     declare_common_annotations_fn,
 )
-from rdflib import RDF, RDFS, Graph, Literal, Namespace
 
 
 def test_infixowl_annotations_add_set_get():
@@ -37,6 +38,41 @@ def test_infixowl_declare_annotation_property():
     parent.declare_annotation_property(IAO_NS["0000115"])
 
     assert (IAO_NS["0000115"], RDF.type, OWL_NS.AnnotationProperty) in g
+
+
+def test_declare_annotation_property_no_arg_declares_self():
+    g = Graph()
+
+    prop = Property(IAO_NS["0000115"], graph=g, label=Literal("Definition"))
+    declared = prop.declare_annotation_property()
+
+    assert (IAO_NS["0000115"], RDF.type, OWL_NS.AnnotationProperty) in g
+    assert declared.identifier == IAO_NS["0000115"]
+    assert declared.graph is g
+
+
+def test_declare_annotation_property_no_arg_equivalent_to_explicit_arg():
+    g_no_arg = Graph()
+    g_explicit = Graph()
+    target = IAO_NS["0000115"]
+
+    Property(target, graph=g_no_arg).declare_annotation_property()
+    Property(target, graph=g_explicit).declare_annotation_property(target)
+
+    assert set(g_no_arg) == set(g_explicit)
+
+
+def test_declare_annotation_property_is_idempotent():
+    g = Graph()
+    prop = Property(IAO_NS["0000115"], graph=g)
+
+    prop.declare_annotation_property()
+    prop.declare_annotation_property(IAO_NS["0000115"])
+
+    assert (
+        len(list(g.triples((IAO_NS["0000115"], RDF.type, OWL_NS.AnnotationProperty))))
+        == 1
+    )
 
 
 def test_add_label_and_set_label_with_languages():

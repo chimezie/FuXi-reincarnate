@@ -1,13 +1,13 @@
 from io import StringIO
 
 import pytest
+from rdflib import Namespace, Variable
 from rdflib.graph import Graph
 
 from fuxi.Horn.HornRules import horn_from_n3
 from fuxi.Rete.RuleStore import setup_rule_store
 from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
 from fuxi.Syntax.InfixOWL import OWL_NS
-from rdflib import Namespace, Variable
 
 EX = Namespace("http://example.org/")
 
@@ -50,10 +50,9 @@ def test_transitivity():
     """Test transitivity of owl:sameAs property."""
     _rule_store, _rule_graph, _network, graph = _make_network_and_graph()
     ns_bindings = {"owl": OWL_NS, "ex": EX}
-    top_down_store = TopDownSPARQLEntailingStore(graph.store,
-                                                 graph,
-                                                 idb=horn_from_n3(StringIO(RULES)),
-                                                 debug=True)
+    top_down_store = TopDownSPARQLEntailingStore(
+        graph.store, graph, idb=horn_from_n3(StringIO(RULES)), debug=True
+    )
     target_graph = Graph(top_down_store)
     for query, solns in QUERIES.items():
         result = set(target_graph.query(query, initNs=ns_bindings))

@@ -151,7 +151,9 @@ def render_sip_collection(sip_graph, format="png", adorned_program=None):
             lead = _label(get_op(lit), getattr(lit, "ns_manager", None))
             adorn = getattr(lit, "adornment", None)
             if adorn:
-                adorn_str = "".join(adorn) if isinstance(adorn, (list, tuple)) else str(adorn)
+                adorn_str = (
+                    "".join(adorn) if isinstance(adorn, (list, tuple)) else str(adorn)
+                )
                 return f"{lead}^{adorn_str}"
             return lead
 
@@ -166,12 +168,10 @@ def render_sip_collection(sip_graph, format="png", adorned_program=None):
 
         def _shared_vars(left, right):
             left_vars = {
-                v for v in get_args(left, second_order=True)
-                if isinstance(v, Variable)
+                v for v in get_args(left, second_order=True) if isinstance(v, Variable)
             }
             right_vars = {
-                v for v in get_args(right, second_order=True)
-                if isinstance(v, Variable)
+                v for v in get_args(right, second_order=True) if isinstance(v, Variable)
             }
             return left_vars.intersection(right_vars)
 

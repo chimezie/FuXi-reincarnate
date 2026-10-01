@@ -196,7 +196,9 @@ class ConjunctionFlattener(object):
                 if len(nested_conjuncts) == 1:
                     new_top_level_items = list(nested_conjuncts[0])
                 else:
-                    new_top_level_items = reduce(collapse_conjunct_terms, nested_conjuncts)
+                    new_top_level_items = reduce(
+                        collapse_conjunct_terms, nested_conjuncts
+                    )
                 for nc in nested_conjuncts:
                     nc.clear()
                     del conjunct[conjunct.index(nc.identifier)]
@@ -262,7 +264,9 @@ class ReductionTestA(unittest.TestCase):
             "existential restriction on enumerated class",
         )
         self.assertEqual(
-            len(inverted_c), 2, "existencial restriction on enumerated class of length 2"
+            len(inverted_c),
+            2,
+            "existencial restriction on enumerated class of length 2",
         )
         self.assertEqual(
             repr(inverted_c),

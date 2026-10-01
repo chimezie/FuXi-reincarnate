@@ -26,25 +26,16 @@ uv run pytest test/testOWL2.py
 uv run pytest test/testOWL.py --single-test OWL/TransitiveProperty/premises001 --ground-query
 
 # Lint with ruff (replaces flake8, isort, black)
-uv run ruff check .
+uv run ruff check lib/fuxi/ test/
 
 # Format with ruff
-uv run ruff format .
+uv run ruff format lib/fuxi/ test/
 
 # Generate Sphinx docs
 tox -e docs
 
 # Coverage report (HTML in coverage/)
 uv run pytest --cov=FuXi --cov-report=html
-```
-
-### Legacy Commands (FuXi-reincarnate-chimezie)
-```bash
-# Install dependencies (legacy)
-pip install -r FuXi-reincarnate-chimezie/requirements.py3.txt
-
-# Run all tests (legacy nose-based)
-python FuXi-reincarnate-chimezie/setup.py nosetests
 ```
 
 ---
@@ -57,16 +48,16 @@ FuXi uses **ruff** as the single tool for linting and formatting. It replaces fl
 
 ```bash
 # Lint
-uv run ruff check .
+uv run ruff check lib/fuxi/ test/
 
 # Auto-fix
-uv run ruff check --fix .
+uv run ruff check --fix lib/fuxi/ test/
 
 # Format
-uv run ruff format .
+uv run ruff format lib/fuxi/ test/
 
 # Check formatting without changes
-uv run ruff format --check .
+uv run ruff format --check lib/fuxi/ test/
 ```
 
 **Enabled rules** (from pyproject.toml):
@@ -119,6 +110,7 @@ Use pytest for all new tests.
 - SPARQL-specific tests: `FuXi-reincarnate-chimezie/test/SPARQL/`
 - OWL test suites: `test/testOWL.py` (OWL 1), `test/testOWL2.py` (OWL 2)
 - SPARQL entailment harness: `test/SPARQL/test_sparql_entailment.py`
+- SPARQL interlocution BGP API: `test/SPARQL/test_sparql_interlocution.py`
 
 ### Running FuXi Tests
 
@@ -190,7 +182,7 @@ complexity.
 | `fuxi.DLP` | Description Logic Programs (OWL→rules) | DLProgram, translation utilities |
 | `fuxi.LP` | Backwards Fixpoint Procedure (BFP) | Query answering engine |
 | `fuxi.SPARQL` | Backward-chaining SPARQL store | Entailment registry |
-| `fuxi.SPARQL.service` | SPARQL service graph wrapper | SPARQLServiceGraph, sparql_interlocution |
+| `fuxi.SPARQL.service` | SPARQL service graph wrapper | SPARQLServiceGraph, sparql_interlocution_basic_graph_pattern |
 
 ### Rule Safety Levels (`fuxi.Horn`)
 ```python
@@ -203,7 +195,7 @@ DATALOG_SAFETY_LOOSE  # Relaxed safety with warnings
 
 ## Practical Tips for Agents
 
-1. **Before suggesting changes**: Always run `uv run ruff check .` and `uv run pytest <file>` to verify code quality.
+1. **Before suggesting changes**: Always run `uv run ruff check lib/fuxi/ test/` and `uv run pytest <file>` to verify code quality.
 
 2. **Use the right CLI command for examples/tests**:
    - `fuxi.core` for forward-chaining examples and RETE diagnostics
@@ -213,12 +205,12 @@ DATALOG_SAFETY_LOOSE  # Relaxed safety with warnings
 
 3. **When working on FuXi**: Use pytest for all new tests. Legacy nose-based tests may have `@known_issue` markers in `setup.cfg`.
 
-4. **Import ordering and formatting**: Use `uv run ruff check --fix .` to auto-fix imports and formatting issues.
+4. **Import ordering and formatting**: Use `uv run ruff check --fix lib/fuxi/ test/` to auto-fix imports and formatting issues.
 
 5. **Type annotations**: Add types to new public APIs and complex internal functions. Legacy code may have minimal typing.
 
 6. **Testing edge cases**: Review existing tests in `test/` for patterns before writing new ones.
 
-7. **SPARQL queries in FuXi**: Use `sparql_interlocution` from `fuxi.SPARQL.service` for querying `TopDownSPARQLEntailingStore`. Check `test/SPARQL/` for query test templates and expected result formats.
+7. **SPARQL queries in FuXi**: Use `sparql_interlocution_basic_graph_pattern` from `fuxi.SPARQL.utilities` for SELECT BGPs that join derived and base predicates over a `TopDownSPARQLEntailingStore`. It drives `batch_unify` (conjunctive SIP join) rather than `solve_triple_pattern`'s flat accumulation. Check `test/SPARQL/` for query test templates and expected result formats.
 
 8. **Building documentation**: Run `tox -e docs` to build Sphinx documentation locally.

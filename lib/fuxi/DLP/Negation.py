@@ -40,8 +40,14 @@ def get_vars(atom):
 
 def calculate_stratified_model(network, ont_graph, derived_preds, edb=None):
     from fuxi.Rete.Util import generate_token_set
-    pos_rules, ignored = map_dlp_to_network(network, ont_graph, construct_network=False, derived_preds=derived_preds,
-                                           ignore_negative_stratus=True)
+
+    pos_rules, ignored = map_dlp_to_network(
+        network,
+        ont_graph,
+        construct_network=False,
+        derived_preds=derived_preds,
+        ignore_negative_stratus=True,
+    )
     for rule in pos_rules:
         network.build_network_from_clause(rule)
     network.feed_facts_to_add(generate_token_set(edb and edb or ont_graph))
@@ -122,7 +128,11 @@ def stratified_sparql(rule, ns_mapping={EX_NS: "ex"}):
     conditions with default negation formulae
     """
     raise NotImplemented("Depends on telescope, which is no longer available")
-    from fuxi.Rete.SidewaysInformationPassing import get_args, find_full_sip, iter_condition
+    from fuxi.Rete.SidewaysInformationPassing import (
+        get_args,
+        find_full_sip,
+        iter_condition,
+    )
 
     # Find a sip order of the horn rule
     if isinstance(rule.formula.body, And):
@@ -286,7 +296,9 @@ class UniversalRestrictionTest(unittest.TestCase):
         contains.extent = [(individual1, individual2)]
         (EX.Baz).extent = [individual2]
         rule_store, rule_graph, network = setup_rule_store(make_network=True)
-        pos_rules, ignored = calculate_stratified_model(network, self.ontGraph, [EX_NS.Bar])
+        pos_rules, ignored = calculate_stratified_model(
+            network, self.ontGraph, [EX_NS.Bar]
+        )
         self.failUnless(not pos_rules, "There should be no rules in the 0 strata.")
         self.assertEqual(len(ignored), 2, "There should be 2 'negative' rules")
         test_class1.graph = network.inferred_facts
@@ -354,7 +366,9 @@ class NegatedExistentialRestrictionTest(unittest.TestCase):
         grafting = BNode()
         (EX.CoronaryArteryBypassGrafting).extent = [grafting]
         test_case2.graph.add((op, EX_NS.contains, grafting))
-        calculate_stratified_model(network, test_case2.graph, [EX_NS.Foo, EX_NS.IsolatedCABGOperation])
+        calculate_stratified_model(
+            network, test_case2.graph, [EX_NS.Foo, EX_NS.IsolatedCABGOperation]
+        )
         test_case2.graph = network.inferred_facts
         self.failUnless(
             op in test_case2.extent,
@@ -375,7 +389,9 @@ class NegatedExistentialRestrictionTest(unittest.TestCase):
         individual2 = BNode()
         contains.extent = [(individual1, individual2)]
         rule_store, rule_graph, network = setup_rule_store(make_network=True)
-        pos_rules, neg_rules = calculate_stratified_model(network, self.ontGraph, [EX_NS.NoExclusion])
+        pos_rules, neg_rules = calculate_stratified_model(
+            network, self.ontGraph, [EX_NS.NoExclusion]
+        )
         self.failUnless(not pos_rules, "There should be no rules in the 0 strata.")
         self.assertEqual(len(neg_rules), 2, "There should be 2 'negative' rules")
         Individual.factoryGraph = network.inferred_facts
@@ -410,7 +426,9 @@ class NegatedDisjunctTest(unittest.TestCase):
         omega.extent = [individual]
         normal_form_reduction(self.ontGraph)
         self.assertEqual(repr(foo), "ex:Omega THAT ( NOT ex:Bar ) AND ( NOT ex:Baz )")
-        pos_rules, neg_rules = calculate_stratified_model(network, self.ontGraph, [EX_NS.Foo])
+        pos_rules, neg_rules = calculate_stratified_model(
+            network, self.ontGraph, [EX_NS.Foo]
+        )
         foo.graph = network.inferred_facts
         self.failUnless(not pos_rules, "There should be no rules in the 0 strata.")
         self.assertEqual(
@@ -444,7 +462,9 @@ class NegationOfAtomicConcept(unittest.TestCase):
         bar.extent = [individual2]
         normal_form_reduction(self.ont_graph)
         self.assertEqual(repr(baz), "Class: ex:Baz DisjointWith ex:Bar\n")
-        pos_rules, neg_rules = calculate_stratified_model(network, self.ont_graph, [EX_NS.Foo])
+        pos_rules, neg_rules = calculate_stratified_model(
+            network, self.ont_graph, [EX_NS.Foo]
+        )
         self.failUnless(not pos_rules, "There should be no rules in the 0 strata.")
         self.failUnless(
             len(neg_rules) == 1,

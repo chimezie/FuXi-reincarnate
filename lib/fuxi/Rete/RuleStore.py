@@ -147,9 +147,17 @@ class Rule(object):
         return "{%s} => {%s}" % (self.lhs, self.rhs)
 
 
-def setup_rule_store(n3_stream: IO[bytes] | TextIO | InputSource | str | bytes | pathlib.PurePath | None = None,
-                     additional_builtins: Mapping[Identifier, Callable] = None,
-                     make_network: bool = False):
+def setup_rule_store(
+    n3_stream: IO[bytes]
+    | TextIO
+    | InputSource
+    | str
+    | bytes
+    | pathlib.PurePath
+    | None = None,
+    additional_builtins: Mapping[Identifier, Callable] = None,
+    make_network: bool = False,
+):
     """
     Create a N3RuleStore and a backing Graph, optionally a ReteNetwork.
 

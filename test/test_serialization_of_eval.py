@@ -5,10 +5,11 @@ Created by Chimezie Ogbuji on 2010-08-15.
 Copyright (c) 2010 __MyCompanyName__. All rights reserved.
 """
 
+from rdflib import RDF, Literal, Variable
+
 from fuxi.Horn.HornRules import Clause, Rule
 from fuxi.Horn.PositiveConditions import Uniterm
 from fuxi.LP.BackwardFixpointProcedure import BFP_NS, BFP_RULE
-from rdflib import RDF, Literal, Variable
 
 
 def test_serializing_eval_pred():

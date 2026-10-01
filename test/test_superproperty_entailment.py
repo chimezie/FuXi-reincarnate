@@ -3,11 +3,11 @@ from io import StringIO
 from pprint import pprint
 
 import pytest
+from rdflib import Graph, Namespace
 
 from fuxi.DLP.DLNormalization import normal_form_reduction
 from fuxi.Rete.RuleStore import setup_rule_store
 from fuxi.Rete.Util import generate_token_set
-from rdflib import Graph, Namespace
 
 EX = Namespace("http://example.org/")
 EX_TERMS = Namespace("http://example.org/terms/")

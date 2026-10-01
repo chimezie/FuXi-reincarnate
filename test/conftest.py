@@ -1,14 +1,14 @@
-import re
 from dataclasses import dataclass
+import re
 
 import pytest
+from rdflib import Graph, Namespace
 from rdflib.term import Identifier
 
 from fuxi.Horn.HornRules import horn_from_n3
 from fuxi.Rete.Proof import generate_proof
 from fuxi.Rete.RuleStore import setup_rule_store
 from fuxi.types import Triple
-from rdflib import Graph, Namespace
 
 
 @dataclass(frozen=True)

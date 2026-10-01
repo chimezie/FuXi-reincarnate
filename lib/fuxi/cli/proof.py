@@ -41,8 +41,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="bfp",
         choices=["bfp", "naive"],
         help=(
-            "Reasoning method "
-            "(fuxi.proof always uses bfp; accepted for compatibility)"
+            "Reasoning method (fuxi.proof always uses bfp; accepted for compatibility)"
         ),
     )
     parser.add_argument(
@@ -67,9 +66,7 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit("fuxi.proof requires --why (a SPARQL query)")
 
     if options.output == "man-owl":
-        raise SystemExit(
-            "--output=man-owl requires fuxi.owl command"
-        )
+        raise SystemExit("--output=man-owl requires fuxi.owl command")
 
     if (
         fmt in OutputFormat.proof_graph_formats()

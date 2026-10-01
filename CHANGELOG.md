@@ -16,6 +16,54 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ---
 
+## [2.1.0] — 2026-10-01
+
+> Minor release: SPARQL BGP interlocution with ASK support and conjunctive
+> joins, predicate partitioning for EDB/IDB/hybrid management, and OWL API
+> refinements. Tested against the RDFS/RDF SPARQL 1.1 entailment harness
+> and the OWL 1/OWL 2 test suites.
+
+### Added
+
+- `sparql_interlocution_basic_graph_pattern(...)` helper in
+  `fuxi.SPARQL.utilities` for SELECT/ASK basic graph patterns that join
+  derived and base predicates over a `TopDownSPARQLEntailingStore` via
+  conjunctive `batch_unify` (SIP join).
+- ASK query support in SPARQL BGP interlocution, including proved ground
+  ASK goals.
+- Conjunctive BGP join evaluation with proof capture, covered by
+  `test/test_sip_imdb.py` and the `test_batch_unify_*` suites.
+- `PredicatePartitioner` hierarchy (`fuxi/predicates.py`) for
+  EDB/IDB/hybrid predicate management, including
+  `SPARQLPredicatePartitioner`.
+- `TruthMaintenanceGraphSerializer` in `fuxi.SPARQL.utilities`.
+- Regression test for the `batch_unify` `rdf:type` routing bug
+  (`test_batch_unify_derived_predicate_routing.py`) and namespace binding
+  propagation tests (`test_namespace_bindings.py`).
+
+### Changed
+
+- `declare_annotation_property(predicate=None)` refactor in
+  `fuxi.Syntax.InfixOWL`: fully backward compatible, defaulting to
+  `self.identifier` so the predicate argument is optional.
+- Namespace bindings are now propagated into adorned programs and goal
+  literals.
+- `batch_unify` fixed for `SPARQLServiceGraph` dict-based results.
+- Removed the redundant `add_non_dhl_owl_rules` parameter.
+- Stopped tracking the embedded `semantic-web-reasoner-skill` repo
+  checkout (PR #8).
+- Import blocks sorted per ruff isort (`I001`) across `lib/fuxi/` and
+  `test/`; CI ruff checks synced with the local `AGENTS.md` commands.
+
+### Fixed
+
+- `batch_unify` routing of `rdf:type` patterns to derived predicates.
+- Restored SIP arc construction in `build_natural_sip`.
+- `test_sameAs.py` expectations updated for current `owl:sameAs`
+  behavior (known transitivity gap still tracked).
+
+---
+
 ## [2.0.1] — 2026-05-17
 
 > Hotfix release addressing bugs and gaps discovered in the 2.0.0 initial
@@ -219,6 +267,7 @@ find your_project -name '*.py' -type f -print0 | xargs -0 sed -i \
 
 ---
 
-[Unreleased]: https://github.com/chimezie/FuXi-reincarnate/compare/v2.0.1...HEAD
+[Unreleased]: https://github.com/chimezie/FuXi-reincarnate/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/chimezie/FuXi-reincarnate/releases/tag/v2.1.0
 [2.0.1]: https://github.com/chimezie/FuXi-reincarnate/releases/tag/v2.0.1
 [2.0.0]: https://github.com/chimezie/FuXi-reincarnate/releases/tag/v2.0.0

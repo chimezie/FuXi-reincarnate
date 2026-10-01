@@ -70,6 +70,7 @@ def update_ns_managers(formula, ns_mapping):
     else:
         raise ValueError("Unsupported formula type: {}".format(type(formula)))
 
+
 class QNameManager(object):
     def __init__(self, ns_dict: "Mapping[str, URIRef] | None" = None) -> None:
         self.ns_dict: dict[str, URIRef] = dict(ns_dict) if ns_dict else {}

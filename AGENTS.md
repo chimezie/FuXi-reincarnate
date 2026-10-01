@@ -38,8 +38,6 @@ tox -e docs
 uv run pytest --cov=FuXi --cov-report=html
 ```
 
-```
-
 ---
 
 ## Code Style Guidelines

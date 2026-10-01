@@ -24,6 +24,7 @@ def _get_graphviz():
         raise ImportError("graphviz is required for proof rendering") from exc
     return graphviz
 
+
 from fuxi.Horn.HornRules import Clause
 from fuxi.Horn.PositiveConditions import (
     build_uniTerm,
@@ -1574,6 +1575,7 @@ class InferenceStep(object):
             else:
                 return repr(self.rule)  # self.prettyPrintRule()
 
+
 META_RULE_EXPLAINER = """\
 Where, for each of the following rules the meta rules for the meta interpreter are based on:
     {rule_list}
@@ -1594,8 +1596,8 @@ A rule term with a `_derived` suffix indicates an inference of a predicate that 
 EDB (i.e., derived *and* asserted)
 """
 
-class TruthMaintenanceGraphSerializer:
 
+class TruthMaintenanceGraphSerializer:
     INITIAL_NODESET_QUERY = """
 PREFIX pml: <http://inferenceweb.stanford.edu/2004/07/iw.owl#>
 PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
@@ -1616,62 +1618,98 @@ SELECT ?nodeset ?inference_step ?conclusion ?descr ?from ?to WHERE {{
 }}
     """
 
-    def __init__(self,
-                 truth_maintenance_graph: Graph,
-                 adorned_program: list[AdornedRule],
-                 ns_map: dict[str, Identifier] | None = None):
+    def __init__(
+        self,
+        truth_maintenance_graph: Graph,
+        adorned_program: list[AdornedRule],
+        ns_map: dict[str, Identifier] | None = None,
+    ):
 
         self.truth_maintenance_graph = truth_maintenance_graph
         self.adorned_program = adorned_program
         self.ns_map = ns_map
 
     def meta_rule_explainer(self):
-        return META_RULE_EXPLAINER.format(rule_list='\n'.join(f'{idx + 1}: {rule}'
-                                                              for idx, rule in enumerate(self.adorned_program)))
+        return META_RULE_EXPLAINER.format(
+            rule_list="\n".join(
+                f"{idx + 1}: {rule}" for idx, rule in enumerate(self.adorned_program)
+            )
+        )
 
-    def human_readable_serialize(self,
-                                 proof_object: NodeSet | InferenceStep,
-                                 proof_goal: Triple,
-                                 as_uniterm: Uniterm | None = None,
-                                 ns_bindings: dict[str, Identifier] | None = None,
-                                 indentation: str | None = None,
-                                 skip_front_indent: bool = False) -> str:
+    def human_readable_serialize(
+        self,
+        proof_object: NodeSet | InferenceStep,
+        proof_goal: Triple,
+        as_uniterm: Uniterm | None = None,
+        ns_bindings: dict[str, Identifier] | None = None,
+        indentation: str | None = None,
+        skip_front_indent: bool = False,
+    ) -> str:
         indentation = indentation or ""
         ns_bindings = ns_bindings or {}
         if isinstance(proof_object, InferenceStep):
             if isinstance(proof_object.rule, Clause):
                 if proof_object.source:
-                    return (f"{'' if skip_front_indent else indentation}The rule: {proof_object.rule}, "
-                            f"the response from the query below and any bindings it may have used, and the antecedent(s) that follow:\n"
-                            f"{indentation + '  '}{proof_object.source}\n"
-                            f"{self.render_bindings(proof_object.bindings, indentation + '  ')}\n"
-                            f"{indentation+','.join(self.human_readable_serialize(ant, 
-                                                              proof_goal, 
-                                                              indentation=indentation + '  ', 
-                                                              ns_bindings=ns_bindings) 
-                                for ant in proof_object.antecedents) + '\n\n'}")
+                    return (
+                        f"{'' if skip_front_indent else indentation}The rule: {proof_object.rule}, "
+                        f"the response from the query below and any bindings it may have used, and the antecedent(s) that follow:\n"
+                        f"{indentation + '  '}{proof_object.source}\n"
+                        f"{self.render_bindings(proof_object.bindings, indentation + '  ')}\n"
+                        f"{
+                            indentation
+                            + ','.join(
+                                self.human_readable_serialize(
+                                    ant,
+                                    proof_goal,
+                                    indentation=indentation + '  ',
+                                    ns_bindings=ns_bindings,
+                                )
+                                for ant in proof_object.antecedents
+                            )
+                            + '\n\n'
+                        }"
+                    )
                 else:
-                    return (f"{'' if skip_front_indent else indentation}The rule: {proof_object.rule}, "
-                            f"any bindings shown below, and the antecedent(s) that follow:\n"
-                            f"{self.render_bindings(proof_object.bindings, indentation)}\n"
-                            f"{','.join(self.human_readable_serialize(ant, 
-                                                              proof_goal, 
-                                                              indentation=indentation + '  ',
-                                                              ns_bindings=ns_bindings)
-                                for ant in proof_object.antecedents)}\n\n")
+                    return (
+                        f"{'' if skip_front_indent else indentation}The rule: {proof_object.rule}, "
+                        f"any bindings shown below, and the antecedent(s) that follow:\n"
+                        f"{self.render_bindings(proof_object.bindings, indentation)}\n"
+                        f"{
+                            ','.join(
+                                self.human_readable_serialize(
+                                    ant,
+                                    proof_goal,
+                                    indentation=indentation + '  ',
+                                    ns_bindings=ns_bindings,
+                                )
+                                for ant in proof_object.antecedents
+                            )
+                        }\n\n"
+                    )
             else:
-                return 'Goal query assertion'
-        query = self.INITIAL_NODESET_QUERY.format(object=proof_goal[2].n3(),
-                                                  predicate=proof_goal[1].n3(),
-                                                  subject=proof_goal[0].n3())
-        for nodeset, inference_step, conclusion, descr, _from, to in self.truth_maintenance_graph.query(query):
+                return "Goal query assertion"
+        query = self.INITIAL_NODESET_QUERY.format(
+            object=proof_goal[2].n3(),
+            predicate=proof_goal[1].n3(),
+            subject=proof_goal[0].n3(),
+        )
+        for (
+            nodeset,
+            inference_step,
+            conclusion,
+            descr,
+            _from,
+            to,
+        ) in self.truth_maintenance_graph.query(query):
             if isinstance(inference_step, Literal):
-                #Meta interpreter conclusion (intermediary inference)
+                # Meta interpreter conclusion (intermediary inference)
                 raise Exception(inference_step)
             elif isinstance(inference_step, BNode):
-                assert len(proof_object.steps) == 1# and proof_object.steps[0].identifier == inference_step
+                assert (
+                    len(proof_object.steps) == 1
+                )  # and proof_object.steps[0].identifier == inference_step
                 inference_step = proof_object.steps[0]
-                
+
                 if as_uniterm:
                     conclusion_text = repr(as_uniterm)
                 else:
@@ -1679,12 +1717,18 @@ SELECT ?nodeset ?inference_step ?conclusion ?descr ?from ?to WHERE {{
                     for prefix, uri in ns_bindings.items():
                         goal_lit.ns_manager.bind(prefix, uri)
                     conclusion_text = repr(goal_lit)
-                rt = (f"{'' if skip_front_indent else indentation}The conclusion {conclusion_text} is justified by:\n"
-                      f"{self.human_readable_serialize(inference_step,
-                                                       proof_goal,
-                                                       indentation=indentation + '  ',
-                                                       ns_bindings=ns_bindings,
-                                                       skip_front_indent=False)}\n\n")
+                rt = (
+                    f"{'' if skip_front_indent else indentation}The conclusion {conclusion_text} is justified by:\n"
+                    f"{
+                        self.human_readable_serialize(
+                            inference_step,
+                            proof_goal,
+                            indentation=indentation + '  ',
+                            ns_bindings=ns_bindings,
+                            skip_front_indent=False,
+                        )
+                    }\n\n"
+                )
                 return rt.strip()
             else:
                 raise ValueError(f"Unexpected antecedent type: {type(inference_step)}")

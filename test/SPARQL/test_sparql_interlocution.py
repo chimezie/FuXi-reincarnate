@@ -6,17 +6,22 @@ and the TopDownSPARQLEntailingStore.  It must correctly handle
 ground ASK queries that the BFP solver proves.
 
 This module also covers ``sparql_interlocution_basic_graph_pattern``, the
-SELECT-only bridge that drives ``TopDownSPARQLEntailingStore.batch_unify`` (the
+SELECT/ASK bridge that drives ``TopDownSPARQLEntailingStore.batch_unify`` (the
 conjunctive SIP join path).  Unlike ``store.query()``/``solve_triple_pattern``
 -- which partitions EDB and IDB patterns and evaluates them independently --
 this API threads bindings across patterns so that basic graph patterns mixing
 base (EDB) and derived (IDB) predicates join correctly.  Its contract:
 
 * SELECT queries return an rdflib ``SPARQLResult`` (drop-in with ``query()``).
-* ASK (and other non-SELECT forms) raise ``NotImplementedError``.
+* ASK queries return an rdflib ``SPARQLResult`` of type ASK whose
+  ``askAnswer`` is true when the conjunctive BGP has a solution.
+* CONSTRUCT/DESCRIBE (and other non-SELECT/ASK forms) raise
+  ``NotImplementedError``.
 * ``generate_proofs=True`` returns a ``(SPARQLResult, proofs)`` tuple, where
-  ``proofs`` maps each proved ground goal triple to its ``(builder, proof)``
-  pair drawn from the store's ``goal_rule_sip_info`` BFP state.
+  ``proofs`` maps each proved ground goal triple to its 6-item
+  ``(truth_maintenance_graph, adorned_program, meta_interp_network,
+  inferred_facts, proof, goal_lit)`` tuple drawn from the store's
+  ``goal_rule_sip_info`` BFP state.
 """
 
 from __future__ import annotations
@@ -203,12 +208,38 @@ def test_bgp_mixed_idb_edb_join():
         assert Variable("dest") in binding
 
 
-def test_bgp_ask_raises_not_implemented():
-    """ASK queries are out of scope and must raise ``NotImplementedError``."""
+def test_bgp_ask_returns_true_when_solution_exists():
+    """ASK returns true when the conjunctive BGP has at least one solution."""
+    store = _make_entailing_graph().store
+
+    result = sparql_interlocution_basic_graph_pattern(ASK_QUERY, store)
+
+    assert isinstance(result, SPARQLResult)
+    assert result.type == "ASK"
+    assert result.askAnswer is True
+
+
+def test_bgp_ask_returns_false_when_no_solution():
+    """ASK returns false when the conjunctive BGP has no solution."""
+    store = _make_entailing_graph().store
+
+    result = sparql_interlocution_basic_graph_pattern(
+        "ASK { first:Antwerp first:path first:Ghent }", store
+    )
+
+    assert isinstance(result, SPARQLResult)
+    assert result.type == "ASK"
+    assert result.askAnswer is False
+
+
+def test_bgp_construct_raises_not_implemented():
+    """CONSTRUCT queries are out of scope and must raise ``NotImplementedError``."""
     store = _make_entailing_graph().store
 
     with pytest.raises(NotImplementedError):
-        sparql_interlocution_basic_graph_pattern(ASK_QUERY, store)
+        sparql_interlocution_basic_graph_pattern(
+            "CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }", store
+        )
 
 
 def test_bgp_generate_proofs_returns_result_and_proofs():
@@ -242,4 +273,13 @@ def test_bgp_generate_proofs_captures_derived_goal():
     )
 
     assert len(proof_info) > 1
-    truth_maintainance_graph, adorned_program, meta_interp_network, inferred_facts = proof_info[derived_goal]
+    (
+        truth_maintenance_graph,
+        adorned_program,
+        meta_interp_network,
+        inferred_facts,
+        _proof,
+        _goal_lit,
+    ) = proof_info[derived_goal]
+    assert truth_maintenance_graph is not None
+    assert len(adorned_program) > 0

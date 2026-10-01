@@ -1,5 +1,5 @@
 FuXi is a highly efficient, Python-based, semantic web logical reasoning system. It is
-being re-written for modern Python 3.9+ and adapted for use with transformer-based AI systems and their frameworks.
+being re-written for modern Python 3.13+ and adapted for use with transformer-based AI systems and their frameworks.
 
 ## Changelog
 
@@ -48,6 +48,8 @@ flowchart LR
     LP --> SPARQL
     SPARQL <--> Stores
 ```
+
+> Note: `fuxi.Horn` implements a dialect of definite Horn rules with equality, providing semantics equivalent to **RIF-BLD**.
 
 ## RETE Network Flows
 
@@ -233,7 +235,7 @@ g = Graph()
 
 with GraphContext(g, {"health": HEALTH, "ptrec": PTREC}):
         has_part = Property(OBO_NS.BFO_0000051, label="has part")
-        ice = Class(OBO.IAO_0000030, label="information content entity")
+        ice = Class(OBO_NS.IAO_0000030, label="information content entity")
         contains = Property(DNODE.contains, label="contains", domain=[ice], range=[ice],
                             subproperty_of=[has_part]) #has part
         contains.declare_annotation_property(singular_phrase)
@@ -251,7 +253,7 @@ with GraphContext(g, {"health": HEALTH, "ptrec": PTREC}):
                                 "a core relation that holds between a whole and its part")
         
         history_and_physical_event = Class(PTREC.Event_evaluation_history_and_physical, label="History and physical event")
-        history_and_physical_event.sub_class_of [Class(PTREC.Event, label="Medical Record Event")]         
+        history_and_physical_event.sub_class_of = [Class(PTREC.Event, label="Medical Record Event")]         
         
         h_and_p_with_htn_dx = Class(HEALTH.H_and_P_with_htn_dx, label="Historical Htx Dx from H/P event")
         h_and_p_with_htn_dx.set_annotation(OWL_DSL.IAO_0000115, 
@@ -268,11 +270,12 @@ And this is how the equivalent can be done with owlready2, a more declarative ap
 from owlready2 import Thing, ObjectProperty, AnnotationProperty, World
 
 world = World()
-onto = world.get_ontology("[..]")
+onto = world.get_ontology("https://example.org/onto")
+OWL_DSL = "https://github.com/chimezie/OWL_DSL/tree/main/ontology_configurations/"
 owl_dsl_ns = onto.get_namespace(OWL_DSL)
-PTREC_NS = ontology.get_namespace([..])
-DNODE_NS = ontology.get_namespace([..])
-OBO_NS = ontology.get_namespace("http://purl.obolibrary.org/obo/")
+PTREC_NS = onto.get_namespace("https://example.org/ptrec#")
+DNODE_NS = onto.get_namespace("https://example.org/dnode#")
+OBO_NS = onto.get_namespace("http://purl.obolibrary.org/obo/")
 with onto:
     with owl_dsl_ns: #OWL_DSL OWL CNL template annotation vocabulary
         class OWL_DSL_000001(AnnotationProperty): pass
@@ -546,6 +549,15 @@ Unlike ``solve_triple_pattern`` (used by ``query()``), this function drives
 left-to-right across patterns so that mixed IDB/EDB joins produce correct
 results.  See ``test/SPARQL/test_sparql_interlocution.py`` for examples.
 
+### SPARQL Entailment Support
+FuXi mediates query evaluation over various SPARQL 1.1 entailment regimes:
+
+| Regime | Status | Description |
+|---|---|---|
+| `ent:RDF` | Supported | Standard RDF graph matching. |
+| `ent:RDFS` | Supported | Augmented with RDFS axiomatic rules. |
+| `ent:OWL` | Subset (DLP) | Uses `fuxi.DLP` to map a tractable subset of OWL DL axioms to Horn rules. |
+
 ## Testing
 
 Run the full pytest suite:
@@ -689,7 +701,7 @@ followed by the later instance graph.
 
 ```python
 from fuxi.Horn.HornRules import horn_from_dl
-from rdflib.Graph import Graph
+from rdflib.graph import Graph
 from rdflib.util import first
 
 first([r for r in horn_from_dl(Graph().parse('http://www.lehigh.edu/%7Ezhp2/2004/0401/univ-bench.owl')) if

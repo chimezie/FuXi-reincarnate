@@ -116,10 +116,12 @@ def owl_entailment_regime_graph(
     >>> ns_map = {"ex": ex}
     >>> entail_graph, _ = owl_entailment_regime_graph(fact_graph, ns_map)
     >>> # Queries against entail_graph are mediated and may use derived predicates.
-    >>> list(entail_graph.triples((ex.alice, ex.parentOf, None)))
-    [(rdflib.term.URIRef('http://example.org/alice'),
-      rdflib.term.URIRef('http://example.org/parentOf'),
-      rdflib.term.URIRef('http://example.org/bob'))]
+    >>> res = entail_graph.query(
+    ...     "SELECT ?o WHERE { <http://example.org/alice>"
+    ...     " <http://example.org/parentOf> ?o }"
+    ... )
+    >>> [str(row[0]) for row in res]
+    ['http://example.org/bob']
     """
 
     from fuxi.DLP.ConditionalAxioms import additional_rules
@@ -349,7 +351,7 @@ def sparql_interlocution_basic_graph_pattern(
     Evaluate a SELECT or ASK BGP over a SPARQL Entailment regime that *joins*
     base (EDB) and derived (IDB) predicates, returning a ``SPARQLResult``.
 
-    If generate_proofs is True, also returns truth maintainance information
+    If generate_proofs is True, also returns truth maintenance information
     from the interlocutor.
 
     This function *augments* -- it does not replace -- the standard rdflib
@@ -382,13 +384,16 @@ def sparql_interlocution_basic_graph_pattern(
     * When ``generate_proofs`` is ``False`` (default) a bare ``SPARQLResult`` is
       returned -- a drop-in replacement for ``Graph.query`` output.
     * When ``generate_proofs`` is ``True`` a ``(SPARQLResult, proofs)`` tuple is
-      returned.  ``proofs`` maps each proved *ground* goal triple to the
-      a 5 item tuple:
-       - truth maintainance graph (the SIP collection and PML graph for the solution)
-       - the ordered list of adorned rules referenced / compiled by the meta-interpreter
-       - The meta interpetation network
-       - An RDF graph of inferred statements from the network
-       - The Proof object
+      returned.  ``proofs`` maps each proved *ground* goal triple to a
+      6-item tuple:
+        - truth maintenance graph (the SIP collection and PML graph
+          for the solution)
+        - the ordered list of adorned rules referenced / compiled by
+          the meta-interpreter
+        - the meta-interpretation network
+        - an RDF graph of inferred statements from the network
+        - the proof object
+        - the goal literal
 
       Note that for hybrid predicates the ground goal uses the ``_derived`` suffixed
       predicate the adornment machinery assigns to the IDB role.
@@ -432,7 +437,7 @@ def sparql_interlocution_basic_graph_pattern(
     #    has any solution via the same SIP join used for SELECT.
     _, parsed_query = parseQuery(query)
     if parsed_query.name not in ("SelectQuery", "AskQuery"):
-        raise NotImplementedError("CONSTRUCT/DESCRIBE not supported")
+        raise NotImplementedError("Only SELECT and ASK queries are supported")
 
     # 2. Flatten the WHERE clause into the BGP triple patterns to solve.
     _, triples = extract_triples_from_query(parsed_query, top_down_store.ns_bindings)
@@ -492,7 +497,7 @@ def sparql_interlocution_basic_graph_pattern(
     if ns_bindings:
         ns_binds.update(ns_bindings)
 
-    # We build a truth maintainance graph comprising:
+    # We build a truth maintenance graph comprising:
     # - A reification of each statement derived via entailment
     # - The (RDF) SIP representation of each SIP collection used to derive
     #   the entailment
@@ -537,6 +542,6 @@ def sparql_interlocution_basic_graph_pattern(
             meta_interp_network,
             inferred_facts,
             pf,
-            goal_lit
+            goal_lit,
         )
     return (sparql_result, proof_info)

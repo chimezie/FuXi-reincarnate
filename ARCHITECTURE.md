@@ -102,7 +102,7 @@ The thesis also describes methods for using hash tables to improve efficiency of
 Instances of the fuxi.Rete.ReteNetwork class are RETE-UL networks. So, to programmatically build a RETE-UL network, a developer would write: ```
 
 ```python
-from rdflib.Graph import Graph
+from rdflib.graph import Graph
 from fuxi.Rete.RuleStore import setup_rule_store
 
 rule_store, rule_graph, network = setup_rule_store(additional_builtins=..., make_network=True) 
@@ -359,7 +359,7 @@ network.feed_facts_to_add(generateTokenSet(tBoxGraph))
 network.feed_facts_to_add(generateTokenSet(someRDFGraph1))
 network.reset()
 network.feed_facts_to_add(generateTokenSet(tBoxGraph))
-network.feed_facts_to_add(generateTokenSet(someRDFGraph2))..etc..
+network.feed_facts_to_add(generateTokenSet(someRDFGraph2))  # ... etc.
 ```
 
 Or, consider
@@ -376,7 +376,7 @@ directly:
 
 ```python
 from fuxi.Horn.HornRules import horn_from_dl
-from rdflib.Graph import Graph
+from rdflib.graph import Graph
 from rdflib.util import first
 
 first(

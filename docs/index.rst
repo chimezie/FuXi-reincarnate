@@ -29,6 +29,7 @@ Contents:
    FuXi
    FuXiUserManual
    Installation_Testing
+   Quickstart
    Tutorial
    FuXiSemantics
    InfixOwl
@@ -62,7 +63,7 @@ fuxi.Rete
 An implementation of most of the RETE-UL algorithms outlined in the PhD thesis (1995) of Robert Doorenbos: *Production Matching for Large Learning Systems*.  See
 `fuxi.Rete <http://code.google.com/p/fuxi/wiki/FuXiUserManual#FuXi_.Rete>`_ in manual for how to use SetupRuleStore to create an ReteNetwork.
 
-.. autofunction:: fuxi.Rete.RuleStore.SetupRuleStore
+.. autofunction:: fuxi.Rete.RuleStore.setup_rule_store
 .. autoclass:: fuxi.Rete.Network.ReteNetwork
     :members:
     :undoc-members:
@@ -74,9 +75,9 @@ FuXi includes an API that was originally implemented as a reference implementati
 Pythonic API for managing an abstract Logic Programming syntax. It includes functions used for creating rulesets converted from OWL RDF expressions and creating
 a Horn ruleset from a parsed Notation 3 graph:
 
-.. autofunction:: fuxi.Horn.HornRules.HornFromN3
-.. autofunction:: fuxi.Horn.HornRules.HornFromDL
-.. autofunction:: fuxi.Horn.HornRules.NetworkFromN3
+.. autofunction:: fuxi.Horn.HornRules.horn_from_n3
+.. autofunction:: fuxi.Horn.HornRules.horn_from_dl
+.. autofunction:: fuxi.Horn.HornRules.network_from_n3
 
 Below are the various classes and functions that comprise this API
 
@@ -91,7 +92,7 @@ fuxi.Rete.Magic
 This module is where the `Sideways Information Passing <http://code.google.com/p/fuxi/wiki/Overview#Sideways_Information_Passing>`_ 
 reasoning capabilities are implemented. 
 
-.. autofunction:: fuxi.Rete.Magic.MagicSetTransformation
+.. autofunction:: fuxi.Rete.Magic.magic_set_transformation
 
 fuxi.SPARQL
 ===========

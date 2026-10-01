@@ -127,50 +127,45 @@ class TopDownSPARQLEntailingStore(Store):
     def is_a_base_query(self, query_string, query_obj=None):
         """
         If the given SPARQL query involves purely base predicates
-        it returns it (as a parsed string), otherwise it returns a SPARQL algebra
-        instance for top-down evaluation using this store
+        it returns the parsed query, otherwise it returns the SPARQL algebra
+        for top-down evaluation using this store.
 
-        >>> graph=Graph()
-        >>> topDownStore = TopDownSPARQLEntailingStore(graph.store,graph)
-        >>> rt=topDownStore.is_a_base_query("SELECT * { [] rdfs:seeAlso [] }")
-        >>> isinstance(rt,(BasicGraphPattern, AlgebraExpression))
+        >>> from rdflib import RDFS
+        >>> from rdflib.plugins.sparql.parserutils import CompValue
+        >>> from pyparsing import ParseResults
+        >>> graph = Graph()
+        >>> store = TopDownSPARQLEntailingStore(
+        ...     graph.store, graph, derived_predicates=[RDFS.seeAlso]
+        ... )
+        >>> rt = store.is_a_base_query("SELECT * { [] rdfs:seeAlso [] }")
+        >>> isinstance(rt, CompValue)
         True
-        >>> rt=topDownStore.is_a_base_query("SELECT * { [] a [] }")
-        >>> isinstance(rt,(Query, str)) #doctest: +SKIP
-        True
-        >>> rt=topDownStore.is_a_base_query("SELECT * { [] a [] OPTIONAL { [] rdfs:seeAlso [] } }")
-        >>> isinstance(rt,(BasicGraphPattern, AlgebraExpression))
+        >>> rt = store.is_a_base_query("SELECT * { ?s ?p ?o }")
+        >>> isinstance(rt, ParseResults)
         True
         """
-        from rdflib.graph import Graph
-        from rdflib.namespace import NamespaceManager
-        from rdflib.plugins.sparql.sparql import Prologue
+        from rdflib import RDF as _RDF
+        from rdflib import RDFS as _RDFS
         from rdflib.plugins.sparql.parser import parseQuery
-        from rdflib.plugins.sparql import sparql as sparqlModule
+        from rdflib.plugins.sparql.parserutils import CompValue as _CompValue
 
         if query_obj is not None:
-            query = query_obj
+            parsed = query_obj
         else:
-            query = parseQuery(query_string)
+            parsed = parseQuery(query_string)
 
-        prologue = getattr(query, "prologue", None)
-        if prologue is None:
-            prologue = Prologue()
-            query.prologue = prologue
-        if not getattr(prologue, "namespace_manager", None):
-            prologue.namespace_manager = NamespaceManager(Graph())
-        for prefix, ns_inst in list(self.ns_bindings.items()):
-            prologue.namespace_manager.bind(prefix, ns_inst, override=False)
+        init_ns = {"rdf": _RDF, "rdfs": _RDFS}
+        init_ns.update(self.ns_bindings or {})
 
-        sparqlModule.prologue = prologue
-        if hasattr(query, "algebra") and query.algebra is not None:
-            algebra = query.algebra
-        else:
-            algebra = translateQuery(query, init_ns=self.ns_bindings).algebra
+        # Note: pyparsing ParseResults returns '' for missing attributes,
+        # so check the type rather than None.
+        algebra = getattr(parsed, "algebra", None)
+        if not isinstance(algebra, _CompValue):
+            algebra = translateQuery(parsed, initNs=init_ns).algebra
 
-        return (
-            first(self.get_derived_predicates(algebra, prologue)) and algebra or query
-        )
+        if first(self.get_derived_predicates(algebra, None)) is not None:
+            return algebra
+        return parsed
 
     def __init__(
         self,

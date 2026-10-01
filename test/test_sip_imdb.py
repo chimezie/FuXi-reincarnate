@@ -7,8 +7,9 @@
 
 from io import StringIO
 
-from fuxi.SPARQL.utilities import owl_entailment_regime_graph
 from rdflib import RDFS, Graph, Namespace, URIRef, Variable
+
+from fuxi.SPARQL.utilities import owl_entailment_regime_graph
 
 IMDB = Namespace("https://www.imdb.com/")
 OWL_NS = Namespace("http://www.w3.org/2002/07/owl#")
@@ -121,6 +122,7 @@ def test_sip_graph_arcs_for_derived_body_literal():
     by the earlier ``imdb:principal(?movie ?principal2)`` literal and the
     binding must reach ``Movie`` for the lookup to be constrained.
     """
+    from rdflib import RDF
     from rdflib.collection import Collection
     from rdflib.util import first
 
@@ -135,7 +137,6 @@ def test_sip_graph_arcs_for_derived_body_literal():
         iter_condition,
         sip_representation,
     )
-    from rdflib import RDF
 
     rules = list(horn_from_n3(StringIO(RULES)))
     target_rule = first(

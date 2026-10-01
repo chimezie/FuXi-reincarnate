@@ -20,10 +20,11 @@ from __future__ import annotations
 
 from io import StringIO
 
+from rdflib import RDF, Graph, Namespace, Variable
+
 from fuxi.Horn.HornRules import horn_from_n3
 from fuxi.predicates import SPARQLPredicatePartitioner
 from fuxi.Rete.Magic import AdornedUniTerm
-from rdflib import RDF, Graph, Namespace, Variable
 
 # ---------------------------------------------------------------------------
 # Namespace & data constants

@@ -4,6 +4,7 @@ import sys
 import time
 import warnings
 
+from rdflib import URIRef
 from rdflib.graph import Graph
 from rdflib.namespace import NamespaceManager
 from rdflib.term import Identifier, Variable
@@ -23,7 +24,6 @@ from fuxi.Syntax.InfixOWL import (
     all_classes,
     all_properties,
 )
-from rdflib import URIRef
 
 
 def _render_proof_graph(
@@ -126,8 +126,9 @@ def _render_sip_collection(
 ) -> None:
     if result is None:
         raise SystemExit("--output=sip-collection-* requires --why --method=bfp")
-    from fuxi.Rete.SidewaysInformationPassing import MAGIC, render_sip_collection
     from rdflib import RDF
+
+    from fuxi.Rete.SidewaysInformationPassing import MAGIC, render_sip_collection
 
     img_format = "svg" if fmt == OutputFormat.SIP_COLLECTION_SVG else "png"
     store = result.top_down_store

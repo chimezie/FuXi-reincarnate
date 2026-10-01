@@ -5,7 +5,6 @@ These tests require the owlapy package for OWL class expression conversions.
 """
 
 import pytest
-
 from rdflib import Graph, Namespace
 
 try:

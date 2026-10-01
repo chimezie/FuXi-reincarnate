@@ -11,6 +11,7 @@ These tests verify:
 """
 
 import pytest
+from rdflib import Graph, Namespace
 from rdflib.util import first
 
 from fuxi.DLP import SKOLEMIZED_CLASS_NS
@@ -25,7 +26,6 @@ from fuxi.Syntax.InfixOWL import (
     some,
     value,
 )
-from rdflib import Graph, Namespace
 
 
 @pytest.fixture

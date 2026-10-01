@@ -39,10 +39,10 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from rdflib import RDF, RDFS, Graph, Literal, Namespace, Variable
 
 from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
 from fuxi.SPARQL.service import _SelectResult
-from rdflib import RDF, RDFS, Graph, Literal, Namespace, Variable
 
 pytestmark = pytest.mark.integration
 

@@ -1,6 +1,7 @@
 from io import StringIO
 
 import pytest
+from rdflib import RDF, BNode, Graph, Literal, Namespace, Variable
 from rdflib.graph import Dataset, QuotedGraph, ReadOnlyGraphAggregate
 
 from fuxi.Horn.HornRules import (
@@ -28,7 +29,6 @@ from fuxi.Rete.RuleStore import (
 from fuxi.Rete.RuleStore import (
     Rule as StoreRule,
 )
-from rdflib import RDF, BNode, Graph, Literal, Namespace, Variable
 
 EX = Namespace("http://example.org/")
 

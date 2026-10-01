@@ -5,10 +5,10 @@ https://github.com/RDFLib/FuXi/issues/8
 from io import StringIO
 
 import pytest
+from rdflib import Graph, Namespace
 
 from fuxi.Horn.HornRules import horn_from_n3
 from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
-from rdflib import Graph, Namespace
 
 rules = """\
 @prefix : <http://dev.w3.org/2000/10/swap/test/cwm/fam.n3#>.

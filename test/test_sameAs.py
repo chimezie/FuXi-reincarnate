@@ -1,13 +1,13 @@
 from io import StringIO
 
 import pytest
+from rdflib import Namespace, Variable
 from rdflib.graph import Graph
 
 from fuxi.Horn.HornRules import horn_from_n3
 from fuxi.Rete.RuleStore import setup_rule_store
 from fuxi.SPARQL.BackwardChainingStore import TopDownSPARQLEntailingStore
 from fuxi.Syntax.InfixOWL import OWL_NS
-from rdflib import Namespace, Variable
 
 EX = Namespace("http://example.org/")
 

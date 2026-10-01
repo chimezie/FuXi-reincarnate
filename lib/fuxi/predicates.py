@@ -1,8 +1,7 @@
 from abc import ABC
 
-from rdflib.term import Identifier
-
 from rdflib import Graph, URIRef
+from rdflib.term import Identifier
 
 from .DLP.ConditionalAxioms import additional_rules
 from .Horn.HornRules import Rule

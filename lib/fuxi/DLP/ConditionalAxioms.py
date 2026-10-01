@@ -72,9 +72,10 @@ def additional_rules(t_box):
     """
     from io import StringIO
 
+    from rdflib import RDF
+
     from fuxi.Horn.HornRules import horn_from_n3
     from fuxi.Syntax.InfixOWL import OWL_NS
-    from rdflib import RDF
 
     rule_src = set()
     add_list_semantics = False

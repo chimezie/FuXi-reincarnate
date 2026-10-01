@@ -1,3 +1,5 @@
+from rdflib import RDF, RDFS, Graph, Literal, Namespace
+
 from fuxi.Syntax.InfixOWL import (
     IAO_NS,
     OWL_NS,
@@ -7,7 +9,6 @@ from fuxi.Syntax.InfixOWL import (
     Property,
     declare_common_annotations_fn,
 )
-from rdflib import RDF, RDFS, Graph, Literal, Namespace
 
 
 def test_infixowl_annotations_add_set_get():

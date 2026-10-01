@@ -5,12 +5,12 @@ These tests verify that skolem terms are not incorrectly applied to union classe
 """
 
 import pytest
+from rdflib import Graph, Namespace
 
 from fuxi.DLP import SKOLEMIZED_CLASS_NS
 from fuxi.Rete.Network import ReteNetwork
 from fuxi.Rete.RuleStore import setup_rule_store
 from fuxi.Syntax.InfixOWL import OWL_NS, BooleanClass, Class, Individual
-from rdflib import Graph, Namespace
 
 EX = Namespace("http://example.com#")
 

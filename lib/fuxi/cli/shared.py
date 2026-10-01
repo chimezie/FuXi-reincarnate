@@ -9,6 +9,7 @@ import sys
 import time
 from typing import TYPE_CHECKING
 
+from rdflib import RDF, Namespace, URIRef
 from rdflib.graph import Graph
 from rdflib.namespace import NamespaceManager
 from rdflib.plugins.sparql.parser import parseQuery
@@ -27,7 +28,6 @@ from fuxi.SPARQL.utilities import (
 from fuxi.Syntax.InfixOWL import (
     OWL_NS,
 )
-from rdflib import RDF, Namespace, URIRef
 
 if TYPE_CHECKING:
     from fuxi.Rete.Network import ReteNetwork

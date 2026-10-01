@@ -4,8 +4,9 @@ query using the modern ``extract_triples_from_query`` utility (which
 replaced the removed ``_normalize_sparql_parse`` helper).
 """
 
-from fuxi.cli.shared import _extract_goals
 from rdflib import Namespace
+
+from fuxi.cli.shared import _extract_goals
 
 EX = Namespace("http://example.org/")
 

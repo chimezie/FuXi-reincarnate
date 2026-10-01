@@ -8,12 +8,12 @@ when rules are built from N3.
 from io import StringIO
 
 import pytest
+from rdflib import Dataset, Literal, Namespace, URIRef, Variable
 
 from fuxi.Horn.HornRules import network_from_n3
 from fuxi.Rete.BuiltinPredicates import STRING_NS
 from fuxi.Rete.RuleStore import setup_rule_store
 from fuxi.Rete.Util import generate_token_set
-from rdflib import Dataset, Literal, Namespace, URIRef, Variable
 
 TEST_NS = Namespace("http://example.org/test#")
 LOG = Namespace("http://www.w3.org/2000/10/swap/log#")

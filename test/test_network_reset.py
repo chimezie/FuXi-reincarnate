@@ -1,5 +1,6 @@
-from fuxi.Rete.RuleStore import setup_rule_store
 from rdflib import Graph
+
+from fuxi.Rete.RuleStore import setup_rule_store
 
 # fix for bug in reset method which didn't initialise
 # network.inferredFacts properly if the provided graph

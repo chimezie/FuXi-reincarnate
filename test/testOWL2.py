@@ -2,6 +2,7 @@ import io
 from io import StringIO
 
 import pytest
+from rdflib import RDF, RDFS, XSD, BNode, Namespace, Variable
 from rdflib.graph import Graph
 from rdflib.namespace import NamespaceManager
 
@@ -11,7 +12,6 @@ from fuxi.LP.BackwardFixpointProcedure import BFP_NS, BFP_RULE
 from fuxi.SPARQL import EDBQuery
 from fuxi.SPARQL.utilities import owl_entailment_regime_graph
 from fuxi.Syntax.InfixOWL import nsBinds
-from rdflib import RDF, RDFS, XSD, BNode, Namespace, Variable
 
 from .conftest import (
     OwlTestOptions,
